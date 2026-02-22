@@ -1,5 +1,7 @@
 // components/BackendTest.tsx
 import React, { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { SimpleLineChart } from "@/components/restaurant/SimpleLineChart";
 
 export function BackendTest() {
@@ -11,27 +13,30 @@ export function BackendTest() {
   async function handleConnect() {
     setLoading(true);
     setResponse(null);
+
     try {
-      const res = await fetch("https://maricela-eruditional-nonexpediently.ngrok-free.dev/ai-prompt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: text }), // matches payload: str = Body(...)
-      });
+      const res = await fetch(
+        "https://maricela-eruditional-nonexpediently.ngrok-free.dev/ai-prompt",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: text }),
+        }
+      );
 
       if (!res.ok) {
         const msg = await res.text();
         throw new Error(msg || `HTTP ${res.status}`);
       }
 
-      const data = await res.json(); // e.g. { result: "..." }
-      
+      const data = await res.json();
+
       if (data.x && data.y) {
         setChartData(null);
-        setResponse(`AI says: ${data.answer}`);
+        setResponse(data.answer); // store raw markdown
       } else {
-        setResponse(`Backend says: ${JSON.stringify(data)}`);
+        setResponse(JSON.stringify(data, null, 2));
       }
-
     } catch (err: any) {
       setResponse(`Error: ${err.message || "Request failed"}`);
     } finally {
@@ -40,41 +45,41 @@ export function BackendTest() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Text input */}
-      <div>
-        <textarea
-          placeholder="Backend Test"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={4} // default visible lines
-          className="w-full text-sm rounded-xl border border-border bg-background/40 px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-muted resize-y"
-        />
-      </div>
+      <textarea
+        placeholder="Backend Test"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={4}
+        className="w-full text-sm rounded-xl border border-border bg-background/40 px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-muted resize-y"
+      />
 
       {/* Button */}
-      <div>
-        <button
-          type="button"
-          onClick={handleConnect}
-          disabled={loading || !text}
-          className="w-full rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-muted/30 disabled:opacity-50"
-        >
-          {loading ? "Connecting..." : "Connect To Backend →"}
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={handleConnect}
+        disabled={loading || !text}
+        className="w-full rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-muted/30 disabled:opacity-50"
+      >
+        {loading ? "Connecting..." : "Connect To Backend →"}
+      </button>
 
-      {/* Result */}
+      {/* Render Markdown Properly */}
       {response && (
-        <p className="text-xl text-muted-foreground">
-          {response}
-        </p>
+        <div className="prose prose-sm dark:prose-invert max-w-none rounded-xl border border-border bg-card/40 p-4">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {response}
+          </ReactMarkdown>
+        </div>
       )}
-      {/* {chartData && (
+
+      {/* Optional Chart */}
+      {chartData && (
         <div className="mt-3">
           <SimpleLineChart x={chartData.x} y={chartData.y} />
         </div>
-      )} */}
+      )}
     </div>
   );
 }

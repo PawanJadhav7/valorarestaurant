@@ -141,42 +141,17 @@ export default function RestaurantOverviewPage() {
     return () => window.clearInterval(id);
   }, [fetchStatus]);
 
-  // ---- Shared "alive" background wrapper (same as your good page) ----
-  const Background = (
-    <div
-      aria-hidden
-      className="fixed inset-0 -z-10"
-      style={{
-        background:
-          "radial-gradient(circle at 20% 10%, rgba(59,130,246,0.35), transparent 45%)," +
-          "radial-gradient(circle at 80% 30%, rgba(236,72,153,0.25), transparent 50%)," +
-          "radial-gradient(circle at 40% 90%, rgba(34,197,94,0.20), transparent 55%)," +
-          "linear-gradient(180deg, rgba(0,0,0,0.04), transparent 40%)",
-      }}
-    />
-  );
-
-  if (loading) {
-    return (
-      <div className="relative">
-        {Background}
-        <Skeleton />
-      </div>
-    );
-  }
+  if (loading) return <Skeleton />;
 
   if (err) {
     return (
-      <div className="relative">
-        {Background}
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <div className="text-sm font-semibold text-foreground">Restaurant Overview</div>
-          <div className="mt-2 text-sm text-danger">{err}</div>
-          <div className="mt-3">
-            <Link href="/restaurant/data" className="text-sm font-semibold text-foreground hover:underline">
-              Go to Data →
-            </Link>
-          </div>
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="text-sm font-semibold text-foreground">Restaurant Overview</div>
+        <div className="mt-2 text-sm text-danger">{err}</div>
+        <div className="mt-3">
+          <Link href="/restaurant/data" className="text-sm font-semibold text-foreground hover:underline">
+            Go to Data →
+          </Link>
         </div>
       </div>
     );
@@ -185,9 +160,7 @@ export default function RestaurantOverviewPage() {
   // ----- EMPTY STATE -----
   if (!data) {
     return (
-      <div className="relative space-y-4">
-        {Background}
-
+      <div className="space-y-4">
         <RestaurantTopBar
           title="Restaurant KPIs"
           subtitle="Executive dashboard for Profit, Growth, and Ops. Start with CSV (1–2 days), then connect Toast."
@@ -275,9 +248,7 @@ export default function RestaurantOverviewPage() {
   const remaining = kpis.filter((k) => !used.has(k.code));
 
   return (
-    <div className="relative space-y-4">
-      {Background}
-
+    <div className="space-y-4">
       <RestaurantTopBar
         title="Restaurant KPIs"
         subtitle={
@@ -349,54 +320,6 @@ export default function RestaurantOverviewPage() {
           </div>
         </SectionCard>
       ) : null}
-
-      {/* <SectionCard title="Next steps" subtitle="Once CSV ingestion is stable, we turn on AI narratives + driver analysis.">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Card className="rounded-2xl">
-            <CardContent className="p-4">
-              <div className="text-sm font-semibold text-foreground">AI Insights</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                Convert KPI changes into “why it happened” and “what to do next” (menu, staffing, promos, waste).
-              </div>
-              <div className="mt-3">
-                <Link href="/restaurant/insights" className="text-sm font-semibold text-foreground hover:underline">
-                  Open AI Insights →
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl">
-            <CardContent className="p-4">
-              <div className="text-sm font-semibold text-foreground">Multi-location</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                MVP supports multi-location. Add a selector once location_id is consistently ingested.
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl">
-            <CardContent className="p-4">
-              <div className="text-sm font-semibold text-foreground">Toast integration</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                Testing connectivity to Toast’s API for real-time data sync. This is sample UI; actual integration may differ.
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl md:col-span-3">
-            <CardContent className="p-4 space-y-3">
-              <div>
-                <div className="text-sm font-semibold text-foreground">Backend connectivity (temporary)</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  Test a backend POST and visualize a response. Remove once Toast connector is real.
-                </div>
-              </div>
-              <BackendTest />
-            </CardContent>
-          </Card>
-        </div>
-      </SectionCard> */}
-    </div>
+      </div>
   );
 }
