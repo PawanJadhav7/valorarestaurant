@@ -31,12 +31,28 @@ export function BackendTest() {
 
       const data = await res.json();
 
-      if (data.x && data.y) {
-        setChartData(null);
-        setResponse(data.answer); // store raw markdown
-      } else {
-        setResponse(JSON.stringify(data, null, 2));
+      // Prefer the markdown answer string if it exists
+      const md =
+        typeof data?.answer === "string"
+          ? data.answer
+          : typeof data?.result === "string"
+            ? data.result
+            : null;
+
+      if (data?.x && data?.y) {
+        setChartData({ x: data.x, y: data.y });
       }
+
+      // If we got markdown, render it; otherwise show pretty JSON
+      if (md) {
+        // Normalize escaped newlines if backend returns them as "\\n"
+        const normalized = md.replace(/\\n/g, "\n");
+        setResponse(normalized);
+      } else {
+        setResponse("Backend says:\n\n```json\n" + JSON.stringify(data, null, 2) + "\n```");
+      }
+
+
     } catch (err: any) {
       setResponse(`Error: ${err.message || "Request failed"}`);
     } finally {
