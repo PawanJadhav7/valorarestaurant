@@ -250,15 +250,15 @@ function SidebarNav({
 function SidebarFooter() {
   return (
     <div className="mt-5 rounded-2xl border border-border/20 bg-background/15 p-3">
-      <div className="text-xs font-semibold text-foreground">Next</div>
-      <div className="mt-1 text-xs text-muted-foreground">
+      {/* <div className="text-xs font-semibold text-foreground">Next</div> */}
+      {/* <div className="mt-1 text-xs text-muted-foreground">
         Upload CSV → validate mapping → compute KPIs. Toast connector after MVP.
-      </div>
-      <div className="mt-2">
+      </div> */}
+      {/* <div className="mt-2">
         <Link href="/restaurant/data" className="text-xs font-semibold text-foreground hover:underline">
           Open Data setup →
         </Link>
-      </div>
+      </div> */}
     </div>
   );
 }
