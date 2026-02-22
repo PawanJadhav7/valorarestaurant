@@ -1,10 +1,10 @@
 // app/api/restaurant/overview/route.ts
 import { NextResponse } from "next/server";
 import pg from "pg";
-import { Card, CardContent } from "@/components/ui/card";
-import { PageHeader } from "@/components/valora/PageHeader";
-import { SectionCard } from "@/components/valora/SectionCard";
-import { KpiTile } from "@/components/restaurant/KpiTile";
+// import { Card, CardContent } from "@/components/ui/card";
+// import { PageHeader } from "@/components/valora/PageHeader";
+// import { SectionCard } from "@/components/valora/SectionCard";
+// import { KpiTile } from "@/components/restaurant/KpiTile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
