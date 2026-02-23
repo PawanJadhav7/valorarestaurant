@@ -78,11 +78,11 @@ body,
 .glass,
 [data-theme] * {
   transition:
-    background-color 250ms ease,
-    color 250ms ease,
-    border-color 250ms ease,
-    box-shadow 250ms ease,
-    opacity 250ms ease;
+    background-color 200ms ease,
+    color 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    opacity 200ms ease;
 }
 
 /* =========================
