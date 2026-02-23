@@ -60,7 +60,7 @@ function sevPill(sev: Severity) {
 }
 
 function MiniSparkline({ values }: { values?: number[] }) {
-  const w = 70;
+  const w = 88;
   const h = 28;
   const pad = 2;
 
@@ -113,7 +113,7 @@ export function RestaurantKpiTile({ kpi, series }: { kpi: Kpi; series?: number[]
         </div>
 
         {/* RIGHT */}
-        <div className="flex-shrink-0 w-[140px] flex flex-col items-end gap-2">
+        <div className="flex-shrink-0 w-[210px] flex flex-col items-end gap-2">
           <span
             className={[
               "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium tracking-wide",
