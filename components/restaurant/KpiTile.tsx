@@ -87,46 +87,154 @@ function MiniSparkline({ values }: { values?: number[] }) {
   );
 }
 
+// export function RestaurantKpiTile({ kpi, series }: { kpi: Kpi; series?: number[] }) {
+//   const sev: Severity = kpi.severity ?? "good";
+
+//   return (
+//     <Glass className="p-4">
+//       <div className="flex items-start justify-between gap-3">
+//         {/* LEFT */}
+//         <div className="min-w-0 flex-1">
+//           <div className="text-xs text-muted-foreground">{kpi.label}</div>
+
+//           <div className="mt-1 flex items-baseline gap-2 min-w-0">
+//             <div className="text-2xl font-semibold text-foreground whitespace-nowrap">
+//               {fmt(kpi.unit, kpi.value)}
+//             </div>
+
+//             <div className="text-xs text-muted-foreground whitespace-nowrap">
+//               {fmtDelta(kpi.unit, kpi.delta) ?? "—"}
+//             </div>
+//           </div>
+
+//           {/* {kpi.hint ? (
+//             <div className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{kpi.hint}</div>
+//           ) : null} */}
+//         </div>
+
+//         {/* RIGHT */}
+//         <div className="flex-shrink-0 w-[150px] flex flex-col items-end gap-2">
+//           <span
+//             className={[
+//               "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium tracking-wide",
+//               sevPill(sev),
+//             ].join(" ")}
+//           >
+//             {sev === "good" ? "GOOD" : sev === "warn" ? "MODERATE" : "SEVERE"}
+//           </span>
+
+//           {/* {Array.isArray(series) && series.length >= 2 ? (
+//             <MiniSparkline values={series} />
+//           ) : (
+//             <div className="h-7 w-[120px] rounded bg-muted/30" />
+//           )} */}
+//         </div>
+//       </div>
+//     </Glass>
+//   );
+// }
+
+// export function RestaurantKpiTile({ kpi, series }: { kpi: Kpi; series?: number[] }) {
+//   const sev = kpi.severity ?? "good";
+
+//   return (
+//     <Glass className="p-4">
+//       {/* 2-column layout: LEFT content + RIGHT rail */}
+//       <div className="grid grid-cols-[1fr_150px] items-center gap-3">
+//         {/* LEFT */}
+//         <div className="min-w-0">
+//           <div className="text-xs text-muted-foreground whitespace-nowrap">
+//             {kpi.label}
+//           </div>
+
+//           <div className="mt-1 flex items-baseline gap-2 min-w-0">
+//             <div className="text-2xl font-semibold text-foreground whitespace-nowrap">
+//               {fmt(kpi.unit, kpi.value)}
+//             </div>
+
+//             <div className="text-xs text-muted-foreground whitespace-nowrap">
+//               {fmtDelta(kpi.unit, kpi.delta) ?? "—"}
+//             </div>
+//           </div>
+
+//           {kpi.hint ? (
+//             <div className="mt-1 text-[11px] text-muted-foreground line-clamp-2">
+//               {kpi.hint}
+//             </div>
+//           ) : null}
+//         </div>
+
+//         {/* RIGHT (vertically centered vs LEFT) */}
+//         <div className="flex items-center justify-end pr-2">
+//           <div className="flex flex-col items-end gap-2">
+//             <span
+//               className={[
+//                 "inline-flex items-center rounded-full border px-2 py-[3px] text-[11px] font-medium tracking-wide",
+//                 sevPill(sev),
+//               ].join(" ")}
+//             >
+//               {sev === "good" ? "GOOD" : sev === "warn" ? "MODERATE" : "SEVERE"}
+//             </span>
+
+//             {Array.isArray(series) && series.length >= 2 ? (
+//               <MiniSparkline values={series} />
+//             ) : (
+//               <div className="h-7 w-[96px] rounded bg-muted/30" />
+//             )}
+//           </div>
+//         </div>
+//       </div>
+//     </Glass>
+//   );
+// }
+
 export function RestaurantKpiTile({ kpi, series }: { kpi: Kpi; series?: number[] }) {
-  const sev: Severity = kpi.severity ?? "good";
+  const sev = kpi.severity ?? "good";
 
   return (
     <Glass className="p-4">
-      <div className="flex items-start justify-between gap-3">
-        {/* LEFT */}
-        <div className="min-w-0 flex-1">
-          <div className="text-xs text-muted-foreground">{kpi.label}</div>
-
-          <div className="mt-1 flex items-baseline gap-2 min-w-0">
-            <div className="text-2xl font-semibold text-foreground whitespace-nowrap">
-              {fmt(kpi.unit, kpi.value)}
-            </div>
-
-            <div className="text-xs text-muted-foreground whitespace-nowrap">
-              {fmtDelta(kpi.unit, kpi.delta) ?? "—"}
-            </div>
-          </div>
-
-          {kpi.hint ? (
-            <div className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{kpi.hint}</div>
-          ) : null}
+      {/* 2-column grid */}
+      <div className="grid grid-cols-[1fr_150px] gap-x-3 gap-y-1">
+        
+        {/* ROW 1 — Label */}
+        <div className="col-span-2 text-xs text-muted-foreground whitespace-nowrap">
+          {kpi.label}
         </div>
 
-        {/* RIGHT */}
-        <div className="flex-shrink-0 w-[210px] flex flex-col items-end gap-2">
+        {/* ROW 2 — Value + Delta (LEFT) */}
+        <div className="flex items-baseline gap-2 min-w-0">
+          <div className="text-2xl font-semibold text-foreground whitespace-nowrap">
+            {fmt(kpi.unit, kpi.value)}
+          </div>
+
+          <div className="text-xs text-muted-foreground whitespace-nowrap">
+            {fmtDelta(kpi.unit, kpi.delta) ?? "—"}
+          </div>
+        </div>
+
+        {/* ROW 2 — Badge (RIGHT, baseline aligned) */}
+        <div className="flex items-baseline justify-end pr-2">
           <span
             className={[
-              "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium tracking-wide",
+              "inline-flex items-center rounded-full border px-2 py-[3px] text-[11px] font-medium tracking-wide",
               sevPill(sev),
             ].join(" ")}
           >
             {sev === "good" ? "GOOD" : sev === "warn" ? "MODERATE" : "SEVERE"}
           </span>
+        </div>
 
+        {/* ROW 3 — Hint (LEFT) */}
+        <div className="text-[11px] text-muted-foreground line-clamp-2">
+          {kpi.hint ?? ""}
+        </div>
+
+        {/* ROW 3 — Sparkline (RIGHT, under badge) */}
+        <div className="flex justify-end pr-2">
           {Array.isArray(series) && series.length >= 2 ? (
             <MiniSparkline values={series} />
           ) : (
-            <div className="h-7 w-[120px] rounded bg-muted/30" />
+            <div className="h-7 w-[96px] rounded bg-muted/30" />
           )}
         </div>
       </div>

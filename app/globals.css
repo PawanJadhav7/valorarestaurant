@@ -36,6 +36,28 @@
   --radius: 18px;
 }
 
+/* ✅ System dark only when NOT explicitly overridden */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --background: 2 6 23;
+    --foreground: 226 232 240;
+    --card: 15 23 42;
+    --border: 51 65 85;
+
+    --muted: 30 41 59;
+    --muted-foreground: 148 163 184;
+    --ring: 100 116 139;
+
+    --glass-bg: 15 23 42;
+    --glass-alpha: 0.55;
+    --glass-border: 255 255 255;
+    --glass-border-alpha: 0.14;
+
+    --shadow: 0 0 0;
+    --shadow-alpha: 0.35;
+  }
+}
+
 /* Dark theme */
   :root[data-theme="dark"] {
   --background: 2 6 23;
