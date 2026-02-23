@@ -1,9 +1,18 @@
-// lib/db.ts
-import pg from "pg";
-const { Pool } = pg;
+import { Pool } from "pg";
 
+const globalForPg = global as unknown as {
+  pgPool: Pool | undefined;
+};
 
-const DATABASE_URL = process.env.DATABASE_URL;
-if (!DATABASE_URL) throw new Error("Missing DATABASE_URL");
+export const pool =
+  globalForPg.pgPool ??
+  new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false,
+    },
+  });
 
-export const pool = new Pool({ connectionString: DATABASE_URL });
+if (process.env.NODE_ENV !== "production") {
+  globalForPg.pgPool = pool;
+}

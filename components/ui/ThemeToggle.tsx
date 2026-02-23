@@ -9,6 +9,7 @@ export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
+
   if (!mounted) return null;
 
   const isDark = resolvedTheme === "dark";
@@ -16,12 +17,13 @@ export function ThemeToggle() {
   return (
     <button
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="glass p-2 rounded-full hover:scale-105 transition-all duration-200 backdrop-blur-xl"
+      className="glass rounded-xl border border-border/30 bg-background/30 p-2 shadow-sm transition hover:bg-background/40"
+      aria-label="Toggle theme"
     >
       {isDark ? (
-        <Sun className="h-4 w-4 text-yellow-400" />
+        <Sun className="h-4 w-4 text-foreground" />
       ) : (
-        <Moon className="h-4 w-4 text-slate-700" />
+        <Moon className="h-4 w-4 text-foreground" />
       )}
     </button>
   );
