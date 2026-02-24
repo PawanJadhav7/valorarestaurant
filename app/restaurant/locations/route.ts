@@ -8,10 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const r = await pool.query(`
-      SELECT
-        location_id,
-        location_code,
-        name
+      SELECT location_id, location_code, name
       FROM restaurant.dim_location
       ORDER BY location_code ASC;
     `);

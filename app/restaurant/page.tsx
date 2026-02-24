@@ -6,15 +6,23 @@ import Link from "next/link";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionCard } from "@/components/valora/SectionCard";
-import { RestaurantTopBar } from "@/components/restaurant/RestaurantTopBar";
-import { BackendTest } from "./BackendTest";
+import { DataFreshnessPill } from "@/components/restaurant/DataFreshnessPill";
 
 import {
   RestaurantKpiTile,
   type Kpi as RestaurantKpi,
 } from "@/components/restaurant/KpiTile";
 
-type LocationOpt = { id: string; name: string; rows: number };
+/**
+ * FINAL FIXES IN THIS VERSION:
+ * 1) Header uses SectionCard styling (consistent with the rest of the page).
+ * 2) Header formatting is stacked lines (exact format requested).
+ * 3) Location dropdown uses stable {id,label} mapping from /api/restaurant/locations, deduped.
+ * 4) Location change triggers overview refetch (existing effect).
+ * 5) No hooks (useMemo/useEffect) are called after early returns (rules-of-hooks safe).
+ */
+
+type LocationOpt = { id: string; label: string };
 
 type DataStatus = {
   ok: boolean;
@@ -26,7 +34,8 @@ type DataStatus = {
 
 type OverviewApi = {
   ok: boolean;
-  as_of: string;
+  as_of: string | null;
+  refreshed_at?: string;
   location?: { id: string; name: string };
   kpis: RestaurantKpi[];
   series?: Record<string, number[]>;
@@ -71,21 +80,42 @@ export default function RestaurantOverviewPage() {
       setStatus(j);
     } catch (e: any) {
       if (e?.name !== "AbortError") {
-        // non-critical in MVP
+        // non-critical
       }
     }
   }, []);
 
+  // map /api/restaurant/locations response into stable {id,label}
   const fetchLocations = React.useCallback(async (signal?: AbortSignal) => {
     try {
       const r = await fetch("/api/restaurant/locations", { cache: "no-store", signal });
       if (!r.ok) return;
+
       const j = await r.json();
-      setLocations((j?.locations ?? []) as LocationOpt[]);
-    } catch (e: any) {
-      if (e?.name !== "AbortError") {
-        // non-critical in MVP
+      const raw = (j?.locations ?? []) as any[];
+
+      const mapped: LocationOpt[] = raw
+        .map((x) => {
+          const id = String(x.location_id ?? x.id ?? "");
+          const code = String(x.location_code ?? x.code ?? "");
+          const name = String(x.name ?? x.location_name ?? "");
+          const label = code ? `${code} — ${name || "Location"}` : name || "Location";
+          return { id, label };
+        })
+        .filter((x) => x.id);
+
+      // de-dupe by id
+      const seen = new Set<string>();
+      const uniq: LocationOpt[] = [];
+      for (const m of mapped) {
+        if (seen.has(m.id)) continue;
+        seen.add(m.id);
+        uniq.push(m);
       }
+
+      setLocations(uniq);
+    } catch (e: any) {
+      if (e?.name !== "AbortError") setLocations([]);
     }
   }, []);
 
@@ -157,18 +187,68 @@ export default function RestaurantOverviewPage() {
     );
   }
 
+  // ---- header computed values (safe for both empty + data state) ----
+  const asOfStr = data?.as_of ? new Date(data.as_of).toLocaleString() : "—";
+
+  const locationLabel =
+    locationId === "all"
+      ? "All Locations"
+      : locations.find((l) => l.id === locationId)?.label ??
+        data?.location?.name ??
+        "Location";
+
+  const refreshedStr = data?.refreshed_at ? new Date(data.refreshed_at).toLocaleString() : null;
+
+  // Replace ONLY the HeaderCard block in your current app/restaurant/page.tsx
+// (Everything else stays the same.)
+
+const HeaderCard = (
+  <SectionCard
+    title="Restaurant KPIs"
+    subtitle="Executive view for Profit, Growth, and Ops."
+  >
+    <div className="relative pt-2">
+      
+      {/* 🔹 Top-right location dropdown */}
+      <div className="absolute right-0 top-0">
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-muted-foreground">Location</label>
+          <select
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+          >
+            <option value="all">All Locations</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* 🔹 Stacked info (left aligned) */}
+      <div className="space-y-2 pr-[220px]">
+        <div className="text-sm text-muted-foreground">
+          As of:{" "}
+          <span className="font-medium text-foreground">{asOfStr}</span>
+        </div>
+
+        <div className="text-sm font-semibold text-foreground">
+          {locationLabel}
+        </div>
+      </div>
+
+    </div>
+  </SectionCard>
+);
+
   // ----- EMPTY STATE -----
   if (!data) {
     return (
       <div className="space-y-4">
-        <RestaurantTopBar
-          title="Restaurant KPIs"
-          subtitle="Executive dashboard for Profit, Growth, and Ops. Start with CSV (1–2 days), then connect Toast."
-          locations={locations}
-          locationId={locationId}
-          onLocationChange={setLocationId}
-          status={status}
-        />
+        {HeaderCard}
 
         <SectionCard title="Get started" subtitle="No restaurant data connected yet.">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -213,11 +293,10 @@ export default function RestaurantOverviewPage() {
   // ----- DATA STATE -----
   const kpis = data.kpis ?? [];
   const series = data.series ?? {};
-  const asOf = data.as_of ? new Date(data.as_of).toLocaleString() : "—";
-  const locationName = data.location?.name ?? "";
 
   const byCode = new Map(kpis.map((k) => [k.code, k]));
-  const pick = (codes: string[]) => codes.map((c) => byCode.get(c)).filter(Boolean) as RestaurantKpi[];
+  const pick = (codes: string[]) =>
+    codes.map((c) => byCode.get(c)).filter(Boolean) as RestaurantKpi[];
 
   const spotlight = pick([
     "REVENUE",
@@ -249,19 +328,7 @@ export default function RestaurantOverviewPage() {
 
   return (
     <div className="space-y-4">
-      <RestaurantTopBar
-        title="Restaurant KPIs"
-        subtitle={
-          <>
-            Executive view for Profit, Growth, and Ops. As of: {asOf}
-            {locationName ? ` • ${locationName}` : ""}
-          </>
-        }
-        locations={locations}
-        locationId={locationId}
-        onLocationChange={setLocationId}
-        status={status}
-      />
+      {HeaderCard}
 
       <SectionCard
         title="Executive spotlight"
@@ -320,6 +387,6 @@ export default function RestaurantOverviewPage() {
           </div>
         </SectionCard>
       ) : null}
-      </div>
+    </div>
   );
 }

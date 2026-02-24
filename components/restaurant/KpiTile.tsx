@@ -2,7 +2,6 @@
 "use client";
 
 import * as React from "react";
-import { Glass } from "@/components/ui/Glass";
 
 export type Severity = "good" | "warn" | "risk";
 export type Unit = "usd" | "pct" | "days" | "ratio" | "count";
@@ -17,126 +16,139 @@ export type Kpi = {
   hint?: string;
 };
 
-function fmt(unit: Unit, v: number | null) {
-  if (v === null || v === undefined || !Number.isFinite(v)) return "—";
-  if (unit === "usd") {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0,
-    }).format(v);
-  }
-  if (unit === "pct") return `${(v * 100).toFixed(1)}%`;
-  if (unit === "ratio") return `${v.toFixed(2)}×`;
-  if (unit === "days") return `${v.toFixed(1)}d`;
-  return new Intl.NumberFormat("en-US").format(v);
+function fmtUsd0(n: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
+}
+function fmtUsd2(n: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n);
+}
+function fmtPct2(n: number) {
+  return `${(n * 100).toFixed(2)}%`;
+}
+function fmtNumber(n: number) {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(n);
 }
 
-function fmtDelta(unit: Unit, d?: number | null) {
-  if (d === null || d === undefined || !Number.isFinite(d)) return null;
-  const sign = d > 0 ? "+" : "";
-  if (unit === "usd") {
-    return `${sign}${new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0,
-    }).format(d)}`;
+function sevBadge(sev: Severity | undefined) {
+  switch (sev) {
+    case "risk":
+      return "border-red-500/30 bg-red-500/10 text-red-200";
+    case "warn":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+    default:
+      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
   }
-  if (unit === "pct") return `${sign}${(d * 100).toFixed(1)} pp`;
-  if (unit === "ratio") return `${sign}${d.toFixed(2)}×`;
-  if (unit === "days") return `${sign}${d.toFixed(1)}d`;
-  return `${sign}${d}`;
 }
 
-function sevPill(sev: Severity) {
-  // Uses built-in Tailwind colors so you *will* see it.
-  if (sev === "risk") {
-    return "border-red-500/35 bg-red-500/12 text-red-600 dark:text-red-400";
+function cardBg(sev: Severity | undefined) {
+  switch (sev) {
+    case "risk":
+      return "border-red-500/20 bg-red-500/5";
+    case "warn":
+      return "border-amber-500/20 bg-amber-500/5";
+    default:
+      return "border-emerald-500/20 bg-emerald-500/5";
   }
-  if (sev === "warn") {
-    return "border-amber-400/40 bg-amber-400/12 text-amber-600 dark:text-amber-300";
-  }
-  return "border-emerald-500/35 bg-emerald-500/12 text-emerald-600 dark:text-emerald-400";
 }
 
-function MiniSparkline({ values }: { values?: number[] }) {
-  const w = 88;
-  const h = 28;
+function Sparkline({ values, height = 22 }: { values?: (number | null)[]; height?: number }) {
+  const w = 120;
+  const h = height;
   const pad = 2;
 
-  const safe = (values ?? []).filter((n) => Number.isFinite(n));
-  if (safe.length < 2) return <div className="h-7 w-[120px] rounded bg-muted/30" />;
+  const clean = (values ?? []).map((v) => (typeof v === "number" && Number.isFinite(v) ? v : null));
+  const nums = clean.filter((v): v is number => v !== null);
+  const min = nums.length ? Math.min(...nums) : 0;
+  const max = nums.length ? Math.max(...nums) : 1;
+  const span = max - min || 1;
 
-  const min = Math.min(...safe);
-  const max = Math.max(...safe);
+  const xStep = clean.length > 1 ? (w - pad * 2) / (clean.length - 1) : 0;
 
-  const x = (i: number) => (i * (w - 2 * pad)) / Math.max(1, safe.length - 1) + pad;
-  const y = (v: number) => {
-    const t = (v - min) / (max - min || 1);
-    return pad + (1 - t) * (h - 2 * pad);
-  };
+  const pts = clean.map((v, i) => {
+    const x = pad + i * xStep;
+    const y = v === null ? null : pad + (h - pad * 2) * (1 - (v - min) / span);
+    return { x, y };
+  });
 
-  const d = safe
-    .map((v, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`)
+  const d = pts
+    .map((p, i) => {
+      if (p.y === null) return "";
+      return `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+    })
+    .filter(Boolean)
     .join(" ");
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-7 w-[120px] text-muted-foreground">
-      <path d={d} fill="none" stroke="currentColor" strokeWidth="2.25" opacity="0.9" />
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-[22px] w-[120px] opacity-80">
+      {d ? <path d={d} fill="none" stroke="currentColor" strokeWidth="2" /> : null}
     </svg>
   );
 }
 
+function formatValue(kpi: Kpi): string {
+  if (kpi.value === null) return "—";
+
+  switch (kpi.unit) {
+    case "usd":
+      // use 0dp for big money, 2dp otherwise
+      return Math.abs(kpi.value) >= 1000 ? fmtUsd0(kpi.value) : fmtUsd2(kpi.value);
+    case "pct":
+      // overview API uses pct as 0..1 (your route converts DB 0..100 to 0..1)
+      return fmtPct2(kpi.value);
+    case "days":
+      return `${fmtNumber(kpi.value)} d`;
+    case "ratio":
+      return `${fmtNumber(kpi.value)}×`;
+    case "count":
+      return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(kpi.value);
+    default:
+      return fmtNumber(kpi.value);
+  }
+}
+
+function formatDelta(kpi: Kpi): string {
+  const d = kpi.delta;
+  if (d === null || d === undefined) return "—";
+  const sign = d > 0 ? "+" : "";
+
+  // For overview, you mostly have null deltas today, but keep compatible.
+  // If later you pass pct delta as fraction -> show %.
+  if (kpi.unit === "pct") return `${sign}${(d * 100).toFixed(2)} pp`;
+  return `${sign}${d.toFixed(2)}%`;
+}
+
 export function RestaurantKpiTile({ kpi, series }: { kpi: Kpi; series?: number[] }) {
   const sev = kpi.severity ?? "good";
+  const value = formatValue(kpi);
+  const deltaText = formatDelta(kpi);
+
+  // series is number[]; convert to nullable for sparkline safety
+  const spark = (series ?? []).map((x) => (Number.isFinite(Number(x)) ? Number(x) : null));
 
   return (
-    <Glass className="p-4">
-      {/* 2-column grid */}
-      <div className="grid grid-cols-[1fr_150px] gap-x-3 gap-y-1">
-        
-        {/* ROW 1 — Label */}
-        <div className="col-span-2 text-xs text-muted-foreground whitespace-nowrap">
-          {kpi.label}
+    <div className={`rounded-2xl border p-4 ${cardBg(sev)}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs text-muted-foreground">{kpi.label}</div>
+          <div className="mt-2 text-2xl font-semibold text-foreground">{value}</div>
         </div>
 
-        {/* ROW 2 — Value + Delta (LEFT) */}
-        <div className="flex items-baseline gap-2 min-w-0">
-          <div className="text-2xl font-semibold text-foreground whitespace-nowrap">
-            {fmt(kpi.unit, kpi.value)}
-          </div>
-
-          <div className="text-xs text-muted-foreground whitespace-nowrap">
-            {fmtDelta(kpi.unit, kpi.delta) ?? "—"}
-          </div>
-        </div>
-
-        {/* ROW 2 — Badge (RIGHT, baseline aligned) */}
-        <div className="flex items-baseline justify-end pr-2">
-          <span
-            className={[
-              "inline-flex items-center rounded-full border px-2 py-[3px] text-[11px] font-medium tracking-wide",
-              sevPill(sev),
-            ].join(" ")}
-          >
-            {sev === "good" ? "GOOD" : sev === "warn" ? "MODERATE" : "SEVERE"}
-          </span>
-        </div>
-
-        {/* ROW 3 — Hint (LEFT) */}
-        <div className="text-[11px] text-muted-foreground line-clamp-2">
-          {kpi.hint ?? ""}
-        </div>
-
-        {/* ROW 3 — Sparkline (RIGHT, under badge) */}
-        <div className="flex justify-end pr-2">
-          {Array.isArray(series) && series.length >= 2 ? (
-            <MiniSparkline values={series} />
-          ) : (
-            <div className="h-7 w-[96px] rounded bg-muted/30" />
-          )}
+        <div className={`shrink-0 rounded-xl border px-2 py-1 text-[11px] ${sevBadge(sev)}`}>
+          {sev}
         </div>
       </div>
-    </Glass>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="text-xs text-muted-foreground line-clamp-2">{kpi.hint ?? ""}</div>
+        <div className="text-xs font-medium text-foreground">{deltaText}</div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between">
+        <div className="text-[11px] text-muted-foreground">trend</div>
+        <div className="text-foreground">
+          <Sparkline values={spark} />
+        </div>
+      </div>
+    </div>
   );
 }

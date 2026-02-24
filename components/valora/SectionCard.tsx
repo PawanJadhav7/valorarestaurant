@@ -4,7 +4,7 @@
 import * as React from "react";
 
 type Props = {
-  title: string;
+  title: React.ReactNode; // ✅ was string
   subtitle?: React.ReactNode;
   right?: React.ReactNode;
   children: React.ReactNode;
@@ -26,6 +26,7 @@ export function SectionCard({ title, subtitle, right, children, className = "" }
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
+          {/* ✅ title can now be string OR JSX */}
           <div className="text-sm font-semibold text-foreground">{title}</div>
           {subtitle ? <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div> : null}
         </div>

@@ -1,66 +1,348 @@
-import { Glass } from "@/components/ui/Glass";
-import { GlassButton } from "@/components/ui/GlassButton";
-import { RestaurantKpiTile } from "@/components/restaurant/KpiTile";
+// app/restaurant/page.tsx
+"use client";
 
-export default function Home() {
+import * as React from "react";
+import Link from "next/link";
+
+import { Card, CardContent } from "@/components/ui/card";
+import { SectionCard } from "@/components/valora/SectionCard";
+import { RestaurantTopBar, type LocationOpt as TopBarLocationOpt } from "@/components/restaurant/RestaurantTopBar";
+
+import {
+  RestaurantKpiTile,
+  type Kpi as RestaurantKpi,
+} from "@/components/restaurant/KpiTile";
+
+type DataStatus = {
+  ok: boolean;
+  latest_day: string | null;
+  last_ingested_at: string | null;
+  rows_24h: string;
+  last_source_file: string | null;
+};
+
+type OverviewApi = {
+  ok: boolean;
+  as_of: string | null;
+  refreshed_at?: string;
+  location?: { id: string; name: string };
+  kpis: RestaurantKpi[];
+  series?: Record<string, number[]>;
+  notes?: string;
+};
+
+function Skeleton() {
   return (
-    <main className="min-h-screen p-8">
-      {/* Background that makes glass look “alive” */}
-      <div
-        aria-hidden
-        className="fixed inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(circle at 20% 10%, rgba(59,130,246,0.35), transparent 45%)," +
-            "radial-gradient(circle at 80% 30%, rgba(236,72,153,0.25), transparent 50%)," +
-            "radial-gradient(circle at 40% 90%, rgba(34,197,94,0.20), transparent 55%)," +
-            "linear-gradient(180deg, rgba(0,0,0,0.04), transparent 40%)",
-        }}
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="h-6 w-56 rounded bg-muted/40" />
+        <div className="mt-2 h-4 w-96 rounded bg-muted/30" />
+      </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="rounded-2xl border border-border bg-card p-4">
+            <div className="h-3 w-32 rounded bg-muted/40" />
+            <div className="mt-3 h-7 w-40 rounded bg-muted/30" />
+            <div className="mt-3 h-7 w-[120px] rounded bg-muted/30" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function RestaurantOverviewPage() {
+  const [loading, setLoading] = React.useState(true);
+  const [err, setErr] = React.useState<string | null>(null);
+
+  const [data, setData] = React.useState<OverviewApi | null>(null);
+  const [status, setStatus] = React.useState<DataStatus | null>(null);
+
+  const [locations, setLocations] = React.useState<TopBarLocationOpt[]>([]);
+  const [locationId, setLocationId] = React.useState<string>("all");
+
+  const fetchStatus = React.useCallback(async (signal?: AbortSignal) => {
+    try {
+      const r = await fetch("/api/restaurant/data-status", { cache: "no-store", signal });
+      if (!r.ok) return;
+      const j = (await r.json()) as DataStatus;
+      setStatus(j);
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        // non-critical in MVP
+      }
+    }
+  }, []);
+
+  const fetchLocations = React.useCallback(async (signal?: AbortSignal) => {
+    try {
+      const r = await fetch("/api/restaurant/locations", { cache: "no-store", signal });
+      if (!r.ok) return;
+
+      const j = await r.json();
+      const raw = (j?.locations ?? []) as any[];
+
+      // Normalize backend rows -> TopBar LocationOpt
+      const mapped: TopBarLocationOpt[] = raw
+        .map((x, idx) => {
+          const id = String(x.location_id ?? x.id ?? "");
+          if (!id) return null;
+
+          const code = String(x.location_code ?? x.code ?? "");
+          const name = String(x.name ?? "Location");
+
+          return {
+            id,
+            name,
+            location_code: code,
+            rows: Number(x.rows ?? 0) || 0,
+          };
+        })
+        .filter(Boolean) as TopBarLocationOpt[];
+
+      setLocations(mapped);
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        // non-critical in MVP
+      }
+    }
+  }, []);
+
+  const fetchOverview = React.useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setErr(null);
+
+      try {
+        const qs = locationId !== "all" ? `?location_id=${encodeURIComponent(locationId)}` : "";
+        const res = await fetch(`/api/restaurant/overview${qs}`, { cache: "no-store", signal });
+
+        if (res.status === 404) {
+          setData(null);
+          return;
+        }
+
+        if (!res.ok) throw new Error(`Restaurant overview HTTP ${res.status}`);
+        const json = (await res.json()) as OverviewApi;
+
+        if (!Array.isArray((json as any).kpis)) {
+          throw new Error("Invalid API: kpis must be an array");
+        }
+
+        setData(json);
+      } catch (e: any) {
+        if (e?.name !== "AbortError") setErr(e?.message ?? "Failed to load restaurant overview");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [locationId]
+  );
+
+  // Mount: status + locations
+  React.useEffect(() => {
+    const ac = new AbortController();
+    fetchStatus(ac.signal);
+    fetchLocations(ac.signal);
+    return () => ac.abort();
+  }, [fetchStatus, fetchLocations]);
+
+  // Location change: overview
+  React.useEffect(() => {
+    const ac = new AbortController();
+    fetchOverview(ac.signal);
+    return () => ac.abort();
+  }, [fetchOverview]);
+
+  // Optional: refresh status every 60s
+  React.useEffect(() => {
+    const id = window.setInterval(() => fetchStatus(), 60_000);
+    return () => window.clearInterval(id);
+  }, [fetchStatus]);
+
+  if (loading) return <Skeleton />;
+
+  if (err) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="text-sm font-semibold text-foreground">Restaurant Overview</div>
+        <div className="mt-2 text-sm text-danger">{err}</div>
+        <div className="mt-3">
+          <Link href="/restaurant/data" className="text-sm font-semibold text-foreground hover:underline">
+            Go to Data →
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ----- EMPTY STATE -----
+  if (!data) {
+    return (
+      <div className="space-y-4">
+        <RestaurantTopBar
+          title="Restaurant KPIs"
+          subtitle="Executive dashboard for Profit, Growth, and Ops. Start with CSV (1–2 days), then connect Toast."
+          locations={locations}
+          locationId={locationId}
+          onLocationChange={setLocationId}
+          status={status}
+        />
+
+        <SectionCard title="Get started" subtitle="No restaurant data connected yet.">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Card className="rounded-2xl">
+              <CardContent className="p-4">
+                <div className="text-sm font-semibold text-foreground">1) Upload CSV</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Add sales, labor, and inventory extracts. We’ll normalize into the restaurant model.
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl">
+              <CardContent className="p-4">
+                <div className="text-sm font-semibold text-foreground">2) Validate & map</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Map columns (location, day, revenue, COGS, labor, fixed costs) and confirm KPI readiness.
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl">
+              <CardContent className="p-4">
+                <div className="text-sm font-semibold text-foreground">3) Toast connector</div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  After CSV MVP, connect Toast for continuous ingestion + automated refresh.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="mt-4">
+            <Link href="/restaurant/data" className="text-sm font-semibold text-foreground hover:underline">
+              Open Data setup →
+            </Link>
+          </div>
+        </SectionCard>
+      </div>
+    );
+  }
+
+  // ----- DATA STATE -----
+  const kpis = data.kpis ?? [];
+  const series = data.series ?? {};
+  const asOf = data.as_of ? new Date(data.as_of).toLocaleString() : "—";
+  const locationLabel =
+    locationId === "all"
+      ? "All locations"
+      : (() => {
+          const hit = locations.find((l) => l.id === locationId);
+          return hit ? (hit.location_code ? `${hit.location_code} — ${hit.name}` : hit.name) : "Location";
+        })();
+
+  const byCode = new Map(kpis.map((k) => [k.code, k]));
+  const pick = (codes: string[]) => codes.map((c) => byCode.get(c)).filter(Boolean) as RestaurantKpi[];
+
+  const spotlight = pick([
+    "REVENUE",
+    "GROSS_MARGIN",
+    "FOOD_COST_RATIO",
+    "LABOR_COST_RATIO",
+    "PRIME_COST_RATIO",
+    "SAFETY_MARGIN",
+    "BREAK_EVEN_REVENUE",
+    "CASH_CONVERSION_CYCLE",
+  ]);
+
+  const profitCost = pick([
+    "COGS",
+    "GROSS_PROFIT",
+    "FIXED_COSTS",
+    "FIXED_COST_COVERAGE_RATIO",
+    "DAYS_INVENTORY_ON_HAND",
+    "AR_DAYS",
+    "AP_DAYS",
+  ]);
+
+  const growth = pick(["ORDERS", "ARPU", "CUSTOMER_CHURN", "CAC"]);
+  const leverage = pick(["EBIT", "INTEREST_EXPENSE", "INTEREST_COVERAGE_RATIO"]);
+
+  const used = new Set([...spotlight, ...profitCost, ...growth, ...leverage].map((k) => k.code));
+  const remaining = kpis.filter((k) => !used.has(k.code));
+
+  return (
+    <div className="space-y-4">
+      <RestaurantTopBar
+        title="Restaurant KPIs"
+        subtitle={
+          <>
+            Executive view for Profit, Growth, and Ops. As of: {asOf} • {locationLabel}
+          </>
+        }
+        locations={locations}
+        locationId={locationId}
+        onLocationChange={setLocationId}
+        status={status}
       />
 
-      <div className="mx-auto max-w-5xl space-y-6">
-        
-        <Glass className="p-6">
-          
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h1 className="text-xl font-semibold">Valora AI</h1>
-              <p className="text-sm opacity-80">
-                Glass material (blur + vibrancy) with light/dark support.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <GlassButton>Primary Hello</GlassButton>
-              <GlassButton className="opacity-90">Secondary</GlassButton>
-            </div>
-          </div>
-        </Glass>
+      <SectionCard
+        title="Executive spotlight"
+        subtitle="High-signal KPIs tied to Menu Pricing Power, Inflation, Efficiency, Inventory health, and Cash cycle."
+      >
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {spotlight.map((k) => (
+            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+          ))}
+        </div>
+      </SectionCard>
 
-        <div className="grid gap-4 md:grid-cols-3">KpiTile
-          
-          <Glass className="p-5">
-            <div className="text-sm opacity-80">MRR</div>
-            <div className="text-2xl font-semibold">$128,400</div>
-          </Glass>
-          <Glass className="p-5">
-            <div className="text-sm opacity-80">Gross Margin</div>
-            <div className="text-2xl font-semibold">68.2%</div>
-          </Glass>
-          <Glass className="p-5">
-            <div className="text-sm opacity-80">Churn</div>
-            <div className="text-2xl font-semibold">1.4%</div>
-          </Glass>
+      <SectionCard
+        title="Profit & cost structure"
+        subtitle="Unit economics and break-even coverage (prime cost, fixed cost coverage, safety margin)."
+      >
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {profitCost.map((k) => (
+            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+          ))}
         </div>
 
-        <Glass className="p-6">
-          <h2 className="text-lg font-semibold">Notes</h2>
-          <p className="mt-2 text-sm opacity-80">
-            Use glass sparingly in dashboards: top nav, sidebars, modals. Keep
-            dense tables more opaque for readability.
-          </p>
-        </Glass>
-      </div>
-      
-    </main>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href="/restaurant/costs" className="text-sm font-semibold text-foreground hover:underline">
+            Go deeper: Costs →
+          </Link>
+          <span className="text-muted-foreground">•</span>
+          <Link href="/restaurant/profit" className="text-sm font-semibold text-foreground hover:underline">
+            Go deeper: Profit →
+          </Link>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Growth" subtitle="Demand, customer retention, acquisition efficiency.">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {growth.map((k) => (
+            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Leverage & credit" subtitle="Debt servicing capacity and interest stress.">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {leverage.map((k) => (
+            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+          ))}
+        </div>
+      </SectionCard>
+
+      {remaining.length ? (
+        <SectionCard title="Additional KPIs" subtitle="Automatically shown when new KPIs are added to the API.">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {remaining.map((k) => (
+              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
+    </div>
   );
 }
