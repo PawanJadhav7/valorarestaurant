@@ -620,69 +620,75 @@ export function SalesClient() {
   }, [locations]);
 
   const load = React.useCallback(async () => {
-    setLoading(true);
+  setLoading(true);
 
+  try {
+    const sp = new URLSearchParams();
+    sp.set("window", windowCode);
+    if (asOf.trim()) sp.set("as_of", asOf.trim());
+    if (locationId !== "all") sp.set("location_id", locationId);
+
+    const salesUrl = `/api/restaurant/sales?${sp.toString()}`;
+    const histUrl = `/api/restaurant/sales/aov-histogram?${sp.toString()}&bucket_size=10&max_value=200`;
+
+    const [salesRes, histRes] = await Promise.all([
+      fetch(salesUrl, { cache: "no-store" }),
+      fetch(histUrl, { cache: "no-store" }),
+    ]);
+
+    // --- Sales is required ---
+    const salesText = await salesRes.text();
+    if (!salesRes.ok) {
+      throw new Error(`Sales API HTTP ${salesRes.status}. BodyPreview=${salesText.slice(0, 140)}`);
+    }
+
+    let salesJson: SalesResponse;
     try {
-      const sp = new URLSearchParams();
-      sp.set("window", windowCode);
-      if (asOf.trim()) sp.set("as_of", asOf.trim());
-      if (locationId !== "all") sp.set("location_id", locationId);
+      salesJson = JSON.parse(salesText);
+    } catch {
+      throw new Error(`Sales API returned non-JSON (${salesRes.status}). BodyPreview=${salesText.slice(0, 140)}`);
+    }
+    setData(salesJson);
 
-      const [salesRes, histRes] = await Promise.all([
-        fetch(`/api/restaurant/sales?${sp.toString()}`, { cache: "no-store" }),
-        fetch(`/api/restaurant/sales/aov-histogram?${sp.toString()}&bucket_size=10&max_value=200`, { cache: "no-store" }),
-      ]);
-
-      const salesText = await salesRes.text();
-      const histText = await histRes.text();
-
-      let salesJson: SalesResponse;
-      let histJson: any;
-
-      try {
-        salesJson = JSON.parse(salesText);
-      } catch {
-        throw new Error(
-          `Sales API returned non-JSON (${salesRes.status}). ` +
-            `URL=/api/restaurant/sales?${sp.toString()} ` +
-            `BodyPreview=${salesText.slice(0, 120)}`
-        );
-      }
-
-      try {
-        histJson = JSON.parse(histText);
-      } catch {
-        throw new Error(
-          `Histogram API returned non-JSON (${histRes.status}). ` +
-            `URL=/api/restaurant/sales/aov-histogram?${sp.toString()} ` +
-            `BodyPreview=${histText.slice(0, 120)}`
-        );
-      }
-
-      setData(salesJson);
-
-      const bucketsRaw = (histJson?.buckets ?? []) as any[];
-      const buckets: AovBucket[] = bucketsRaw.map((b) => ({
-        bucket_from: Number(b.bucket_from),
-        bucket_to: Number(b.bucket_to),
-        orders: Number(b.orders),
-        share_pct: Number(b.share_pct),
-      }));
-      setAovBuckets(buckets);
-    } catch (e: any) {
-      setData({
-        ok: false,
-        as_of: null,
-        refreshed_at: new Date().toISOString(),
-        window: windowCode,
-        location: { id: "all", name: "All Locations" },
-        kpis: [],
-        series: { day: [], revenue: [], orders: [], aov: [], gross_margin_pct: [], discount_rate_pct: [] },
-        error: e?.message ?? String(e),
-      });
+    // --- Histogram is OPTIONAL ---
+    if (!histRes.ok) {
+      // 404 is common when the route isn’t deployed yet
       setAovBuckets([]);
+      return;
+    }
+
+    const histText = await histRes.text();
+    let histJson: any;
+    try {
+      histJson = JSON.parse(histText);
+    } catch {
+      // If it returns HTML or anything non-JSON, don't crash the page
+      setAovBuckets([]);
+      return;
+    }
+
+    const bucketsRaw = (histJson?.buckets ?? []) as any[];
+    const buckets: AovBucket[] = bucketsRaw.map((b) => ({
+      bucket_from: Number(b.bucket_from),
+      bucket_to: Number(b.bucket_to),
+      orders: Number(b.orders),
+      share_pct: Number(b.share_pct),
+    }));
+    setAovBuckets(buckets);
+  } catch (e: any) {
+    setData({
+      ok: false,
+      as_of: null,
+      refreshed_at: new Date().toISOString(),
+      window: windowCode,
+      location: { id: "all", name: "All Locations" },
+      kpis: [],
+      series: { day: [], revenue: [], orders: [], aov: [], gross_margin_pct: [], discount_rate_pct: [] },
+      error: e?.message ?? String(e),
+    });
+    setAovBuckets([]);
     } finally {
-      setLoading(false);
+    setLoading(false);
     }
   }, [windowCode, locationId, asOf]);
 

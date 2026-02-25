@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import * as React from "react";
 import { DataHealthDot } from "@/components/restaurant/DataHealthDot";
 
-// lucide icons
+// lucide icons (single import only)
 import {
   LayoutDashboard,
   TrendingUp,
@@ -13,6 +13,11 @@ import {
   ClipboardList,
   Database,
   Settings,
+  Users,
+  Boxes,
+  Bell,
+  LogOut,
+  ChevronRight,
 } from "lucide-react";
 
 type NavSection = "Executive" | "Operations" | "Admin";
@@ -28,7 +33,11 @@ const NAV: NavItem[] = [
   { label: "Sales", href: "/restaurant/sales", section: "Executive", icon: TrendingUp },
   { label: "Insights", href: "/restaurant/insights", section: "Executive", icon: Sparkles },
 
-  { label: "Ops", href: "/restaurant/ops", section: "Operations", icon: ClipboardList },
+  // Operations (MVP)
+  { label: "Ops Dashboard", href: "/restaurant/ops", section: "Operations", icon: ClipboardList },
+  { label: "Labor", href: "/restaurant/ops/labor", section: "Operations", icon: Users },
+  { label: "Inventory", href: "/restaurant/ops/inventory", section: "Operations", icon: Boxes },
+  { label: "Alerts", href: "/restaurant/ops/alerts", section: "Operations", icon: Bell },
   { label: "Data", href: "/restaurant/data", section: "Operations", icon: Database },
 
   { label: "Settings", href: "/restaurant/settings", section: "Admin", icon: Settings },
@@ -61,9 +70,7 @@ function itemCls(active: boolean) {
     "shadow-[0_4px_20px_rgba(0,0,0,0.05)]",
     "hover:bg-background/25 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:-translate-y-[1px]",
 
-    active
-      ? "text-foreground bg-background/30 border-border/20"
-      : "text-muted-foreground",
+    active ? "text-foreground bg-background/30 border-border/20" : "text-muted-foreground",
   ].join(" ");
 }
 
@@ -162,8 +169,8 @@ export function RestaurantSidebar() {
 
           <style jsx global>{`
             @keyframes slideIn {
-              from { transform: translateX(-10px); opacity: 0.0; }
-              to   { transform: translateX(0);     opacity: 1.0; }
+              from { transform: translateX(-10px); opacity: 0; }
+              to { transform: translateX(0); opacity: 1; }
             }
           `}</style>
         </div>
@@ -220,20 +227,18 @@ function SidebarNav({
                   <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
                     <span className="absolute -inset-[120%] rotate-12 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                   </span>
+
                   <LeftAccent active={active} />
 
                   <Icon
                     className={[
                       "h-4 w-4 transition-all duration-200",
-                      active
-                        ? "opacity-90 text-foreground"
-                        : "opacity-60 group-hover:opacity-80 group-hover:text-foreground",
+                      active ? "opacity-90 text-foreground" : "opacity-60 group-hover:opacity-80 group-hover:text-foreground",
                     ].join(" ")}
                   />
 
                   <span className="min-w-0 truncate">{n.label}</span>
 
-                  {/* subtle chevron only on hover */}
                   <span className="ml-auto text-xs text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100">
                     ›
                   </span>
@@ -248,17 +253,51 @@ function SidebarNav({
 }
 
 function SidebarFooter() {
+  const version = "v0.3.0";
+
   return (
-    <div className="mt-5 rounded-2xl border border-border/20 bg-background/15 p-3">
-      {/* <div className="text-xs font-semibold text-foreground">Next</div> */}
-      {/* <div className="mt-1 text-xs text-muted-foreground">
-        Upload CSV → validate mapping → compute KPIs. Toast connector after MVP.
-      </div> */}
-      {/* <div className="mt-2">
-        <Link href="/restaurant/data" className="text-xs font-semibold text-foreground hover:underline">
-          Open Data setup →
-        </Link>
-      </div> */}
+    <div className="mt-6">
+      <div
+        className={[
+          "glass rounded-2xl border border-border/10 bg-background/15 backdrop-blur-xl",
+          "shadow-[0_4px_20px_rgba(0,0,0,0.05)]",
+          "p-3",
+        ].join(" ")}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-foreground">Valora Restaurant</div>
+          </div>
+
+          <div className="shrink-0 rounded-xl border border-border/20 bg-background/20 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+            {version}
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = "/api/auth/logout";
+            }}
+            className={[
+              "group flex w-full items-center justify-between rounded-xl",
+              "border border-border/15 bg-background/10",
+              "px-3 py-2.5 text-sm text-foreground",
+              "transition-all duration-200",
+              "hover:bg-background/20 hover:-translate-y-[1px]",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+            ].join(" ")}
+          >
+            <span className="flex items-center gap-2">
+              <LogOut className="h-5 w-5 opacity-80" />
+              <span className="font-medium">Logout</span>
+            </span>
+
+            <ChevronRight className="h-5 w-5 text-muted-foreground/80 transition-transform duration-200 group-hover:translate-x-[2px]" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

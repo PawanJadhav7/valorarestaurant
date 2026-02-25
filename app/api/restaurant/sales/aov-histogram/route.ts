@@ -28,7 +28,11 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const asOf = parseAsOf(url.searchParams);
     const windowCode = parseWindow(url.searchParams);
-    const locationId = url.searchParams.get("location_id"); // optional uuid
+    const rawLoc = url.searchParams.get("location_id");
+    const locationId =
+    rawLoc && rawLoc !== "all" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(rawLoc)
+    ? rawLoc
+    : null;
 
     const bucketSize = toNum(url.searchParams.get("bucket_size")) ?? 10;
     const maxValue = toNum(url.searchParams.get("max_value")) ?? 200;
