@@ -1,9 +1,7 @@
 // app/restaurant/layout.tsx
 import type { ReactNode } from "react";
 import { RestaurantSidebar } from "@/components/restaurant/RestaurantSidebar";
-import { RequireSession } from "@/components/auth/RequireSession";
 import { RequireReady } from "@/components/auth/RequireReady";
-
 
 export default function RestaurantLayout({ children }: { children: ReactNode }) {
   return (

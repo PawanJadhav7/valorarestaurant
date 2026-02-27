@@ -2,26 +2,34 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { getSession } from "@/lib/sim/store";
 
 export function RequireSession({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [ok, setOk] = React.useState(false);
+  const [authorized, setAuthorized] = React.useState(false);
 
   React.useEffect(() => {
     const s = getSession();
+
     if (!s?.ok) {
       const next = encodeURIComponent(pathname || "/restaurant");
-      const demo = searchParams.get("demo");
-      router.replace(`/login?next=${next}${demo ? `&demo=${demo}` : ""}`);
+
+      let demo = "";
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        const d = sp.get("demo");
+        demo = d ? `&demo=${encodeURIComponent(d)}` : "";
+      } catch {}
+
+      router.replace(`/login?next=${next}${demo}`);
       return;
     }
-    setOk(true);
-  }, [router, pathname, searchParams]);
 
-  if (!ok) return null;
+    setAuthorized(true);
+  }, [router, pathname]);
+
+  if (!authorized) return null;
   return <>{children}</>;
 }
