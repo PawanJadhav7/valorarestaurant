@@ -1,4 +1,4 @@
-// app/restaurant/page.tsx
+// app/page.tsx
 "use client";
 
 import * as React from "react";
@@ -13,336 +13,196 @@ import {
   type Kpi as RestaurantKpi,
 } from "@/components/restaurant/KpiTile";
 
-type DataStatus = {
-  ok: boolean;
-  latest_day: string | null;
-  last_ingested_at: string | null;
-  rows_24h: string;
-  last_source_file: string | null;
-};
 
-type OverviewApi = {
-  ok: boolean;
-  as_of: string | null;
-  refreshed_at?: string;
-  location?: { id: string; name: string };
-  kpis: RestaurantKpi[];
-  series?: Record<string, number[]>;
-  notes?: string;
-};
-
-function Skeleton() {
+function Pill({ children }: { children: React.ReactNode }) {
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="h-6 w-56 rounded bg-muted/40" />
-        <div className="mt-2 h-4 w-96 rounded bg-muted/30" />
-      </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="rounded-2xl border border-border bg-card p-4">
-            <div className="h-3 w-32 rounded bg-muted/40" />
-            <div className="mt-3 h-7 w-40 rounded bg-muted/30" />
-            <div className="mt-3 h-7 w-[120px] rounded bg-muted/30" />
-          </div>
-        ))}
-      </div>
+    <span className="inline-flex items-center rounded-full border border-border bg-background/30 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+function GlassCard({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-background/30 p-5">
+      <div className="text-sm font-semibold text-foreground">{title}</div>
+      <div className="mt-2 text-sm text-muted-foreground">{children}</div>
     </div>
   );
 }
 
-export default function RestaurantOverviewPage() {
-  const [loading, setLoading] = React.useState(true);
-  const [err, setErr] = React.useState<string | null>(null);
-
-  const [data, setData] = React.useState<OverviewApi | null>(null);
-  const [status, setStatus] = React.useState<DataStatus | null>(null);
-
-  const [locations, setLocations] = React.useState<TopBarLocationOpt[]>([]);
-  const [locationId, setLocationId] = React.useState<string>("all");
-
-  const fetchStatus = React.useCallback(async (signal?: AbortSignal) => {
-    try {
-      const r = await fetch("/api/restaurant/data-status", { cache: "no-store", signal });
-      if (!r.ok) return;
-      const j = (await r.json()) as DataStatus;
-      setStatus(j);
-    } catch (e: any) {
-      if (e?.name !== "AbortError") {
-        // non-critical in MVP
-      }
-    }
-  }, []);
-
-  const fetchLocations = React.useCallback(async (signal?: AbortSignal) => {
-    try {
-      const r = await fetch("/api/restaurant/locations", { cache: "no-store", signal });
-      if (!r.ok) return;
-
-      const j = await r.json();
-      const raw = (j?.locations ?? []) as any[];
-
-      // Normalize backend rows -> TopBar LocationOpt
-      const mapped: TopBarLocationOpt[] = raw
-        .map((x, idx) => {
-          const id = String(x.location_id ?? x.id ?? "");
-          if (!id) return null;
-
-          const code = String(x.location_code ?? x.code ?? "");
-          const name = String(x.name ?? "Location");
-
-          return {
-            id,
-            name,
-            location_code: code,
-            rows: Number(x.rows ?? 0) || 0,
-          };
-        })
-        .filter(Boolean) as TopBarLocationOpt[];
-
-      setLocations(mapped);
-    } catch (e: any) {
-      if (e?.name !== "AbortError") {
-        // non-critical in MVP
-      }
-    }
-  }, []);
-
-  const fetchOverview = React.useCallback(
-    async (signal?: AbortSignal) => {
-      setLoading(true);
-      setErr(null);
-
-      try {
-        const qs = locationId !== "all" ? `?location_id=${encodeURIComponent(locationId)}` : "";
-        const res = await fetch(`/api/restaurant/overview${qs}`, { cache: "no-store", signal });
-
-        if (res.status === 404) {
-          setData(null);
-          return;
-        }
-
-        if (!res.ok) throw new Error(`Restaurant overview HTTP ${res.status}`);
-        const json = (await res.json()) as OverviewApi;
-
-        if (!Array.isArray((json as any).kpis)) {
-          throw new Error("Invalid API: kpis must be an array");
-        }
-
-        setData(json);
-      } catch (e: any) {
-        if (e?.name !== "AbortError") setErr(e?.message ?? "Failed to load restaurant overview");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [locationId]
-  );
-
-  // Mount: status + locations
-  React.useEffect(() => {
-    const ac = new AbortController();
-    fetchStatus(ac.signal);
-    fetchLocations(ac.signal);
-    return () => ac.abort();
-  }, [fetchStatus, fetchLocations]);
-
-  // Location change: overview
-  React.useEffect(() => {
-    const ac = new AbortController();
-    fetchOverview(ac.signal);
-    return () => ac.abort();
-  }, [fetchOverview]);
-
-  // Optional: refresh status every 60s
-  React.useEffect(() => {
-    const id = window.setInterval(() => fetchStatus(), 60_000);
-    return () => window.clearInterval(id);
-  }, [fetchStatus]);
-
-  if (loading) return <Skeleton />;
-
-  if (err) {
-    return (
-      <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="text-sm font-semibold text-foreground">Restaurant Overview</div>
-        <div className="mt-2 text-sm text-danger">{err}</div>
-        <div className="mt-3">
-          <Link href="/restaurant/data" className="text-sm font-semibold text-foreground hover:underline">
-            Go to Data →
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // ----- EMPTY STATE -----
-  if (!data) {
-    return (
-      <div className="space-y-4">
-        <RestaurantTopBar
-          title="Restaurant KPIs"
-          subtitle="Executive dashboard for Profit, Growth, and Ops. Start with CSV (1–2 days), then connect Toast."
-          locations={locations}
-          locationId={locationId}
-          onLocationChange={setLocationId}
-          status={status}
-        />
-
-        <SectionCard title="Get started" subtitle="No restaurant data connected yet.">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Card className="rounded-2xl">
-              <CardContent className="p-4">
-                <div className="text-sm font-semibold text-foreground">1) Upload CSV</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  Add sales, labor, and inventory extracts. We’ll normalize into the restaurant model.
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl">
-              <CardContent className="p-4">
-                <div className="text-sm font-semibold text-foreground">2) Validate & map</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  Map columns (location, day, revenue, COGS, labor, fixed costs) and confirm KPI readiness.
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl">
-              <CardContent className="p-4">
-                <div className="text-sm font-semibold text-foreground">3) Toast connector</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  After CSV MVP, connect Toast for continuous ingestion + automated refresh.
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="mt-4">
-            <Link href="/restaurant/data" className="text-sm font-semibold text-foreground hover:underline">
-              Open Data setup →
-            </Link>
-          </div>
-        </SectionCard>
-      </div>
-    );
-  }
-
-  // ----- DATA STATE -----
-  const kpis = data.kpis ?? [];
-  const series = data.series ?? {};
-  const asOf = data.as_of ? new Date(data.as_of).toLocaleString() : "—";
-  const locationLabel =
-    locationId === "all"
-      ? "All locations"
-      : (() => {
-          const hit = locations.find((l) => l.id === locationId);
-          return hit ? (hit.location_code ? `${hit.location_code} — ${hit.name}` : hit.name) : "Location";
-        })();
-
-  const byCode = new Map(kpis.map((k) => [k.code, k]));
-  const pick = (codes: string[]) => codes.map((c) => byCode.get(c)).filter(Boolean) as RestaurantKpi[];
-
-  const spotlight = pick([
-    "REVENUE",
-    "GROSS_MARGIN",
-    "FOOD_COST_RATIO",
-    "LABOR_COST_RATIO",
-    "PRIME_COST_RATIO",
-    "SAFETY_MARGIN",
-    "BREAK_EVEN_REVENUE",
-    "CASH_CONVERSION_CYCLE",
-  ]);
-
-  const profitCost = pick([
-    "COGS",
-    "GROSS_PROFIT",
-    "FIXED_COSTS",
-    "FIXED_COST_COVERAGE_RATIO",
-    "DAYS_INVENTORY_ON_HAND",
-    "AR_DAYS",
-    "AP_DAYS",
-  ]);
-
-  const growth = pick(["ORDERS", "ARPU", "CUSTOMER_CHURN", "CAC"]);
-  const leverage = pick(["EBIT", "INTEREST_EXPENSE", "INTEREST_COVERAGE_RATIO"]);
-
-  const used = new Set([...spotlight, ...profitCost, ...growth, ...leverage].map((k) => k.code));
-  const remaining = kpis.filter((k) => !used.has(k.code));
-
+function PrimaryCta({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-4">
-      <RestaurantTopBar
-        title="Restaurant KPIs"
-        subtitle={
-          <>
-            Executive view for Profit, Growth, and Ops. As of: {asOf} • {locationLabel}
-          </>
-        }
-        locations={locations}
-        locationId={locationId}
-        onLocationChange={setLocationId}
-        status={status}
-      />
+    <Link
+      href={href}
+      className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-foreground px-4 text-sm font-semibold text-background hover:opacity-90"
+    >
+      {children}
+    </Link>
+  );
+}
 
-      <SectionCard
-        title="Executive spotlight"
-        subtitle="High-signal KPIs tied to Menu Pricing Power, Inflation, Efficiency, Inventory health, and Cash cycle."
-      >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {spotlight.map((k) => (
-            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
-          ))}
-        </div>
-      </SectionCard>
+function SecondaryCta({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-background/30 px-4 text-sm font-semibold text-foreground hover:bg-muted/40"
+    >
+      {children}
+    </Link>
+  );
+}
 
-      <SectionCard
-        title="Profit & cost structure"
-        subtitle="Unit economics and break-even coverage (prime cost, fixed cost coverage, safety margin)."
-      >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {profitCost.map((k) => (
-            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
-          ))}
-        </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Link href="/restaurant/costs" className="text-sm font-semibold text-foreground hover:underline">
-            Go deeper: Costs →
-          </Link>
-          <span className="text-muted-foreground">•</span>
-          <Link href="/restaurant/profit" className="text-sm font-semibold text-foreground hover:underline">
-            Go deeper: Profit →
-          </Link>
-        </div>
-      </SectionCard>
+export default function HomePage() {
+    return (
+      <div className="mx-auto max-w-[1400px] px-4 py-6">
+      <div className="space-y-6">
+        {/* HERO */}
+        <SectionCard
+          title="Valora AI"
+          subtitle="Executive-grade performance intelligence — dashboards, drivers, and actions."
+        >
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+            <div>
+              <div className="flex flex-wrap gap-2">
+                <Pill>Ops Intelligence</Pill>
+                <Pill>Labor + Inventory</Pill>
+                <Pill>Multi-location ready</Pill>
+                <Pill>Executive UI</Pill>
+              </div>
 
-      <SectionCard title="Growth" subtitle="Demand, customer retention, acquisition efficiency.">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {growth.map((k) => (
-            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
-          ))}
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Leverage & credit" subtitle="Debt servicing capacity and interest stress.">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {leverage.map((k) => (
-            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
-          ))}
-        </div>
-      </SectionCard>
-
-      {remaining.length ? (
-        <SectionCard title="Additional KPIs" subtitle="Automatically shown when new KPIs are added to the API.">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {remaining.map((k) => (
-              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
-            ))}
+              <div className="mt-4 text-sm text-muted-foreground">
+                Valora AI turns daily business data into clear signals: <span className="text-foreground">what changed</span>,{" "}
+                <span className="text-foreground">why it changed</span>,{" "}
+                <span className="text-foreground">what’s risky</span>, and{" "}
+                <span className="text-foreground">what action to take next</span> — without drowning you in spreadsheets.
+              </div>
+            </div>
           </div>
         </SectionCard>
-      ) : null}
-    </div>
+
+        {/* WHAT IS THIS APP */}
+        <SectionCard title="What Valora AI does" subtitle="A practical operating system for daily performance.">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <GlassCard title="See the truth fast">
+              KPI tiles designed for executive scanning: coverage, ratios, and trend deltas that matter.
+            </GlassCard>
+            <GlassCard title="Explain the “why”">
+              Drivers ranked by impact with severity + rationale — not noisy dashboards.
+            </GlassCard>
+            <GlassCard title="Turn insight into action">
+              “Top 3” actions are operator-ready, with ownership and expected impact.
+            </GlassCard>
+          </div>
+        </SectionCard>
+
+       
+        {/* FEEDBACK */}
+        <SectionCard title="Customer feedback" subtitle="Early operator reactions (placeholder copy — we’ll replace with real quotes).">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <GlassCard title="“Finally, it’s clear.”">
+              “The drivers explain what happened without a 30-minute meeting.”
+            </GlassCard>
+            <GlassCard title="“Actionable in minutes.”">
+              “We can decide what to do next right after refresh.”
+            </GlassCard>
+            <GlassCard title="“Premium feel.”">
+              “Looks like an enterprise tool — not another spreadsheet app.”
+            </GlassCard>
+          </div>
+        </SectionCard>
+
+        {/* PRICING */}
+        {/* <SectionCard title="Payment plans" subtitle="Simple pricing that scales with locations.">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-border bg-background/30 p-5">
+              <div className="text-sm font-semibold text-foreground">Starter</div>
+              <div className="mt-1 text-3xl font-semibold text-foreground">$199</div>
+              <div className="text-xs text-muted-foreground">/month • 1 location</div>
+              <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+                <li>• Core KPIs + trends</li>
+                <li>• Drivers + top actions</li>
+                <li>• CSV upload onboarding</li>
+              </ul>
+              <Link href="/signup" className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-xl border border-border bg-background/30 text-sm font-semibold text-foreground hover:bg-muted/40">
+                Choose Starter
+              </Link>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-background/30 p-5">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-foreground">Growth</div>
+                <Pill>Most popular</Pill>
+              </div>
+              <div className="mt-1 text-3xl font-semibold text-foreground">$499</div>
+              <div className="text-xs text-muted-foreground">/month • up to 5 locations</div>
+              <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+                <li>• Multi-location rollups</li>
+                <li>• Alerts + exceptions</li>
+                <li>• Priority onboarding</li>
+              </ul>
+              <Link href="/signup" className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-xl border border-border bg-foreground text-sm font-semibold text-background hover:opacity-90">
+                Choose Growth
+              </Link>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-background/30 p-5">
+              <div className="text-sm font-semibold text-foreground">Enterprise</div>
+              <div className="mt-1 text-3xl font-semibold text-foreground">Custom</div>
+              <div className="text-xs text-muted-foreground">Multi-brand • advanced controls</div>
+              <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+                <li>• SSO + roles</li>
+                <li>• Data connectors</li>
+                <li>• SLA + support</li>
+              </ul>
+              <Link href="/contact" className="mt-4 inline-flex h-10 w-full items-center justify-center rounded-xl border border-border bg-background/30 text-sm font-semibold text-foreground hover:bg-muted/40">
+                Talk to sales
+              </Link>
+            </div>
+          </div>
+        </SectionCard> */}
+
+        {/* CONTACT */}
+        <SectionCard title="Contact" subtitle="Location + support details.">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-border bg-background/30 p-5">
+              <div className="text-sm font-semibold text-foreground">Office</div>
+              <div className="mt-2 text-sm text-muted-foreground">
+                Boston, MA (remote-first)
+              </div>
+              <div className="mt-3 text-sm text-muted-foreground">
+                Email: <span className="text-foreground">support@valora.ai</span>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-background/30 p-5">
+              <div className="text-sm font-semibold text-foreground">Ready to onboard?</div>
+              <div className="mt-2 text-sm text-muted-foreground">
+                Create an account, pick a plan, then upload your business data to generate your first executive dashboard.
+              </div>
+              <div className="mt-4 flex gap-2">
+                <Link href="/signup" className="h-10 flex-1 rounded-xl border border-border bg-foreground px-4 text-sm font-semibold text-background hover:opacity-90 inline-flex items-center justify-center">
+                  Sign up
+                </Link>
+                <Link href="/login" className="h-10 flex-1 rounded-xl border border-border bg-background/30 px-4 text-sm font-semibold text-foreground hover:bg-muted/40 inline-flex items-center justify-center">
+                  Login
+                </Link>
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+
+        <div className="pb-8 text-center text-xs text-muted-foreground">
+          © {new Date().getFullYear()} Valora AI. All rights reserved.
+        </div>
+      </div>
+      </div>
   );
 }

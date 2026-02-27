@@ -74,15 +74,56 @@ function parseUuid(sp: URLSearchParams, key: string): string | null {
   return t.length ? t : null;
 }
 
+function safeDivPct(numer: any, denom: any): number | null {
+  const n = Number(numer);
+  const d = Number(denom);
+  if (!Number.isFinite(n) || !Number.isFinite(d) || d <= 0) return null;
+  return (n / d) * 100;
+}
+
+function pickNum(row: any, keys: string[]): number | null {
+  for (const k of keys) {
+    const v = row?.[k];
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+function forwardFill(nums: (number | null)[]) {
+  let last: number | null = null;
+  return nums.map((v) => {
+    if (typeof v === "number" && Number.isFinite(v)) {
+      last = v;
+      return v;
+    }
+    return last; // keep last known
+  });
+}
+
+
 // ---------------- route ----------------
 export async function GET(req: Request) {
   const refreshedAt = new Date().toISOString();
 
   try {
     const url = new URL(req.url);
-    const asOf = parseAsOf(url.searchParams);
+    let asOf = parseAsOf(url.searchParams);
+
+    if (!asOf) {
+      const r = await pool.query(`
+        SELECT MAX(snapshot_date)::timestamptz AS as_of_ts
+        FROM restaurant.fact_inventory_item_on_hand_daily
+      `);
+      const ts = r.rows?.[0]?.as_of_ts;
+      asOf = ts ? new Date(ts).toISOString() : null;
+    }
     const windowCode = parseWindow(url.searchParams);
-    const locationId = parseUuid(url.searchParams, "location_id"); // optional UUID
+    const locRaw = url.searchParams.get("location_id");
+    const locationId =
+      !locRaw || locRaw.trim() === "" || locRaw.trim().toLowerCase() === "all"
+        ? null
+        : locRaw.trim();
 
     // params for "windowed" functions:
     // with as_of:    [$1=asOf, $2=windowCode, $3=locationId]
@@ -121,6 +162,8 @@ export async function GET(req: Request) {
       ? `SELECT * FROM analytics.get_inventory_category_mix($1::timestamptz, $2::text, $3::uuid);`
       : `SELECT * FROM analytics.get_inventory_category_mix(now(), $1::text, $2::uuid);`;
 
+    
+
     // ---------- queries ----------
     const [
       deltaRes,
@@ -140,6 +183,8 @@ export async function GET(req: Request) {
       pool.query(sqlCategoryMix, paramsWin),
     ]);
 
+    
+
     // ---------- rows ----------
     const k = deltaRes.rows?.[0] ?? null;
     const rows = seriesRes.rows ?? [];
@@ -156,6 +201,8 @@ export async function GET(req: Request) {
 
     // ✅ Exceptions & Alerts (currently inventory alerts only)
     const alerts = invAlerts;
+
+   
 
     // ---------- KPIs (preserve nulls) ----------
     const kpis: Kpi[] = k
@@ -262,6 +309,9 @@ export async function GET(req: Request) {
         ]
       : [];
 
+
+    
+
     // ---------- Step 2: dynamic thresholds + severity badges ----------
     // Top on-hand: use distribution-based cutoffs, with sane floors (so tiny datasets don't set silly cutoffs)
     const onhandVals = top_onhand_items
@@ -296,6 +346,9 @@ export async function GET(req: Request) {
     const catWarn = Math.max(15, percentile(catPcts, 0.75));
     const catRisk = Math.max(25, percentile(catPcts, 0.9));
 
+
+    
+
     const category_mix_badged = category_mix.map((r: any) => {
       const p = Number(r.pct_of_total ?? 0);
       const sev = sevFromThresholds(p, catWarn, catRisk);
@@ -312,17 +365,70 @@ export async function GET(req: Request) {
     });
 
     // ---------- series (charts: safe zero fallback) ----------
-    const series = {
-      day: rows.map((r) => String(r.day)),
-      revenue: rows.map((r) => toNumOrZero(r.revenue)),
-      labor_cost: rows.map((r) => toNumOrZero(r.labor_cost)),
-      labor_hours: rows.map((r) => toNumOrZero(r.labor_hours)),
-      labor_cost_ratio_pct: rows.map((r) => (r.labor_cost_ratio_pct === null ? null : Number(r.labor_cost_ratio_pct))),
-      sales_per_labor_hour: rows.map((r) => (r.sales_per_labor_hour === null ? null : Number(r.sales_per_labor_hour))),
-      inventory_value: rows.map((r) => toNumOrZero(r.inventory_value)),
-      cogs: rows.map((r) => toNumOrZero(r.cogs)),
-    };
+    // ---------- series (charts) ----------
+    const day = rows.map((r) => String(r.day));
 
+    // Preserve NULLs for charting (do NOT coerce to 0)
+    const revenue = rows.map((r) => (r.revenue === null ? null : Number(r.revenue)));
+    const labor_cost = rows.map((r) => (r.labor_cost === null ? null : Number(r.labor_cost)));
+    const labor_hours = rows.map((r) => (r.labor_hours === null ? null : Number(r.labor_hours)));
+    const inventory_value = rows.map((r) => (r.inventory_value === null ? null : Number(r.inventory_value)));
+    const cogs = rows.map((r) => (r.cogs === null ? null : Number(r.cogs)));
+
+    const overtime_hours = rows.map((r) => {
+      const n = Number((r as any).overtime_hours);
+      return Number.isFinite(n) ? n : null;
+    });
+
+    const waste_cost = rows.map((r) => {
+      const n = Number((r as any).waste_cost);
+      return Number.isFinite(n) ? n : null;
+    });
+
+    // Derived series your UI expects (all are percent values, not 0..1)
+    const LABOR_PCT = rows.map((r) => safeDivPct(r.labor_cost, r.revenue));
+
+    const SPLH = rows.map((r) => {
+      const rev = Number(r.revenue);
+      const hrs = Number(r.labor_hours);
+      if (!Number.isFinite(rev) || !Number.isFinite(hrs) || hrs <= 0) return null;
+      return rev / hrs;
+    });
+
+    // DIOH proxy = inventory_value / daily cogs
+    const DIOH = rows.map((r) => {
+      const inv = Number(r.inventory_value);
+      const dcogs = Number(r.cogs);
+      if (!Number.isFinite(inv) || !Number.isFinite(dcogs) || dcogs <= 0) return null;
+      return inv / dcogs;
+    });
+
+    const OVERTIME_PCT = rows.map((r) => safeDivPct((r as any).overtime_hours, r.labor_hours));
+    const WASTE_PCT = rows.map((r) => safeDivPct((r as any).waste_cost, r.revenue));
+
+    // If you want forward-fill, use it here; otherwise delete these lines.
+    // const OVERTIME_PCT = forwardFill(OVERTIME_PCT_RAW);
+    // const WASTE_PCT = forwardFill(WASTE_PCT_RAW);
+
+    const series = {
+      day,
+
+      // raw series
+      revenue,
+      labor_cost,
+      labor_hours,
+      overtime_hours,
+      waste_cost,
+      inventory_value,
+      cogs,
+
+      // keys UI expects
+      LABOR_PCT,
+      OVERTIME_PCT,
+      DIOH,
+      WASTE_PCT,
+      SPLH,
+    };
     return NextResponse.json(
       {
         ok: true,
@@ -368,6 +474,8 @@ export async function GET(req: Request) {
           merged_alerts_count: alerts.length,
           top_onhand_items_count: top_onhand_items.length,
           category_mix_count: category_mix.length,
+          series_sample_row: rows?.[0] ?? null,
+          series_sample_keys: rows?.[0] ? Object.keys(rows[0]) : [],
         },
       },
       { headers: { "Cache-Control": "no-store" } }

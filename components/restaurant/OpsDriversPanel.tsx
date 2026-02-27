@@ -7,19 +7,39 @@ import { SectionCard } from "@/components/valora/SectionCard";
 type Severity = "good" | "warn" | "risk";
 type Unit = "usd" | "pct" | "days" | "ratio" | "count" | "hours";
 
+/**
+ * NOTE:
+ * - Labor drivers (older schema) may send: contribution_pct, current, delta, rationale, next_steps
+ * - Inventory drivers (new schema) send: score, metric{value,delta,unit}, why, recommendation, kpi_code
+ * We accept both and normalize at render-time.
+ */
 export type OpsDriver = {
   id: string;
   domain: "labor" | "inventory";
   severity: Severity;
   title: string;
+
+  // old schema (labor)
   metric_code?: string;
   metric_label?: string;
   current?: number | null;
   unit?: Unit;
   delta?: number | null;
   contribution_pct?: number;
-  rationale: string;
-  next_steps: string[];
+  rationale?: string;
+  next_steps?: string[];
+
+  // new schema (inventory)
+  kpi_code?: string;
+  why?: string;
+  recommendation?: string;
+  score?: number;
+  impact?: number;
+  impact_score?: number;
+  metric?: { value?: number | null; delta?: number | null; unit?: Unit | string };
+
+  // allow extra
+  [key: string]: any;
 };
 
 function sevPill(sev: Severity) {
@@ -46,7 +66,12 @@ function sevDot(sev: Severity) {
 
 function fmtUnit(unit: Unit | undefined, v: number) {
   if (!unit) return v.toFixed(2);
-  if (unit === "usd") return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(v);
+  if (unit === "usd")
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(v);
   if (unit === "pct") return `${v.toFixed(1)}%`;
   if (unit === "days") return `${v.toFixed(1)}d`;
   if (unit === "hours") return `${v.toFixed(1)}h`;
@@ -64,6 +89,56 @@ function clampPct(x: number) {
   return Math.max(0, Math.min(100, x));
 }
 
+// ✅ This is the normalizer you need (now actually used)
+function driverImpactPct(d: any): number {
+  // Prefer explicit contribution_pct if present (old schema)
+  const contrib = Number(d?.contribution_pct);
+  if (Number.isFinite(contrib)) return clampPct(contrib);
+
+  // Otherwise use score/impact (new schema)
+  const raw = Number(d?.impact_score ?? d?.impact ?? d?.score);
+  if (!Number.isFinite(raw)) return 0;
+
+  // If backend sends 0..1, convert to percent
+  if (raw > 0 && raw <= 1) return Math.round(raw * 100);
+
+  // If backend sends 0..100, keep
+  if (raw > 1 && raw <= 100) return Math.round(raw);
+
+  // If backend sends 100+ (your scoring), clamp
+  return 100;
+}
+
+// Normalize value/delta/unit from either schema
+function driverMetric(d: OpsDriver): { current: number | null; delta: number | null; unit?: Unit } {
+  const mUnit = (d.metric?.unit as Unit | undefined) ?? d.unit;
+  const cur =
+    typeof d.current === "number"
+      ? d.current
+      : typeof d.metric?.value === "number"
+      ? d.metric.value
+      : null;
+
+  const del =
+    typeof d.delta === "number"
+      ? d.delta
+      : typeof d.metric?.delta === "number"
+      ? d.metric.delta
+      : null;
+
+  return { current: cur, delta: del, unit: mUnit };
+}
+
+function driverRationale(d: OpsDriver): string {
+  return String(d.rationale ?? d.why ?? "").trim();
+}
+
+function driverNextSteps(d: OpsDriver): string[] {
+  if (Array.isArray(d.next_steps) && d.next_steps.length) return d.next_steps;
+  const rec = String(d.recommendation ?? "").trim();
+  return rec ? [rec] : [];
+}
+
 export function OpsDriversPanel({
   laborDrivers,
   inventoryDrivers,
@@ -75,14 +150,18 @@ export function OpsDriversPanel({
 }) {
   const all = React.useMemo(() => {
     const merged = [...(laborDrivers ?? []), ...(inventoryDrivers ?? [])];
+
     const order = { risk: 0, warn: 1, good: 2 } as const;
     merged.sort((a, b) => {
       const oa = order[a.severity];
       const ob = order[b.severity];
       if (oa !== ob) return oa - ob;
-      return (b.contribution_pct ?? 0) - (a.contribution_pct ?? 0);
+
+      // ✅ Sort by normalized impact
+      return driverImpactPct(b) - driverImpactPct(a);
     });
-    return merged.slice(0, 8); // keep it executive-clean
+
+    return merged.slice(0, 8);
   }, [laborDrivers, inventoryDrivers]);
 
   return (
@@ -99,9 +178,10 @@ export function OpsDriversPanel({
       ) : all.length ? (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {all.map((d) => {
-            const pct = clampPct(Number(d.contribution_pct ?? 0));
-            const current = typeof d.current === "number" ? d.current : null;
-            const delta = typeof d.delta === "number" ? d.delta : null;
+            const pct = driverImpactPct(d);
+            const { current, delta, unit } = driverMetric(d);
+            const rationale = driverRationale(d);
+            const steps = driverNextSteps(d);
 
             return (
               <div key={d.id} className="rounded-2xl border border-border bg-background/30 p-4">
@@ -114,6 +194,7 @@ export function OpsDriversPanel({
                     <div className="mt-1 text-xs text-muted-foreground">
                       {d.domain === "labor" ? "Labor" : "Inventory"}
                       {d.metric_label ? <span> • {d.metric_label}</span> : null}
+                      {!d.metric_label && d.kpi_code ? <span> • {d.kpi_code}</span> : null}
                     </div>
                   </div>
 
@@ -131,32 +212,31 @@ export function OpsDriversPanel({
                   <div className="text-xs text-muted-foreground">
                     {current !== null ? (
                       <>
-                        Now: <span className="font-medium text-foreground">{fmtUnit(d.unit, current)}</span>
+                        Now: <span className="font-medium text-foreground">{fmtUnit(unit, current)}</span>
                       </>
                     ) : (
-                      <>Now: <span className="font-medium text-foreground">—</span></>
+                      <>
+                        Now: <span className="font-medium text-foreground">—</span>
+                      </>
                     )}
                     {delta !== null ? (
                       <>
-                        <span className="mx-2">•</span>
-                        Δ <span className="font-medium text-foreground">{fmtDelta(d.unit, delta)}</span>
+                        <span className="mx-2">•</span>Δ{" "}
+                        <span className="font-medium text-foreground">{fmtDelta(unit, delta)}</span>
                       </>
                     ) : null}
                   </div>
                 </div>
 
                 <div className="mt-2 h-2 w-full rounded-full bg-muted">
-                  <div
-                    className="h-2 rounded-full bg-foreground/70"
-                    style={{ width: `${pct}%` }}
-                  />
+                  <div className="h-2 rounded-full bg-foreground/70" style={{ width: `${pct}%` }} />
                 </div>
 
-                <div className="mt-3 text-xs text-muted-foreground">{d.rationale}</div>
+                {rationale ? <div className="mt-3 text-xs text-muted-foreground">{rationale}</div> : null}
 
-                {d.next_steps?.length ? (
+                {steps.length ? (
                   <div className="mt-3 space-y-1">
-                    {d.next_steps.slice(0, 3).map((s, idx) => (
+                    {steps.slice(0, 3).map((s, idx) => (
                       <div key={idx} className="text-xs text-foreground/90">
                         <span className="mr-2 text-muted-foreground">•</span>
                         {s}

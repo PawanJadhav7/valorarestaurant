@@ -5,12 +5,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Severity = "good" | "warn" | "risk";
+type Unit = "usd" | "pct" | "days" | "ratio" | "count" | "hours";
 
 type ApiKpi = {
   code: string;
   label: string;
   value: number | null;
-  unit: "usd" | "pct" | "days" | "ratio" | "count" | "hours";
+  unit: Unit;
   delta?: number | null;
   severity?: Severity;
   hint?: string;
@@ -66,22 +67,29 @@ export type OpsDriver = {
   domain: "inventory";
   severity: Severity;
   title: string;
+
   why: string;
   recommendation: string;
+
   kpi_code?: string;
-  metric?: { value?: number | null; delta?: number | null; unit?: string };
+  metric?: { value?: number | null; delta?: number | null; unit?: Unit };
+
+  // ✅ standardized
+  impact_pct: number;
+
+  // optional debug
   score?: number;
   meta?: Record<string, any>;
 };
 
 export type OpsAction = {
-  action_id: string;
-  priority: number;
-  owner: string;
+  id: string; // ✅ UI expects id
+  priority: 1 | 2 | 3;
   title: string;
   rationale: string;
-  expected_impact?: string;
+  owner?: string;
   severity?: Severity;
+  expected_impact?: string;
   meta?: Record<string, any>;
 };
 
@@ -110,6 +118,19 @@ function toNum(v: any): number | null {
   if (v === null || v === undefined) return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function clampPct(x: number) {
+  return Math.max(0, Math.min(100, x));
+}
+
+// ✅ Normalize any scoring system into 0..100
+function toImpactPct(score: any): number {
+  const n = Number(score);
+  if (!Number.isFinite(n)) return 0;
+  if (n > 0 && n <= 1) return clampPct(Math.round(n * 100));
+  if (n > 1 && n <= 100) return clampPct(Math.round(n));
+  return 100;
 }
 
 function scoreFrom(sev: Severity, bump?: number | null) {
@@ -154,13 +175,11 @@ export async function GET(req: Request) {
   if (locationId && locationId !== "all") sp.set("location_id", locationId);
 
   try {
-    // Pull from your NEW inventory API which already contains intelligence payloads
+    // Pull from inventory API (source of truth)
     const invRes = await fetch(`${origin}/api/restaurant/inventory?${sp.toString()}`, { cache: "no-store" });
     const invJson = (await safeJson(invRes, "Inventory API")) as InvResp;
 
-    if (!invJson?.ok) {
-      throw new Error(invJson?.error ?? "Inventory API returned ok=false");
-    }
+    if (!invJson?.ok) throw new Error(invJson?.error ?? "Inventory API returned ok=false");
 
     const kpis = invJson?.kpis ?? [];
     const by = new Map<string, ApiKpi>(kpis.map((k) => [k.code, k]));
@@ -176,6 +195,7 @@ export async function GET(req: Request) {
       const k = by.get("INV_DIH");
       const v = toNum(k?.value);
       const sev: Severity = v === null ? "good" : v >= 100 ? "risk" : v >= 75 ? "warn" : "good";
+      const score = scoreFrom(sev, v);
 
       drivers.push({
         id: "drv_inv_dih",
@@ -190,8 +210,9 @@ export async function GET(req: Request) {
             ? "Trim next POs; validate pars vs demand and lead time."
             : "Maintain cadence; keep DIH stable.",
         kpi_code: "INV_DIH",
-        metric: { value: v, unit: "days" },
-        score: scoreFrom(sev, v),
+        metric: { value: v, delta: toNum(k?.delta), unit: "days" },
+        score,
+        impact_pct: toImpactPct(score),
       });
     }
 
@@ -200,6 +221,7 @@ export async function GET(req: Request) {
       const k = by.get("INV_EXCESS_CASH");
       const v = toNum(k?.value);
       const sev: Severity = v === null ? "good" : v >= 8000 ? "risk" : v >= 3000 ? "warn" : "good";
+      const score = scoreFrom(sev, v);
 
       drivers.push({
         id: "drv_inv_cash",
@@ -214,16 +236,19 @@ export async function GET(req: Request) {
             ? "Review purchases vs demand; reduce exposure on slow categories."
             : "Keep inventory cash tight.",
         kpi_code: "INV_EXCESS_CASH",
-        metric: { value: v, unit: "usd" },
-        score: scoreFrom(sev, v),
+        metric: { value: v, delta: toNum(k?.delta), unit: "usd" },
+        score,
+        impact_pct: toImpactPct(score),
       });
     }
 
-    // 3) Drivers from Top On-hand items (value concentration)
+    // 3) Drivers from Top On-hand items
     if (topItems.length) {
       const top = topItems.slice(0, 3).map((r) => {
         const v = toNum((r as any).avg_on_hand_value);
         const sev = sevOnhandValue(v);
+        const score = scoreFrom(sev, v);
+
         return {
           id: `drv_onhand_${r.menu_item_id.slice(0, 8)}`,
           domain: "inventory" as const,
@@ -236,15 +261,16 @@ export async function GET(req: Request) {
               : sev === "warn"
               ? "Monitor exposure; trim next PO and validate sales velocity."
               : "Healthy exposure.",
-          score: scoreFrom(sev, v),
+          score,
+          impact_pct: toImpactPct(score),
           meta: r,
-        };
+        } satisfies OpsDriver;
       });
 
       drivers.push(...top);
     }
 
-    // 4) Category mix concentration
+    // 4) Category concentration
     if (catMix.length) {
       const biggest = [...catMix]
         .map((r) => ({ ...r, pct: toNum((r as any).pct_of_total) }))
@@ -253,6 +279,8 @@ export async function GET(req: Request) {
       if (biggest) {
         const pct = toNum((biggest as any).pct_of_total);
         const sev = sevPctOfTotal(pct);
+        const score = scoreFrom(sev, pct);
+
         drivers.push({
           id: "drv_cat_concentration",
           domain: "inventory",
@@ -265,53 +293,56 @@ export async function GET(req: Request) {
               : sev === "warn"
               ? "Monitor category balance; trim POs in the dominant category."
               : "Mix looks balanced.",
-          score: scoreFrom(sev, pct),
+          score,
+          impact_pct: toImpactPct(score),
           meta: biggest,
         });
       }
     }
 
-    // 5) Slow movers (liquidity trap)
+    // 5) Slow movers
     if (slowMovers.length) {
       const worst = slowMovers[0];
       const sc = toNum((worst as any).slow_score);
       const sev = sevSlowScore(sc);
+      const score = scoreFrom(sev, sc);
+
+      const sell = toNum((worst as any).sell_through_pct);
 
       drivers.push({
         id: `drv_slow_${worst.menu_item_id.slice(0, 8)}`,
         domain: "inventory",
         severity: sev,
         title: `Slow mover: ${worst.item_name}`,
-        why:
-          sc === null
-            ? "Slow score unavailable."
-            : `Slow score ${sc.toFixed(3)}; sell-through ${toNum((worst as any).sell_through_pct)?.toFixed(1) ?? "—"}%.`,
+        why: sc === null ? "Slow score unavailable." : `Slow score ${sc.toFixed(3)}; sell-through ${sell === null ? "—" : sell.toFixed(1)}%.`,
         recommendation:
           sev === "risk"
             ? "Pause buys for 1–2 cycles, run promo/bundle, reduce par and reorder point."
             : sev === "warn"
             ? "Trim next PO and watch sell-through weekly."
             : "No action needed.",
-        score: scoreFrom(sev, sc),
+        score,
+        impact_pct: toImpactPct(score),
         meta: worst,
       });
     }
 
-    // ---- Auto Top 3 Actions (Step 2) ----
+    // ---- Auto Top 3 Actions from slow movers ----
     const actionsAuto: OpsAction[] = slowMovers.slice(0, 3).map((it, idx) => {
       const v = toNum((it as any).avg_on_hand_value);
       const sc = toNum((it as any).slow_score);
+      const sell = toNum((it as any).sell_through_pct);
       const sev = sevSlowScore(sc);
 
       return {
-        action_id: `inv_auto_${idx + 1}_${it.menu_item_id.slice(0, 8)}`,
-        priority: idx + 1,
+        id: `inv_auto_${idx + 1}_${it.menu_item_id.slice(0, 8)}`,
+        priority: (idx + 1) as 1 | 2 | 3,
         owner: idx === 0 ? "Purchasing" : "GM / Kitchen",
         severity: sev,
         title: `Reduce exposure on ${it.item_name} (${it.category})`,
         rationale:
-          `Slow mover signal (score ${sc?.toFixed(3) ?? "—"}). ` +
-          `Avg on-hand value ~$${v?.toFixed(0) ?? "—"}; sell-through ${toNum((it as any).sell_through_pct)?.toFixed(1) ?? "—"}%.`,
+          `Slow mover signal (score ${sc === null ? "—" : sc.toFixed(3)}). ` +
+          `Avg on-hand value ~$${v === null ? "—" : v.toFixed(0)}; sell-through ${sell === null ? "—" : sell.toFixed(1)}%.`,
         expected_impact: "Improve sell-through and reduce cash trapped in inventory over next 1–2 cycles.",
         meta: it,
       };
@@ -326,11 +357,7 @@ export async function GET(req: Request) {
         as_of: invJson?.as_of ?? asOf ?? null,
         window: windowCode,
         location_id: locationId ?? null,
-
-        // Step 1: driver list w/ computed severities
         drivers: topDrivers,
-
-        // Step 2: auto Top 3 actions from slow movers
         actions: actionsAuto,
       },
       { headers: { "Cache-Control": "no-store" } }

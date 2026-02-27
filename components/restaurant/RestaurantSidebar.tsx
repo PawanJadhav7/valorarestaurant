@@ -1,9 +1,12 @@
+// components/restaurant/RestaurantSidebar.tsx
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { DataHealthDot } from "@/components/restaurant/DataHealthDot";
+import { clearSession } from "@/lib/sim/store";
+
 
 // lucide icons (single import only)
 import {
@@ -19,6 +22,7 @@ import {
   LogOut,
   ChevronRight,
 } from "lucide-react";
+
 
 type NavSection = "Executive" | "Operations" | "Admin";
 type NavItem = {
@@ -92,6 +96,13 @@ export function RestaurantSidebar() {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
 
+  const router = useRouter();
+
+  const handleLogout = React.useCallback(() => {
+  clearSession();
+  router.push("/login");
+}, [router]);
+
   React.useEffect(() => {
     setOpen(false);
   }, [pathname]);
@@ -126,7 +137,7 @@ export function RestaurantSidebar() {
 
       {/* Desktop sidebar */}
       <div className="hidden lg:block">
-        <SidebarContent pathname={pathname} groups={groups} />
+        <SidebarContent pathname={pathname} groups={groups} onLogout={handleLogout}/>
       </div>
 
       {/* Mobile drawer */}
@@ -161,7 +172,7 @@ export function RestaurantSidebar() {
 
                 <div className="px-4 pb-4 pt-2">
                   <SidebarNav pathname={pathname} groups={groups} />
-                  <SidebarFooter />
+                  <SidebarFooter onLogout={handleLogout}/>
                 </div>
               </div>
             </div>
@@ -182,9 +193,11 @@ export function RestaurantSidebar() {
 function SidebarContent({
   pathname,
   groups,
+  onLogout,
 }: {
   pathname: string;
   groups: Array<{ section: NavSection; items: NavItem[] }>;
+  onLogout: () => void;
 }) {
   return (
     <div className="glass rounded-3xl border border-border/20 bg-background/20 p-4 shadow-lg">
@@ -199,7 +212,7 @@ function SidebarContent({
       </div>
 
       <SidebarNav pathname={pathname} groups={groups} />
-      <SidebarFooter />
+      <SidebarFooter onLogout={onLogout} />
     </div>
   );
 }
@@ -252,7 +265,7 @@ function SidebarNav({
   );
 }
 
-function SidebarFooter() {
+function SidebarFooter({ onLogout }: { onLogout: () => void }) {
   const version = "v0.3.0";
 
   return (
@@ -274,12 +287,10 @@ function SidebarFooter() {
           </div>
         </div>
 
-        <div className="mt-3">
+        {/* <div className="mt-3">
           <button
             type="button"
-            onClick={() => {
-              window.location.href = "/api/auth/logout";
-            }}
+            onClick={onLogout}
             className={[
               "group flex w-full items-center justify-between rounded-xl",
               "border border-border/15 bg-background/10",
@@ -296,7 +307,7 @@ function SidebarFooter() {
 
             <ChevronRight className="h-5 w-5 text-muted-foreground/80 transition-transform duration-200 group-hover:translate-x-[2px]" />
           </button>
-        </div>
+        </div> */}
       </div>
     </div>
   );

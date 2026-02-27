@@ -22,6 +22,25 @@ type ApiKpi = {
 
 type LocationRow = { location_id: string; location_code: string; name: string };
 
+type ApiAlert = {
+  id?: string;
+  alert_id?: string;
+  severity: Severity;
+  title: string;
+  detail?: string;
+  rationale?: string;
+  kpi_code?: string;
+};
+
+type ApiAction = {
+  id?: string;
+  action_id?: string;
+  priority: 1 | 2 | 3;
+  title: string;
+  rationale: string;
+  owner?: string;
+};
+
 type OpsResponse = {
   ok: boolean;
   as_of: string | null;
@@ -29,10 +48,9 @@ type OpsResponse = {
   window: "7d" | "30d" | "90d" | "ytd" | string;
   location: { id: string; name: string };
   kpis: ApiKpi[];
-  series: Record<string, number[]>;
-  alerts: { id: string; severity: Severity; title: string; detail: string; kpi_code?: string }[];
-  actions: { id: string; priority: 1 | 2 | 3; title: string; rationale: string; owner?: string }[];
-  drivers?: { labor?: any[]; inventory?: any[] };
+  series: Record<string, any[]>; // day is string[], rest are (number|null)[]
+  alerts: ApiAlert[];
+  actions: ApiAction[];
   error?: string;
 };
 
@@ -146,7 +164,9 @@ function LineChart({
         {d ? (
           <>
             <path
-              d={`${d} L ${(w - pad).toFixed(2)} ${(h - pad).toFixed(2)} L ${pad.toFixed(2)} ${(h - pad).toFixed(2)} Z`}
+              d={`${d} L ${(w - pad).toFixed(2)} ${(h - pad).toFixed(2)} L ${pad.toFixed(2)} ${(h - pad).toFixed(
+                2
+              )} Z`}
               fill={`url(#${gradId})`}
               opacity="0.9"
             />
@@ -178,8 +198,8 @@ function normalizeLabels(v: any): string[] {
   return v.map((x) => String(x));
 }
 
-function pickDayLabels(series: Record<string, number[]>) {
-  return normalizeLabels((series as any)["DAY"] ?? (series as any)["day"] ?? (series as any)["labels"]);
+function pickDayLabels(series: Record<string, any[]>) {
+  return normalizeLabels((series as any)["day"] ?? (series as any)["DAY"] ?? (series as any)["labels"]);
 }
 
 function toPctPoints(arr: any[]) {
@@ -197,6 +217,21 @@ function toNums(arr: any[]) {
   });
 }
 
+function normalizeOpsResponse(j: OpsResponse): OpsResponse {
+  const alerts = (j.alerts ?? []).map((a: any, i: number) => ({
+    ...a,
+    id: String(a.id ?? a.alert_id ?? `${a.kpi_code ?? "alert"}-${i}`),
+    detail: String(a.detail ?? a.rationale ?? ""),
+  }));
+
+  const actions = (j.actions ?? []).map((a: any, i: number) => ({
+    ...a,
+    id: String(a.id ?? a.action_id ?? `${a.title ?? "action"}-${i}`),
+  }));
+
+  return { ...j, alerts, actions };
+}
+
 export default function OpsDashboardPage() {
   const [windowCode, setWindowCode] = React.useState<"7d" | "30d" | "90d" | "ytd">("30d");
   const [locationId, setLocationId] = React.useState<string>("all");
@@ -206,12 +241,11 @@ export default function OpsDashboardPage() {
   const [loading, setLoading] = React.useState<boolean>(true);
   const [locations, setLocations] = React.useState<LocationRow[]>([]);
 
-  // Drivers state
+  // Drivers state (separate endpoints)
   const [laborDrivers, setLaborDrivers] = React.useState<OpsDriver[]>([]);
   const [invDrivers, setInvDrivers] = React.useState<OpsDriver[]>([]);
   const [driversLoading, setDriversLoading] = React.useState<boolean>(true);
 
-  // Load locations
   React.useEffect(() => {
     (async () => {
       try {
@@ -262,17 +296,16 @@ export default function OpsDashboardPage() {
     if (locationId !== "all") sp.set("location_id", locationId);
 
     try {
-      // Fetch Ops + Drivers in parallel
       const [opsRes, ldRes, idRes] = await Promise.all([
         fetch(`/api/restaurant/ops?${sp.toString()}`, { cache: "no-store" }),
         fetch(`/api/restaurant/labor/drivers?${sp.toString()}`, { cache: "no-store" }),
         fetch(`/api/restaurant/inventory/drivers?${sp.toString()}`, { cache: "no-store" }),
       ]);
 
-      const opsJson = (await safeJson(opsRes, "Ops API")) as OpsResponse;
+      const opsJsonRaw = (await safeJson(opsRes, "Ops API")) as OpsResponse;
+      const opsJson = normalizeOpsResponse(opsJsonRaw);
       setData(opsJson);
 
-      // Drivers are best-effort: don’t fail the whole page if these error
       try {
         const ld = await safeJson(ldRes, "Labor Drivers API");
         setLaborDrivers(Array.isArray(ld?.drivers) ? (ld.drivers as OpsDriver[]) : []);
@@ -313,7 +346,7 @@ export default function OpsDashboardPage() {
 
   const ok = Boolean(data?.ok);
   const kpis = data?.kpis ?? [];
-  const series = data?.series ?? {};
+  const series = (data?.series ?? {}) as Record<string, any[]>;
   const alerts = data?.alerts ?? [];
   const actions = data?.actions ?? [];
 
@@ -325,30 +358,34 @@ export default function OpsDashboardPage() {
     });
   }, [kpis]);
 
-  // Spotlight order
-  const spotlightCodes = [
-    "LABOR_PCT",
-    "OVERTIME_PCT",
-    "LABOR_HOURS",
-    "SPLH",
-    "AVG_LABOR_RATE",
-    "DIOH",
-    "WASTE_PCT",
-    "STOCKOUTS",
-    "INVENTORY_VARIANCE_PCT",
-    "PURCHASES_USD",
+  // IMPORTANT: Ops API KPIs are OPS_* codes (not LABOR_PCT/DIOH etc)
+  const spotlightCodes: string[] = [
+    "OPS_LABOR_RATIO",
+    "OPS_LABOR_COST",
+    "OPS_LABOR_HOURS",
+    "OPS_AVG_HOURLY_RATE",
+    "OPS_SALES_PER_LABOR_HOUR",
+    "OPS_DIH",
+    "OPS_INV_TURNS",
+    "OPS_AVG_INVENTORY",
+    "OPS_CCC",
+    "OPS_AP_DAYS",
   ];
 
   const byCode = React.useMemo(() => new Map(tileKpisAll.map((k) => [k.code, k])), [tileKpisAll]);
   const spotlight = spotlightCodes.map((c) => byCode.get(c)).filter(Boolean) as RestaurantKpi[];
 
-  // Remaining tiles (auto-show)
   const used = new Set(spotlight.map((k) => k.code));
   const remaining = tileKpisAll.filter((k) => !used.has(k.code));
 
   const asOfStr = data?.as_of ? new Date(data.as_of).toLocaleString() : "—";
-
   const dayLabels = pickDayLabels(series);
+
+  // ✅ Trend sources from Ops API series (use the keys your API now returns)
+  const laborPctTrend = toPctPoints((series as any)["LABOR_PCT"] ?? []);
+  const overtimeTrend = toPctPoints((series as any)["OVERTIME_PCT"] ?? []);
+  const diohTrend = toNums((series as any)["DIOH"] ?? []);
+  const wasteTrend = toPctPoints((series as any)["WASTE_PCT"] ?? []);
 
   return (
     <div className="space-y-4">
@@ -358,7 +395,7 @@ export default function OpsDashboardPage() {
         subtitle="Daily operations health across labor + inventory (with actionable exceptions)."
       >
         <div className="relative pt-2">
-          {/* Controls (top-right) */}
+          {/* Controls */}
           <div className="absolute right-0 top-0 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <label className="text-xs text-muted-foreground">Location</label>
@@ -434,7 +471,7 @@ export default function OpsDashboardPage() {
         <SectionCard title="Ops spotlight" subtitle="Highest-signal daily KPIs (labor + inventory).">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             {spotlight.map((k) => (
-              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+              <RestaurantKpiTile key={k.code} kpi={k} series={(series as any)[k.code]} />
             ))}
           </div>
 
@@ -443,7 +480,7 @@ export default function OpsDashboardPage() {
               <div className="text-xs font-semibold text-muted-foreground/80">Additional KPIs</div>
               <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
                 {remaining.map((k) => (
-                  <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+                  <RestaurantKpiTile key={k.code} kpi={k} series={(series as any)[k.code]} />
                 ))}
               </div>
             </div>
@@ -451,7 +488,7 @@ export default function OpsDashboardPage() {
         </SectionCard>
       )}
 
-      {/* Drivers (new) */}
+      {/* Drivers */}
       {!loading ? (
         <OpsDriversPanel laborDrivers={laborDrivers} inventoryDrivers={invDrivers} loading={driversLoading} />
       ) : null}
@@ -471,11 +508,11 @@ export default function OpsDashboardPage() {
             {alerts.length ? (
               <div className="space-y-2">
                 {alerts.slice(0, 8).map((a) => (
-                  <div key={a.id} className="rounded-xl border border-border bg-background/40 p-3">
+                  <div key={a.id!} className="rounded-xl border border-border bg-background/40 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-foreground">{a.title}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">{a.detail}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{a.detail ?? ""}</div>
                       </div>
                       <span
                         className={[
@@ -501,60 +538,66 @@ export default function OpsDashboardPage() {
           </SectionCard>
 
           <SectionCard title="Top 3 actions" subtitle="Operator-ready next steps based on current exceptions.">
-            <div className="space-y-2">
-              {(actions ?? []).slice(0, 3).map((a) => (
-                <div key={a.id} className="rounded-xl border border-border bg-background/40 p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-foreground">
-                        <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-border bg-background text-xs">
-                          {a.priority}
-                        </span>
-                        {a.title}
+            {actions.length ? (
+              <div className="space-y-2">
+                {actions.slice(0, 3).map((a) => (
+                  <div key={a.id!} className="rounded-xl border border-border bg-background/40 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-foreground">
+                          <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-border bg-background text-xs">
+                            {a.priority}
+                          </span>
+                          {a.title}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">{a.rationale}</div>
                       </div>
-                      <div className="mt-1 text-xs text-muted-foreground">{a.rationale}</div>
+                      {a.owner ? (
+                        <span className="shrink-0 rounded-xl border border-border/30 bg-background/30 px-2 py-1 text-[11px] text-muted-foreground">
+                          {a.owner}
+                        </span>
+                      ) : null}
                     </div>
-                    {a.owner ? (
-                      <span className="shrink-0 rounded-xl border border-border/30 bg-background/30 px-2 py-1 text-[11px] text-muted-foreground">
-                        {a.owner}
-                      </span>
-                    ) : null}
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border bg-background/40 p-4 text-sm text-muted-foreground">
+                No actions available (yet) for this window.
+              </div>
+            )}
           </SectionCard>
         </div>
       ) : null}
 
       {/* Trends */}
-      {!loading && ok ? (
+      {!loading ? (
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
           <LineChart
             title="Labor % Trend"
             labels={dayLabels}
-            values={toPctPoints(series["LABOR_PCT"] ?? [])}
+            values={laborPctTrend}
             valueFmt={(n) => fmtPct2(n)}
             tone="labor"
           />
           <LineChart
             title="Overtime % Trend"
             labels={dayLabels}
-            values={toPctPoints(series["OVERTIME_PCT"] ?? [])}
+            values={overtimeTrend}
             valueFmt={(n) => fmtPct2(n)}
             tone="overtime"
           />
           <LineChart
             title="DIOH Trend"
             labels={dayLabels}
-            values={toNums(series["DIOH"] ?? [])}
+            values={diohTrend}
             valueFmt={(n) => `${n.toFixed(1)}d`}
             tone="dioh"
           />
           <LineChart
             title="Waste % Trend"
             labels={dayLabels}
-            values={toPctPoints(series["WASTE_PCT"] ?? [])}
+            values={wasteTrend}
             valueFmt={(n) => fmtPct2(n)}
             tone="waste"
           />
