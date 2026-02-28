@@ -1,146 +1,127 @@
+// app/api/restaurant/upload/route.ts
 import { NextResponse } from "next/server";
-import pg from "pg";
+import { pool } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const { Pool } = pg;
+type Dataset = "labor" | "sales" | "inventory";
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-function toNum(v: any) {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+function isDataset(x: string): x is Dataset {
+  return x === "labor" || x === "sales" || x === "inventory";
 }
 
-export async function POST(req: Request) {
-  if (!process.env.DATABASE_URL) {
-    return NextResponse.json({ ok: false, error: "Missing DATABASE_URL" }, { status: 500 });
-  }
-
-  const form = await req.formData();
-  const file = form.get("file");
-
-  if (!file || !(file instanceof File)) {
-    return NextResponse.json({ ok: false, error: "Missing file field (use -F file=@...)" }, { status: 400 });
-  }
-
-  const text = await file.text();
-  const lines = text.split(/\r?\n/).filter(Boolean);
-
-  if (lines.length < 2) {
-    return NextResponse.json({ ok: false, error: "CSV has no data rows" }, { status: 400 });
-  }
-
-  const headers = lines[0].split(",").map((s) => s.trim());
-  const idx = (name: string) => headers.indexOf(name);
-
-  const required = ["location_id", "location_name", "day"];
-  for (const r of required) {
-    if (idx(r) === -1) {
-      return NextResponse.json({ ok: false, error: `Missing required column: ${r}` }, { status: 400 });
-    }
-  }
-
-  let inserted = 0;
-  let updated = 0;
-
-  const client = await pool.connect();
+// ---------- GET: list last uploads ----------
+export async function GET() {
   try {
-    await client.query("BEGIN");
-
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(",").map((s) => s.trim());
-      const location_id = cols[idx("location_id")];
-      const location_name = cols[idx("location_name")];
-      const day = cols[idx("day")];
-
-      const revenue = toNum(cols[idx("revenue")]);
-      const cogs = toNum(cols[idx("cogs")]);
-      const labor = toNum(cols[idx("labor")]);
-      const fixed_costs = toNum(cols[idx("fixed_costs")]);
-      const marketing_spend = toNum(cols[idx("marketing_spend")]);
-      const interest_expense = toNum(cols[idx("interest_expense")]);
-      const orders = toNum(cols[idx("orders")]);
-      const customers = toNum(cols[idx("customers")]);
-      const new_customers = toNum(cols[idx("new_customers")]);
-      const avg_inventory = toNum(cols[idx("avg_inventory")]);
-      const ar_balance = toNum(cols[idx("ar_balance")]);
-      const ap_balance = toNum(cols[idx("ap_balance")]);
-      const ebit = toNum(cols[idx("ebit")]);
-
-      // IMPORTANT: This assumes you created a UNIQUE constraint on (location_id, day)
-      const q = `
-        insert into restaurant.raw_restaurant_daily
-          (location_id, location_name, day,
-           revenue, cogs, labor, fixed_costs, marketing_spend, interest_expense,
-           orders, customers, new_customers, avg_inventory, ar_balance, ap_balance, ebit,
-           source_file)
-        values
-          ($1,$2,$3,
-           $4,$5,$6,$7,$8,$9,
-           $10,$11,$12,$13,$14,$15,$16,
-           $17)
-        on conflict (location_id, day)
-        do update set
-          location_name = excluded.location_name,
-          revenue = excluded.revenue,
-          cogs = excluded.cogs,
-          labor = excluded.labor,
-          fixed_costs = excluded.fixed_costs,
-          marketing_spend = excluded.marketing_spend,
-          interest_expense = excluded.interest_expense,
-          orders = excluded.orders,
-          customers = excluded.customers,
-          new_customers = excluded.new_customers,
-          avg_inventory = excluded.avg_inventory,
-          ar_balance = excluded.ar_balance,
-          ap_balance = excluded.ap_balance,
-          ebit = excluded.ebit,
-          source_file = excluded.source_file
-        returning (xmax = 0) as inserted;
-      `;
-
-      const r = await client.query(q, [
+    // IMPORTANT: keep this query with NO $1 placeholders
+    const sql = `
+      select
+        upload_id,
+        created_at,
+        filename,
+        size_bytes,
+        row_count,
+        columns,
         location_id,
-        location_name,
-        day,
-        revenue,
-        cogs,
-        labor,
-        fixed_costs,
-        marketing_spend,
-        interest_expense,
-        orders,
-        customers,
-        new_customers,
-        avg_inventory,
-        ar_balance,
-        ap_balance,
-        ebit,
-        file.name,
-      ]);
+        dataset
+      from staging.restaurant_csv_uploads
+      order by created_at desc
+      limit 25;
+    `;
 
-      if (r.rows?.[0]?.inserted) inserted++;
-      else updated++;
+    const r = await pool.query(sql);
+
+    return NextResponse.json(
+      { ok: true, uploads: r.rows ?? [] },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  } catch (e: any) {
+    return NextResponse.json(
+      { ok: false, uploads: [], error: e?.message ?? String(e) },
+      { status: 500 }
+    );
+  }
+}
+
+// ---------- POST: accept multipart file upload ----------
+export async function POST(req: Request) {
+  try {
+    const form = await req.formData();
+
+    const file = form.get("file");
+    const datasetRaw = String(form.get("dataset") ?? "").trim().toLowerCase();
+    const locationRaw = String(form.get("location_id") ?? "").trim();
+
+    if (!isDataset(datasetRaw)) {
+      return NextResponse.json(
+        { ok: false, error: `Invalid dataset: "${datasetRaw}". Use labor|sales|inventory.` },
+        { status: 400 }
+      );
+    }
+    if (!(file instanceof File)) {
+      return NextResponse.json({ ok: false, error: "Missing field: file" }, { status: 400 });
+    }
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      return NextResponse.json({ ok: false, error: "Only .csv files are supported" }, { status: 400 });
     }
 
-    await client.query("COMMIT");
-  } catch (e: any) {
-    await client.query("ROLLBACK");
-    return NextResponse.json({ ok: false, error: e?.message ?? String(e) }, { status: 500 });
-  } finally {
-    client.release();
-  }
+    const locationId = locationRaw && locationRaw !== "all" ? locationRaw : null;
 
-  return NextResponse.json({
-    ok: true,
-    file: file.name,
-    inserted,
-    updated,
-    total: inserted + updated,
-  });
+    const buf = Buffer.from(await file.arrayBuffer());
+    const text = buf.toString("utf8");
+
+    // Simple CSV parse (MVP)
+    const lines = text.replace(/\r\n/g, "\n").split("\n").filter((x) => x.trim().length);
+    const headerLine = lines[0] ?? "";
+    const columns = headerLine.split(",").map((c) => c.trim()).filter(Boolean);
+    const rowCount = Math.max(0, lines.length - 1);
+
+    /**
+     * Your table clearly has csv_text NOT NULL (from error).
+     *
+     * If your table ALSO has raw_csv (bytea), keep it in the insert.
+     * If your table does NOT have raw_csv, remove raw_csv from the insert.
+     */
+
+    // ✅ Option A (recommended): table has BOTH csv_text + raw_csv
+    const sql = `
+      insert into staging.restaurant_csv_uploads
+        (filename, size_bytes, row_count, columns, location_id, dataset, csv_text, raw_csv)
+      values
+        ($1::text, $2::bigint, $3::int, $4::jsonb, $5::uuid, $6::text, $7::text, $8::bytea)
+      returning upload_id, created_at;
+    `;
+
+    const params = [
+      file.name,
+      buf.length,
+      rowCount,
+      JSON.stringify(columns),
+      locationId,        // uuid or null
+      datasetRaw,        // labor/sales/inventory
+      text,              // ✅ csv_text NOT NULL
+      buf,               // raw_csv (bytea)
+    ];
+
+    const r = await pool.query(sql, params);
+    const row = r.rows?.[0] ?? null;
+
+    return NextResponse.json(
+      {
+        ok: true,
+        upload_id: row?.upload_id ?? null,
+        created_at: row?.created_at ?? null,
+        filename: file.name,
+        size_bytes: buf.length,
+        row_count: rowCount,
+        columns,
+        location_id: locationId,
+        dataset: datasetRaw,
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message ?? String(e) }, { status: 500 });
+  }
 }

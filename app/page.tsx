@@ -127,7 +127,8 @@ export default function HomePage() {
     </div>
   );
 }
-
+//Financial Intelligence Infrastructure for Restaurant Chains.”
+//“Valora is the AI Financial Intelligence Layer for restaurant chains — forecasting margin risk, labor inefficiencies, and cash flow volatility before it impacts EBITDA.”
 // // app/page.tsx
 // "use client";
 
