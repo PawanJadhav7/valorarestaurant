@@ -6,3 +6,10 @@ __pycache__/
 .venv311/
 venv/
 .venv/
+.venv311/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+*.pth
