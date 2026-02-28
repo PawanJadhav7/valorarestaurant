@@ -6,6 +6,7 @@ import requests
 router = APIRouter()
 
 PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions"
+api_key = os.getenv("PERPLEXITY_API_KEY")
 
 class AIPromptRequest(BaseModel):
     prompt: str
@@ -15,7 +16,6 @@ class AIPromptResponse(BaseModel):
 
 @router.post("/ai-prompt", response_model=AIPromptResponse)
 def ai_prompt(payload: AIPromptRequest):
-    api_key = os.getenv("PERPLEXITY_API_KEY")
     print("DEBUG api_key prefix:", api_key[:8] if api_key else None)
 
     if not api_key:

@@ -16,7 +16,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="VulnApp")
+app = FastAPI(title="ValoraBackend")
+
 
 origins = [
     "http://localhost:3000",  # React / other frontend dev server
