@@ -2,12 +2,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
-export default function SignInClient() {
+export default function SignInClient({ nextParam }: { nextParam: string }) {
   const router = useRouter();
-  const sp = useSearchParams();
-  const next = sp.get("next") ?? "/restaurant";
+  const next = nextParam || "/restaurant";
 
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
@@ -25,7 +24,6 @@ export default function SignInClient() {
         body: JSON.stringify({ email, password }),
       });
 
-      // if server returned HTML (proxy redirect etc), this avoids JSON crash
       const text = await r.text();
       let j: any;
       try {
@@ -35,6 +33,7 @@ export default function SignInClient() {
       }
 
       if (!j.ok) throw new Error(j.error ?? "Signin failed");
+
       router.push(j.redirect ?? next);
       router.refresh();
     } catch (e: any) {
@@ -71,10 +70,7 @@ export default function SignInClient() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          <button
-            disabled={loading}
-            className="h-10 w-full rounded-xl border border-border bg-background hover:bg-muted"
-          >
+          <button disabled={loading} className="h-10 w-full rounded-xl border border-border bg-background hover:bg-muted">
             {loading ? "Signing in…" : "Sign in"}
           </button>
 
