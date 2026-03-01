@@ -17,7 +17,7 @@ export async function GET() {
           user_id: user.user_id,
           email: user.email,
           full_name: user.full_name,
-          tenant_id: user.tenant_id,
+          // tenant_id: user.tenant_id,
           client_name: user.client_name,
           onboarding_status: user.onboarding_status,
         },

@@ -13,7 +13,7 @@ export type SessionUser = {
   onboarding_status: string | null;
 
   // ✅ add this (because your query returns it)
-  tenant_id: string | null;
+  // tenant_id: string | null;
 
   // ✅ tenant/client display name
   client_name: string | null;
@@ -106,18 +106,14 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     const r = await pool.query(
       `
       select
-        u.user_id,
-        u.email,
-        u.full_name,
-        u.onboarding_status,
-        pu.tenant_id as tenant_id,
-        t.name as client_name
-      from auth.app_user u
-      left join public.app_user pu
-        on pu.user_id = u.user_id
-      left join public.tenant t
-        on t.tenant_id = pu.tenant_id
-      where u.user_id = $1::uuid
+        user_id,
+        email,
+        first_name,
+        last_name,
+        full_name,
+        onboarding_status
+      from app_user
+      where user_id = $1::uuid
       limit 1
       `,
       [userId]
@@ -131,7 +127,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       email: String(row.email),
       full_name: row.full_name ?? null,
       onboarding_status: row.onboarding_status ?? null,
-      tenant_id: row.tenant_id ? String(row.tenant_id) : null,
+      // tenant_id: row.tenant_id ? String(row.tenant_id) : null,
       client_name: row.client_name ?? null,
     };
   } catch {
@@ -153,7 +149,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       email: String(row2.email),
       full_name: row2.full_name ?? null,
       onboarding_status: row2.onboarding_status ?? null,
-      tenant_id: null,
+      // tenant_id: null,
       client_name: null,
     };
   }
