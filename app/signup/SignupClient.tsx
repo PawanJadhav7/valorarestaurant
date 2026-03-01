@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-export default function SignUpPage() {
+export default function SignupClient() {
   const router = useRouter();
 
   const [firstName, setFirstName] = React.useState("");
@@ -19,6 +19,7 @@ export default function SignUpPage() {
     e.preventDefault();
     setErr(null);
     setLoading(true);
+
     try {
       const r = await fetch("/api/auth/signup", {
         method: "POST",
@@ -37,11 +38,12 @@ export default function SignUpPage() {
       try {
         j = JSON.parse(text);
       } catch {
-        throw new Error(`Non-JSON (${r.status}). BodyPreview=${text.slice(0, 160)}`);
+        throw new Error(`Signup API returned non-JSON (${r.status}). BodyPreview=${text.slice(0, 160)}`);
       }
 
       if (!j.ok) throw new Error(j.error ?? "Signup failed");
       router.push(j.redirect ?? "/onboarding");
+      router.refresh();
     } catch (e: any) {
       setErr(e?.message ?? String(e));
     } finally {
@@ -55,7 +57,11 @@ export default function SignUpPage() {
         <div className="text-lg font-semibold text-foreground">Create account</div>
         <div className="mt-1 text-sm text-muted-foreground">Start your multi-location KPIs in minutes.</div>
 
-        {err ? <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm">{err}</div> : null}
+        {err ? (
+          <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm">
+            {err}
+          </div>
+        ) : null}
 
         <form onSubmit={submit} className="mt-5 space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -64,18 +70,20 @@ export default function SignUpPage() {
               placeholder="First name"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
+              required
             />
             <input
               className="h-10 w-full rounded-xl border border-border bg-background px-3"
               placeholder="Last name"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
+              required
             />
           </div>
 
           <input
             className="h-10 w-full rounded-xl border border-border bg-background px-3"
-            placeholder="Contact (optional)"
+            placeholder="Contact (phone)"
             value={contact}
             onChange={(e) => setContact(e.target.value)}
           />
@@ -85,6 +93,7 @@ export default function SignUpPage() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            required
           />
 
           <input
@@ -93,15 +102,19 @@ export default function SignUpPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            required
           />
 
-          <button disabled={loading} className="h-10 w-full rounded-xl border border-border bg-background hover:bg-muted">
+          <button
+            disabled={loading}
+            className="h-10 w-full rounded-xl border border-border bg-background hover:bg-muted disabled:opacity-60"
+          >
             {loading ? "Creating…" : "Create account"}
           </button>
 
           <div className="text-center text-sm text-muted-foreground">
             Have an account?{" "}
-            <a className="font-semibold text-foreground hover:underline" href="/auth/signin">
+            <a className="font-semibold text-foreground hover:underline" href="/signin">
               Sign in
             </a>
           </div>
