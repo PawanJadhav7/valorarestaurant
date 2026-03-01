@@ -4,14 +4,34 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-export default function SignInClient({ nextParam }: { nextParam: string }) {
-  const router = useRouter();
-  const next = nextParam || "/restaurant";
+async function safeJson(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Non-JSON (${res.status}). BodyPreview=${text.slice(0, 160)}`);
+  }
+}
 
+export default function SignInClient() {
+  const router = useRouter();
+
+  const [nextParam, setNextParam] = React.useState<string>("/restaurant");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [err, setErr] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
+
+  // ✅ Read next= from URL without useSearchParams()
+  React.useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const n = sp.get("next");
+      if (n && typeof n === "string") setNextParam(n);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,20 +41,14 @@ export default function SignInClient({ nextParam }: { nextParam: string }) {
       const r = await fetch("/api/auth/signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
 
-      const text = await r.text();
-      let j: any;
-      try {
-        j = JSON.parse(text);
-      } catch {
-        throw new Error(`Non-JSON (${r.status}). BodyPreview=${text.slice(0, 160)}`);
-      }
+      const j = await safeJson(r);
+      if (!r.ok || !j?.ok) throw new Error(j?.error ?? "Signin failed");
 
-      if (!j.ok) throw new Error(j.error ?? "Signin failed");
-
-      router.push(j.redirect ?? next);
+      router.push(j.redirect ?? nextParam);
       router.refresh();
     } catch (e: any) {
       setErr(e?.message ?? String(e));
@@ -61,6 +75,7 @@ export default function SignInClient({ nextParam }: { nextParam: string }) {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
           />
           <input
             className="h-10 w-full rounded-xl border border-border bg-background px-3"
@@ -68,6 +83,7 @@ export default function SignInClient({ nextParam }: { nextParam: string }) {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
           />
 
           <button disabled={loading} className="h-10 w-full rounded-xl border border-border bg-background hover:bg-muted">

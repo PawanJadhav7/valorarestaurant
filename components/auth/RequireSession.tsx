@@ -1,35 +1,42 @@
-// components/auth/RequireSession.tsx
 "use client";
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getSession } from "@/lib/sim/store";
+
+async function hasRealSession(): Promise<boolean> {
+  try {
+    const r = await fetch("/api/auth/me", { cache: "no-store", credentials: "include" });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
 
 export function RequireSession({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [authorized, setAuthorized] = React.useState(false);
+  const [ok, setOk] = React.useState<boolean | null>(null);
 
   React.useEffect(() => {
-    const s = getSession();
+    let alive = true;
+    (async () => {
+      const yes = await hasRealSession();
+      if (!alive) return;
+      setOk(yes);
 
-    if (!s?.ok) {
-      const next = encodeURIComponent(pathname || "/restaurant");
+      if (!yes) {
+        const next = encodeURIComponent(pathname || "/restaurant");
+        router.replace(`/signin?next=${next}`);
+      }
+    })();
 
-      let demo = "";
-      try {
-        const sp = new URLSearchParams(window.location.search);
-        const d = sp.get("demo");
-        demo = d ? `&demo=${encodeURIComponent(d)}` : "";
-      } catch {}
-
-      router.replace(`/login?next=${next}${demo}`);
-      return;
-    }
-
-    setAuthorized(true);
+    return () => {
+      alive = false;
+    };
   }, [router, pathname]);
 
-  if (!authorized) return null;
+  if (ok === null) return null; // or a small skeleton
+  if (!ok) return null;
+
   return <>{children}</>;
 }
