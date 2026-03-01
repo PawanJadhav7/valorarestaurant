@@ -111,8 +111,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
         first_name,
         last_name,
         full_name,
-        onboarding_status
-      from app_user
+        onboarding_status,
+        client_name
+      from auth.app_user
       where user_id = $1::uuid
       limit 1
       `,
