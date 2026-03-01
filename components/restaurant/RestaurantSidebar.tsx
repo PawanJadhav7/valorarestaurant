@@ -5,8 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 import { DataHealthDot } from "@/components/restaurant/DataHealthDot";
-import { clearSession } from "@/lib/sim/store";
-
 
 // lucide icons (single import only)
 import {
@@ -19,32 +17,29 @@ import {
   Users,
   Boxes,
   Bell,
-  LogOut,
-  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 
-
-type NavSection = "Executive" | "Operations" | "Admin";
 type NavItem = {
   label: string;
   href: string;
-  section: NavSection;
   icon: React.ComponentType<{ className?: string }>;
 };
 
-const NAV: NavItem[] = [
-  { label: "Overview", href: "/restaurant", section: "Executive", icon: LayoutDashboard },
-  { label: "Sales", href: "/restaurant/sales", section: "Executive", icon: TrendingUp },
-  { label: "Insights", href: "/restaurant/insights", section: "Executive", icon: Sparkles },
+const ALWAYS: NavItem[] = [
+  { label: "Overview", href: "/restaurant", icon: LayoutDashboard },
+  { label: "Sales & Demand", href: "/restaurant/sales", icon: TrendingUp },
+  { label: "Ops Dashboard", href: "/restaurant/ops", icon: ClipboardList },
+  { label: "Alerts", href: "/restaurant/ops/alerts", icon: Bell },
+  { label: "Data", href: "/restaurant/data", icon: Database },
+];
 
-  // Operations (MVP)
-  { label: "Ops Dashboard", href: "/restaurant/ops", section: "Operations", icon: ClipboardList },
-  { label: "Labor", href: "/restaurant/ops/labor", section: "Operations", icon: Users },
-  { label: "Inventory", href: "/restaurant/ops/inventory", section: "Operations", icon: Boxes },
-  { label: "Alerts", href: "/restaurant/ops/alerts", section: "Operations", icon: Bell },
-  { label: "Data", href: "/restaurant/data", section: "Operations", icon: Database },
-
-  { label: "Settings", href: "/restaurant/settings", section: "Admin", icon: Settings },
+const MORE: NavItem[] = [
+  { label: "Cost Control", href: "/restaurant/cost-control", icon: Sparkles },
+  { label: "Inventory", href: "/restaurant/ops/inventory", icon: Boxes },
+  { label: "Staff", href: "/restaurant/ops/labor", icon: Users },
+  { label: "AI Insights", href: "/restaurant/insights", icon: Sparkles },
+  { label: "Settings", href: "/restaurant/settings", icon: Settings },
 ];
 
 function isActivePath(pathname: string, href: string) {
@@ -52,28 +47,13 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-function sectionTitle(s: NavSection) {
-  if (s === "Executive") return "Executive";
-  if (s === "Operations") return "Operations";
-  return "Admin";
-}
-
-function sectionCls() {
-  return "px-1 pt-4 text-[11px] font-semibold tracking-wide text-muted-foreground/80";
-}
-
 function itemCls(active: boolean) {
   return [
     "group relative flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-sm transition-all duration-200",
     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-
-    // Base glass tile
     "glass border border-border/10 bg-background/15 backdrop-blur-xl",
-
-    // Depth + hover
     "shadow-[0_4px_20px_rgba(0,0,0,0.05)]",
     "hover:bg-background/25 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:-translate-y-[1px]",
-
     active ? "text-foreground bg-background/30 border-border/20" : "text-muted-foreground",
   ].join(" ");
 }
@@ -92,222 +72,180 @@ function LeftAccent({ active }: { active: boolean }) {
   );
 }
 
-export function RestaurantSidebar() {
-  const pathname = usePathname();
-  const [open, setOpen] = React.useState(false);
+async function safeJson(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Non-JSON (${res.status}). BodyPreview=${text.slice(0, 160)}`);
+  }
+}
 
-  const router = useRouter();
-
-  const handleLogout = React.useCallback(() => {
-  clearSession();
-  router.push("/login");
-}, [router]);
-
-  React.useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
-  const groups: Array<{ section: NavSection; items: NavItem[] }> = [
-    { section: "Executive", items: NAV.filter((n) => n.section === "Executive") },
-    { section: "Operations", items: NAV.filter((n) => n.section === "Operations") },
-    { section: "Admin", items: NAV.filter((n) => n.section === "Admin") },
-  ];
+function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const active = isActivePath(pathname, item.href);
+  const Icon = item.icon;
 
   return (
-    <div className="relative">
-      {/* Mobile trigger */}
-      <div className="flex items-center justify-between gap-3 lg:hidden">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="text-sm font-semibold text-foreground">Valora Restaurant</div>
-            <DataHealthDot />
-          </div>
-          <div className="mt-0.5 text-xs text-muted-foreground">KPIs • Multi-location</div>
-        </div>
+    <Link href={item.href} className={itemCls(active)}>
+      <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+        <span className="absolute -inset-[120%] rotate-12 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+      </span>
 
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="glass rounded-xl border border-border/20 bg-background/20 px-3 py-2 text-sm text-foreground shadow-sm hover:bg-background/30"
-          aria-label="Open sidebar"
-        >
-          Menu
-        </button>
-      </div>
+      <LeftAccent active={active} />
 
-      {/* Desktop sidebar */}
-      <div className="hidden lg:block">
-        <SidebarContent pathname={pathname} groups={groups} onLogout={handleLogout}/>
-      </div>
+      <Icon
+        className={[
+          "h-4 w-4 transition-all duration-200",
+          active ? "opacity-90 text-foreground" : "opacity-60 group-hover:opacity-80 group-hover:text-foreground",
+        ].join(" ")}
+      />
 
-      {/* Mobile drawer */}
-      {open ? (
-        <div className="lg:hidden">
-          <button
-            type="button"
-            aria-label="Close sidebar"
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-40 cursor-default bg-black/30 backdrop-blur-[2px]"
+      <span className="min-w-0 truncate">{item.label}</span>
+
+      <span className="ml-auto text-xs text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100">
+        ›
+      </span>
+    </Link>
+  );
+}
+
+function GlassAccordion({
+  title,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mt-4">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={[
+          "w-full rounded-2xl px-3 py-2.5 text-left text-sm transition-all duration-200",
+          "glass border border-border/10 bg-background/15 backdrop-blur-xl",
+          "shadow-[0_4px_20px_rgba(0,0,0,0.05)]",
+          "hover:bg-background/25 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+        ].join(" ")}
+        aria-expanded={open}
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground">{title}</span>
+          <ChevronDown
+            className={[
+              "h-4 w-4 text-muted-foreground transition-transform duration-200",
+              open ? "rotate-180" : "rotate-0",
+            ].join(" ")}
           />
-          <div className="fixed inset-y-0 left-0 z-50 w-[320px] max-w-[85vw] p-3">
-            <div className="h-full translate-x-0 animate-[slideIn_.22s_ease-out]">
-              <div className="glass h-full rounded-3xl border border-border/20 bg-background/20 shadow-xl">
-                <div className="flex items-center justify-between px-4 pt-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold text-foreground">Valora Restaurant</div>
-                      <DataHealthDot />
-                    </div>
-                    <div className="mt-0.5 text-xs text-muted-foreground">KPIs • Multi-location</div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setOpen(false)}
-                    className="rounded-xl border border-border/20 bg-background/20 px-3 py-2 text-sm text-foreground hover:bg-background/30"
-                  >
-                    Close
-                  </button>
-                </div>
-
-                <div className="px-4 pb-4 pt-2">
-                  <SidebarNav pathname={pathname} groups={groups} />
-                  <SidebarFooter onLogout={handleLogout}/>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <style jsx global>{`
-            @keyframes slideIn {
-              from { transform: translateX(-10px); opacity: 0; }
-              to { transform: translateX(0); opacity: 1; }
-            }
-          `}</style>
         </div>
-      ) : null}
+      </button>
+
+      {/* Smooth open/close using CSS grid rows */}
+      <div className={["grid transition-all duration-250 ease-out", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"].join(" ")}>
+        <div className="overflow-hidden">
+          <div className="mt-2 space-y-2">{children}</div>
+        </div>
+      </div>
     </div>
   );
 }
 
-function SidebarContent({
-  pathname,
-  groups,
-  onLogout,
-}: {
-  pathname: string;
-  groups: Array<{ section: NavSection; items: NavItem[] }>;
-  onLogout: () => void;
-}) {
+export function RestaurantSidebar() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [openMore, setOpenMore] = React.useState(false);
+  const [clientName, setClientName] = React.useState<string | null>(null);
+
+  // Auto-open "More" if the active route is inside MORE
+  React.useEffect(() => {
+    const activeInMore = MORE.some((n) => isActivePath(pathname, n.href));
+    if (activeInMore) setOpenMore(true);
+  }, [pathname]);
+
+  // Fetch client name (tenant) for header
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!r.ok) {
+          if (alive) setClientName(null);
+          return;
+        }
+        const j = await safeJson(r);
+        const name = j?.user?.client_name ?? j?.user?.full_name ?? null;
+        if (alive) setClientName(typeof name === "string" && name.trim() ? name.trim() : null);
+      } catch {
+        if (alive) setClientName(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
     <div className="glass rounded-3xl border border-border/20 bg-background/20 p-4 shadow-lg">
+      {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <div className="text-sm font-semibold text-foreground">Valora Restaurant</div>
             <DataHealthDot />
           </div>
-          <div className="mt-1 text-xs text-muted-foreground">Executive KPIs • Multi-location (MVP)</div>
+
+          <div className="mt-1 text-xs text-muted-foreground">
+            {clientName ? (
+              <>
+                <span className="font-medium text-foreground">{clientName}</span>
+                <span className="mx-2 text-muted-foreground/60">•</span>
+                Executive KPIs • Multi-location (MVP)
+              </>
+            ) : (
+              "Executive KPIs • Multi-location (MVP)"
+            )}
+          </div>
         </div>
       </div>
 
-      <SidebarNav pathname={pathname} groups={groups} />
-      <SidebarFooter onLogout={onLogout} />
-    </div>
-  );
-}
+      {/* Always-visible */}
+      <div className="mt-4 space-y-2">
+        {ALWAYS.map((n) => (
+          <NavLink key={n.href} item={n} pathname={pathname} />
+        ))}
+      </div>
 
-function SidebarNav({
-  pathname,
-  groups,
-}: {
-  pathname: string;
-  groups: Array<{ section: NavSection; items: NavItem[] }>;
-}) {
-  return (
-    <div className="mt-4">
-      {groups.map((g) => (
-        <div key={g.section}>
-          <div className={sectionCls()}>{sectionTitle(g.section)}</div>
+      {/* More accordion */}
+      <GlassAccordion title="More" open={openMore} onToggle={() => setOpenMore((v) => !v)}>
+        {MORE.map((n) => (
+          <NavLink key={n.href} item={n} pathname={pathname} />
+        ))}
+      </GlassAccordion>
 
-          <div className="mt-2 space-y-2">
-            {g.items.map((n) => {
-              const active = isActivePath(pathname, n.href);
-              const Icon = n.icon;
+      {/* Footer (short) */}
+      <div className="mt-6">
+        <div
+          className={[
+            "glass rounded-2xl border border-border/10 bg-background/15 backdrop-blur-xl",
+            "shadow-[0_4px_20px_rgba(0,0,0,0.05)]",
+            "p-3",
+          ].join(" ")}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-foreground">{clientName ?? "Valora Restaurant"}</div>
+            </div>
 
-              return (
-                <Link key={n.href} href={n.href} className={itemCls(active)}>
-                  <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
-                    <span className="absolute -inset-[120%] rotate-12 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-                  </span>
-
-                  <LeftAccent active={active} />
-
-                  <Icon
-                    className={[
-                      "h-4 w-4 transition-all duration-200",
-                      active ? "opacity-90 text-foreground" : "opacity-60 group-hover:opacity-80 group-hover:text-foreground",
-                    ].join(" ")}
-                  />
-
-                  <span className="min-w-0 truncate">{n.label}</span>
-
-                  <span className="ml-auto text-xs text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100">
-                    ›
-                  </span>
-                </Link>
-              );
-            })}
+            <div className="shrink-0 rounded-xl border border-border/20 bg-background/20 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+              v0.3.0
+            </div>
           </div>
         </div>
-      ))}
-    </div>
-  );
-}
-
-function SidebarFooter({ onLogout }: { onLogout: () => void }) {
-  const version = "v0.3.0";
-
-  return (
-    <div className="mt-6">
-      <div
-        className={[
-          "glass rounded-2xl border border-border/10 bg-background/15 backdrop-blur-xl",
-          "shadow-[0_4px_20px_rgba(0,0,0,0.05)]",
-          "p-3",
-        ].join(" ")}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-foreground">Valora Restaurant</div>
-          </div>
-
-          <div className="shrink-0 rounded-xl border border-border/20 bg-background/20 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-            {version}
-          </div>
-        </div>
-
-        {/* <div className="mt-3">
-          <button
-            type="button"
-            onClick={onLogout}
-            className={[
-              "group flex w-full items-center justify-between rounded-xl",
-              "border border-border/15 bg-background/10",
-              "px-3 py-2.5 text-sm text-foreground",
-              "transition-all duration-200",
-              "hover:bg-background/20 hover:-translate-y-[1px]",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
-            ].join(" ")}
-          >
-            <span className="flex items-center gap-2">
-              <LogOut className="h-5 w-5 opacity-80" />
-              <span className="font-medium">Logout</span>
-            </span>
-
-            <ChevronRight className="h-5 w-5 text-muted-foreground/80 transition-transform duration-200 group-hover:translate-x-[2px]" />
-          </button>
-        </div> */}
       </div>
     </div>
   );

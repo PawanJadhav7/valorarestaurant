@@ -5,8 +5,6 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SectionCard } from "@/components/valora/SectionCard";
-import { login as demoLogin } from "@/lib/sim/store";
-import { nextRouteForSession } from "@/lib/sim/flow";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -17,18 +15,24 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+async function safeJson(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Non-JSON (${res.status}). BodyPreview=${text.slice(0, 160)}`);
+  }
+}
+
 export default function LoginClient() {
   const router = useRouter();
   const sp = useSearchParams();
-  const nextParam = sp.get("next") || "";
-  const demo = sp.get("demo");
+  const nextParam = sp.get("next") || "/restaurant";
 
-  const [email, setEmail] = React.useState("owner1@client1.com");
-  const [password, setPassword] = React.useState("Valora@123");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
   const [err, setErr] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
-
-  const go = (path: string) => router.push(demo ? `${path}?demo=${demo}` : path);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,19 +40,26 @@ export default function LoginClient() {
     setErr(null);
 
     try {
-      const res = demoLogin(email, password);
-      if (!res.ok) {
-        setErr(res.error);
-        return;
+      const res = await fetch("/api/auth/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // ✅ important: send/receive cookies for session
+        credentials: "include",
+        body: JSON.stringify({ email, password }),
+      });
+
+      const j = await safeJson(res);
+
+      if (!res.ok || !j?.ok) {
+        throw new Error(j?.error ?? `Signin failed (${res.status})`);
       }
 
-      if (nextParam) {
-        go(nextParam);
-        return;
-      }
-
-      const next = nextRouteForSession(res.session);
-      go(next);
+      // server may return redirect (/restaurant or /onboarding)
+      const redirect = j.redirect ?? nextParam;
+      router.push(redirect);
+      router.refresh(); // helps re-render server layouts that depend on cookies
+    } catch (e: any) {
+      setErr(e?.message ?? String(e));
     } finally {
       setBusy(false);
     }
@@ -56,7 +67,7 @@ export default function LoginClient() {
 
   return (
     <div className="mx-auto max-w-[900px] px-4 py-10">
-      <SectionCard title="Login" subtitle="Demo mode: use seeded accounts to simulate access + plans.">
+      <SectionCard title="Login" subtitle="Sign in to your Valora Restaurant dashboard.">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_0.9fr]">
           <form onSubmit={onSubmit} className="space-y-4">
             <Field label="Email">
@@ -64,6 +75,8 @@ export default function LoginClient() {
                 className="h-10 w-full rounded-xl border border-border bg-background/30 px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/40"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                autoComplete="email"
               />
             </Field>
 
@@ -73,6 +86,8 @@ export default function LoginClient() {
                 className="h-10 w-full rounded-xl border border-border bg-background/30 px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-ring/40"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                autoComplete="current-password"
               />
             </Field>
 
@@ -93,17 +108,17 @@ export default function LoginClient() {
 
             <div className="text-xs text-muted-foreground">
               New here?{" "}
-              <Link href={demo ? `/signup?demo=${demo}` : "/signup"} className="font-semibold text-foreground hover:underline">
+              <Link href="/signup" className="font-semibold text-foreground hover:underline">
                 Create account →
               </Link>
             </div>
           </form>
 
           <div className="rounded-2xl border border-border bg-background/20 p-5">
-            <div className="text-sm font-semibold text-foreground">Seeded demo users</div>
+            <div className="text-sm font-semibold text-foreground">Access</div>
             <div className="mt-2 text-sm text-muted-foreground">
-              Try: <span className="text-foreground">owner1@client1.com</span> /{" "}
-              <span className="text-foreground">Valora@123</span>
+              Use the account you created in <span className="text-foreground">Signup</span>. After signin, you’ll be routed
+              to <span className="text-foreground">Onboarding</span> if needed, otherwise straight to the dashboard.
             </div>
           </div>
         </div>

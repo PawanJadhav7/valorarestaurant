@@ -5,15 +5,67 @@ import Link from "next/link";
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { getSession, clearSession } from "@/lib/sim/store";
+
+type MeResp =
+  | {
+      ok: true;
+      user: {
+        user_id: string;
+        email: string;
+        full_name: string | null;
+        client_name: string | null;
+        onboarding_status: string | null;
+      };
+    }
+  | { ok: false; user: null; error?: string };
+
+async function safeJson(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Non-JSON (${res.status}). BodyPreview=${text.slice(0, 160)}`);
+  }
+}
 
 export function TopNav() {
   const router = useRouter();
   const pathname = usePathname();
 
+  // keep your demo query param behavior (optional)
   const [demo, setDemo] = React.useState<string | null>(null);
+
+  // real session state
+  const [loading, setLoading] = React.useState(false);
   const [hasSession, setHasSession] = React.useState(false);
   const [name, setName] = React.useState<string | null>(null);
+
+  const withDemo = React.useCallback(
+    (path: string) => (demo ? `${path}${path.includes("?") ? "&" : "?"}demo=${demo}` : path),
+    [demo]
+  );
+
+  const loadMe = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/auth/me", { cache: "no-store" });
+      const j = (await safeJson(r)) as MeResp;
+
+      if (j.ok && j.user) {
+        setHasSession(true);
+        const display = j.user.client_name ?? j.user.full_name ?? j.user.email ?? null;
+        setName(display && display.trim().length ? display : null);
+      } else {
+        setHasSession(false);
+        setName(null);
+      }
+    } catch {
+      setHasSession(false);
+      setName(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   React.useEffect(() => {
     // read demo from URL without useSearchParams()
@@ -24,19 +76,19 @@ export function TopNav() {
       setDemo(null);
     }
 
-    const s = getSession();
-    setHasSession(Boolean(s?.ok));
-    setName(s?.ok ? s.name : null);
-  }, [pathname]);
+    // real auth check
+    loadMe();
+  }, [pathname, loadMe]);
 
-  const withDemo = React.useCallback(
-    (path: string) => (demo ? `${path}${path.includes("?") ? "&" : "?"}demo=${demo}` : path),
-    [demo]
-  );
-
-  const onLogout = React.useCallback(() => {
-    clearSession();
-    router.push(withDemo("/login"));
+  const onLogout = React.useCallback(async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      setHasSession(false);
+      setName(null);
+      router.push(withDemo("/login"));
+      router.refresh();
+    }
   }, [router, withDemo]);
 
   const onHome = withDemo("/");
@@ -57,7 +109,13 @@ export function TopNav() {
 
         {hasSession ? (
           <>
-            {name ? <div className="hidden sm:block text-sm text-muted-foreground">Hi, <span className="text-foreground font-semibold">{name}</span></div> : null}
+            {name ? (
+              <div className="hidden sm:block text-sm text-muted-foreground">
+                Hi, <span className="text-foreground font-semibold">{name}</span>
+              </div>
+            ) : loading ? (
+              <div className="hidden sm:block text-sm text-muted-foreground">Checking…</div>
+            ) : null}
 
             {!onRestaurant ? (
               <Link href={onDashboard} className="glass px-4 py-2 text-sm font-medium inline-flex items-center justify-center">

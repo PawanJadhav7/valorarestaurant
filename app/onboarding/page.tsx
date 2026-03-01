@@ -1,4 +1,4 @@
-// app/onboarding/page.tsx
+//app/onboarding/page.tsx
 import { Suspense } from "react";
 import OnboardingClient from "./OnboardingClient";
 
