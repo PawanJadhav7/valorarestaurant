@@ -4,10 +4,14 @@ import { redirect } from "next/navigation";
 import { RestaurantSidebar } from "@/components/restaurant/RestaurantSidebar";
 import { getSessionUser } from "@/lib/auth";
 
-export default async function RestaurantLayout({ children }: { children: ReactNode }) {
+export default async function RestaurantLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const user = await getSessionUser();
 
-  if (!user) redirect("/login"); // or "/auth/signin"
+  if (!user) redirect("/signin");
   if (user.onboarding_status !== "complete") redirect("/onboarding");
 
   return (
