@@ -51,10 +51,10 @@ export async function POST(req: Request) {
 
       // 1) Create tenant
       const t = await client.query(
-        `insert into public.tenant (name) values ($1::text) returning tenant_id, name`,
+        `insert into public.tenant (name) values ($1::text) returning name`,
         [tenantName]
       );
-      const tenant_id = String(t.rows?.[0]?.tenant_id);
+      const tenant_name = String(t.rows?.[0]?.name);
 
       // 2) Create auth user (auth schema is source-of-truth for credentials)
       const u = await client.query(
@@ -73,14 +73,14 @@ export async function POST(req: Request) {
       // NOTE: assumes public.app_user exists with user_id, tenant_id, email, full_name (common in your DB)
       await client.query(
         `
-        insert into public.app_user (user_id, tenant_id, email, full_name)
-        values ($1::uuid, $2::uuid, $3::text, $4::text)
+        insert into public.app_user (user_id, tenant_name, email, full_name)
+        values ($1::uuid, $2::text, $3::text, $4::text)
         on conflict (user_id) do update
-          set tenant_id = excluded.tenant_id,
+          set tenant_name = excluded.tenant_name,
               email = excluded.email,
               full_name = excluded.full_name
         `,
-        [user_id, tenant_id, email, full_name]
+        [user_id, tenant_name, email, full_name]
       );
 
       await client.query("commit");
