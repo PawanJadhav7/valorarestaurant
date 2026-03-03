@@ -1,9 +1,8 @@
-// components/restaurant/DataFreshnessPill.tsx
 "use client";
 
 import * as React from "react";
 
-type DataStatus = {
+export type DataStatus = {
   ok: boolean;
   now?: string;
   latest_day?: string | null;
@@ -37,23 +36,51 @@ function fmtDate(iso?: string | null) {
   return d.toLocaleString();
 }
 
+type Props = {
+  className?: string;
+  greenDays?: number;
+  amberDays?: number;
+
+  /** Optional controlled props (TopBar can pass these). If omitted, pill self-fetches. */
+  latestDay?: string | null;
+  lastIngestedAt?: string | null;
+  rows24h?: string | number | null;
+  totalRows?: string | number | null;
+  locations?: string | number | null;
+  lastFile?: string | null;
+  ok?: boolean;
+};
+
 export function DataFreshnessPill({
   className = "",
   greenDays = 1,
   amberDays = 3,
-}: {
-  className?: string;
-  greenDays?: number;
-  amberDays?: number;
-}) {
+  latestDay,
+  lastIngestedAt,
+  rows24h,
+  totalRows,
+  locations,
+  lastFile,
+  ok,
+}: Props) {
+  const isControlled =
+    ok !== undefined ||
+    latestDay !== undefined ||
+    lastIngestedAt !== undefined ||
+    rows24h !== undefined ||
+    totalRows !== undefined ||
+    locations !== undefined ||
+    lastFile !== undefined;
+
   const [s, setS] = React.useState<DataStatus | null>(null);
 
   React.useEffect(() => {
+    if (isControlled) return;
+
     let alive = true;
     (async () => {
       try {
         const r = await fetch("/api/restaurant/data-status", { cache: "no-store" });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const j = (await r.json()) as DataStatus;
         if (alive) setS(j);
       } catch {
@@ -63,22 +90,28 @@ export function DataFreshnessPill({
     return () => {
       alive = false;
     };
-  }, []);
+  }, [isControlled]);
 
-  const rows24h = toInt(s?.rows_24h ?? 0);
-  const dayAge = s?.latest_day ? daysDiffFromToday(s.latest_day) : null;
+  const dataOk = isControlled ? Boolean(ok ?? true) : Boolean(s?.ok);
+  const _latestDay = isControlled ? (latestDay ?? null) : (s?.latest_day ?? null);
+  const _lastIngestedAt = isControlled ? (lastIngestedAt ?? null) : (s?.last_ingested_at ?? null);
+  const _rows24h = toInt(isControlled ? rows24h : s?.rows_24h);
+  const _totalRows = isControlled ? totalRows : s?.total_rows;
+  const _locations = isControlled ? locations : s?.locations;
+  const _lastFile = isControlled ? lastFile : s?.last_source_file;
+
+  const dayAge = _latestDay ? daysDiffFromToday(_latestDay) : null;
 
   const status: "green" | "amber" | "red" = (() => {
-    if (!s?.ok) return "red";
-    if (rows24h > 0) return "green";
+    if (!dataOk) return "red";
+    if (_rows24h > 0) return "green";
     if (dayAge === null) return "red";
     if (dayAge <= greenDays) return "green";
     if (dayAge <= amberDays) return "amber";
     return "red";
   })();
 
-  const label =
-    status === "green" ? "Data: Fresh" : status === "amber" ? "Data: Watch" : "Data: Action";
+  const label = status === "green" ? "Data: Fresh" : status === "amber" ? "Data: Watch" : "Data: Action";
 
   const pillCls =
     status === "green"
@@ -87,14 +120,14 @@ export function DataFreshnessPill({
       ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
       : "border-rose-400/30 bg-rose-400/10 text-rose-200";
 
-  const tooltip = s?.ok
+  const tooltip = dataOk
     ? [
-        `Latest day: ${fmtDate(s.latest_day)}`,
-        `Last ingested: ${fmtDate(s.last_ingested_at)}`,
-        `Rows (24h): ${rows24h}`,
-        `Total rows: ${s.total_rows ?? "—"}`,
-        `Locations: ${s.locations ?? "—"}`,
-        s.last_source_file ? `Last file: ${s.last_source_file}` : null,
+        `Latest day: ${fmtDate(_latestDay)}`,
+        `Last ingested: ${fmtDate(_lastIngestedAt)}`,
+        `Rows (24h): ${_rows24h}`,
+        `Total rows: ${_totalRows ?? "—"}`,
+        `Locations: ${_locations ?? "—"}`,
+        _lastFile ? `Last file: ${_lastFile}` : null,
       ]
         .filter(Boolean)
         .join("\n")
@@ -112,9 +145,9 @@ export function DataFreshnessPill({
     >
       <span className="h-2 w-2 rounded-full bg-current opacity-80" />
       {label}
-      {s?.ok ? (
+      {dataOk ? (
         <span className="ml-1 text-[11px] opacity-70">
-          • {rows24h > 0 ? "updated" : dayAge === null ? "unknown" : `${dayAge}d old`}
+          • {_rows24h > 0 ? "updated" : dayAge === null ? "unknown" : `${dayAge}d old`}
         </span>
       ) : null}
     </span>

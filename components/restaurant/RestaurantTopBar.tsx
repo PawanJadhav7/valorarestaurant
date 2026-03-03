@@ -76,6 +76,7 @@ export function RestaurantTopBar({
       meta={
         status ? (
           <DataFreshnessPill
+            ok={status.ok}
             latestDay={status.latest_day}
             lastIngestedAt={status.last_ingested_at}
             rows24h={status.rows_24h ?? null}
