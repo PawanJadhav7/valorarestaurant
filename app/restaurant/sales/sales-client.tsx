@@ -20,29 +20,24 @@ type Kpi = {
 };
 
 type TopItem = {
-  menu_item_id: string;
   item_name: string;
-  category: string;
-  qty: number;
-  item_revenue: number;
-  orders: number;
-  revenue_share_pct: number;
+  quantity: string;      // API returns string
+  revenue: string;       // API returns string
+  share_pct: string;     // API returns string
 };
 
 type CategoryMix = {
   category: string;
-  revenue: number;
-  qty: number;
-  orders: number;
-  revenue_share_pct: number;
+  revenue: string;
+  share_pct: string;
 };
 
 type ChannelMix = {
-  channel: string;
-  revenue: number;
-  orders: number;
-  revenue_share_pct: number;
+  order_channel: string;
+  revenue: string;
+  share_pct: string;
 };
+
 
 type SalesSeries = {
   day: string[];
@@ -335,61 +330,110 @@ function LineChart({
 
 function Histogram({ title, buckets }: { title: string; buckets: AovBucket[] }) {
   const w = 760;
-  const h = 220;
-  const pad = 28;
+  const h = 240;
+  const pad = 40;
 
-  const max = buckets.length ? Math.max(...buckets.map((b) => Number(b.orders ?? 0))) : 1;
+  const maxOrders =
+    buckets.length > 0
+      ? Math.max(...buckets.map((b) => Number(b.orders ?? 0)))
+      : 1;
+
   const n = buckets.length || 1;
   const barW = (w - pad * 2) / n;
 
   const [hoverIdx, setHoverIdx] = React.useState<number | null>(null);
   const hovered = hoverIdx === null ? null : buckets[hoverIdx] ?? null;
 
+  if (!buckets.length) {
+    return (
+      <SectionCard title={title} subtitle="No AOV data available">
+        <div className="py-10 text-center text-sm text-muted-foreground">
+          No AOV distribution data for selected window.
+        </div>
+      </SectionCard>
+    );
+  }
+
   return (
     <SectionCard
       title={title}
-      subtitle={<span className="text-xs text-muted-foreground">{buckets.length ? `${buckets.length} buckets` : "—"}</span>}
+      subtitle={
+        <span className="text-xs text-muted-foreground">
+          Order value distribution
+        </span>
+      }
     >
       <div className="relative">
-        {hovered ? (
-          <div className="pointer-events-none absolute right-0 top-0 rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground shadow-sm">
+
+        {/* Tooltip */}
+        {hovered && (
+          <div className="absolute right-2 top-2 rounded-xl border border-border bg-background px-3 py-2 text-xs shadow-sm">
             <div className="font-medium">
-              {fmtUsd0(hovered.bucket_from)} – {fmtUsd0(hovered.bucket_to)}
+              ${hovered.bucket_from} – ${hovered.bucket_to}
             </div>
             <div className="mt-1 text-muted-foreground">
-              Orders: <span className="text-foreground">{hovered.orders}</span> • Share:{" "}
-              <span className="text-foreground">{hovered.share_pct.toFixed(2)}%</span>
+              Orders: <span className="text-foreground">{hovered.orders}</span>
+            </div>
+            <div className="text-muted-foreground">
+              Share:{" "}
+              <span className="text-foreground">
+                {hovered.share_pct.toFixed(2)}%
+              </span>
             </div>
           </div>
-        ) : null}
+        )}
 
-        <svg viewBox={`0 0 ${w} ${h}`} className="mt-3 h-[220px] w-full">
-          <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="currentColor" opacity="0.12" />
-          <line x1={pad} y1={pad} x2={pad} y2={h - pad} stroke="currentColor" opacity="0.12" />
+        <svg viewBox={`0 0 ${w} ${h}`} className="mt-4 h-[240px] w-full">
 
+          {/* Axes */}
+          <line
+            x1={pad}
+            y1={h - pad}
+            x2={w - pad}
+            y2={h - pad}
+            stroke="currentColor"
+            opacity="0.12"
+          />
+          <line
+            x1={pad}
+            y1={pad}
+            x2={pad}
+            y2={h - pad}
+            stroke="currentColor"
+            opacity="0.12"
+          />
+
+          {/* Bars */}
           {buckets.map((b, i) => {
-            const v = Number(b.orders ?? 0);
-            const bh = max ? (v / max) * (h - pad * 2) : 0;
-            const x = pad + i * barW + 2;
+            const orders = Number(b.orders ?? 0);
+            const bh =
+              maxOrders > 0
+                ? (orders / maxOrders) * (h - pad * 2)
+                : 0;
+
+            const x = pad + i * barW + 4;
             const y = h - pad - bh;
-            const bw = Math.max(2, barW - 4);
+            const bw = Math.max(4, barW - 8);
             const isHover = hoverIdx === i;
 
-            const bucketKey = `${b.bucket_from}-${b.bucket_to}`;
-            const color = colorForLabel(bucketKey);
+            const bucketLabel = `${b.bucket_from}-${b.bucket_to}`;
+            const color = colorForLabel(bucketLabel);
 
             return (
-              <g key={`${bucketKey}-${i}`}>
+              <g key={`${bucketLabel}-${i}`}>
                 <rect
                   x={x}
                   y={y}
                   width={bw}
                   height={bh}
                   fill={color}
-                  opacity={isHover ? 0.95 : 0.78}
+                  opacity={isHover ? 1 : 0.75}
                   rx={8}
-                  stroke="rgba(255,255,255,0.10)"
+                  stroke="rgba(255,255,255,0.08)"
+                  className="transition-all duration-300"
                 />
+
+                {/* Hover zone */}
                 <rect
                   x={pad + i * barW}
                   y={pad}
@@ -399,12 +443,28 @@ function Histogram({ title, buckets }: { title: string; buckets: AovBucket[] }) 
                   onMouseEnter={() => setHoverIdx(i)}
                   onMouseLeave={() => setHoverIdx(null)}
                 />
+
+                {/* X-axis bucket label */}
+                {i % Math.ceil(n / 6) === 0 && (
+                  <text
+                    x={pad + i * barW + barW / 2}
+                    y={h - pad + 16}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fill="currentColor"
+                    opacity="0.5"
+                  >
+                    ${b.bucket_from}
+                  </text>
+                )}
               </g>
             );
           })}
         </svg>
 
-        <div className="mt-2 text-xs text-muted-foreground">Hover a bar to see bucket range, orders, and share.</div>
+        <div className="mt-3 text-xs text-muted-foreground">
+          Distribution of order value (AOV) across selected window.
+        </div>
       </div>
     </SectionCard>
   );
@@ -573,6 +633,216 @@ function HorizontalBarChart({
   );
 }
 
+function idx100(values: Array<number | null | undefined>) {
+  const clean = values.map((v) => (Number.isFinite(Number(v)) ? Number(v) : null));
+  const first = clean.find((v) => v !== null) ?? null;
+  if (first === null || first === 0) return clean.map(() => null);
+  return clean.map((v) => (v === null ? null : (v / first) * 100));
+}
+
+function fmtIdx(n: number) {
+  return `${n.toFixed(0)} idx`;
+}
+
+function buildPath(pts: Array<{ x: number; y: number | null }>) {
+  const dParts: string[] = [];
+  let started = false;
+  for (const p of pts) {
+    if (p.y === null) {
+      started = false;
+      continue;
+    }
+    dParts.push(`${started ? "L" : "M"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`);
+    started = true;
+  }
+  return dParts.join(" ");
+}
+
+function buildAreaPath(pts: Array<{ x: number; y: number | null }>, baselineY: number) {
+  const areaParts: string[] = [];
+  let started = false;
+  let firstX: number | null = null;
+  let lastX: number | null = null;
+
+  for (const p of pts) {
+    if (p.y === null) {
+      if (started && firstX !== null && lastX !== null) {
+        areaParts.push(`L ${lastX.toFixed(2)} ${baselineY.toFixed(2)}`);
+        areaParts.push(`L ${firstX.toFixed(2)} ${baselineY.toFixed(2)} Z`);
+      }
+      started = false;
+      firstX = null;
+      lastX = null;
+      continue;
+    }
+
+    if (!started) {
+      areaParts.push(`M ${p.x.toFixed(2)} ${baselineY.toFixed(2)}`);
+      areaParts.push(`L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`);
+      started = true;
+      firstX = p.x;
+      lastX = p.x;
+    } else {
+      areaParts.push(`L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`);
+      lastX = p.x;
+    }
+  }
+
+  if (started && firstX !== null && lastX !== null) {
+    areaParts.push(`L ${lastX.toFixed(2)} ${baselineY.toFixed(2)}`);
+    areaParts.push(`L ${firstX.toFixed(2)} ${baselineY.toFixed(2)} Z`);
+  }
+
+  return areaParts.join(" ");
+}
+
+function lastNonNullPoint(
+  pts: Array<{ x: number; y: number | null; v: number | null }>
+): { x: number; y: number; v: number } | null {
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i];
+    if (p.y !== null && p.v !== null) return { x: p.x, y: p.y, v: p.v };
+  }
+  return null;
+}
+
+function CompareLineChart({
+  title,
+  subtitle,
+  labels,
+  aLabel,
+  aValues,
+  bLabel,
+  bValues,
+  valueFmt = fmtIdx,
+  height = 220,
+}: {
+  title: string;
+  subtitle?: string;
+  labels: string[];
+  aLabel: string;
+  aValues: Array<number | null>;
+  bLabel: string;
+  bValues: Array<number | null>;
+  valueFmt?: (n: number) => string;
+  height?: number;
+}) {
+  const w = 760;
+  const h = height;
+  const pad = 28;
+
+  // Shared scale (min/max across both series)
+  const cleanA = aValues.map((v) => (Number.isFinite(Number(v)) ? Number(v) : null));
+  const cleanB = bValues.map((v) => (Number.isFinite(Number(v)) ? Number(v) : null));
+  const nums = [...cleanA, ...cleanB].filter((v): v is number => v !== null);
+
+  const min = nums.length ? Math.min(...nums) : 0;
+  const max = nums.length ? Math.max(...nums) : 1;
+  const span = max - min || 1;
+
+  const xStep = labels.length > 1 ? (w - pad * 2) / (labels.length - 1) : 0;
+
+  const ptsA = cleanA.map((v, i) => {
+    const x = pad + i * xStep;
+    const y = v === null ? null : pad + (h - pad * 2) * (1 - (v - min) / span);
+    return { x, y, v };
+  });
+
+  const ptsB = cleanB.map((v, i) => {
+    const x = pad + i * xStep;
+    const y = v === null ? null : pad + (h - pad * 2) * (1 - (v - min) / span);
+    return { x, y, v };
+  });
+
+  const lineA = buildPath(ptsA.map((p) => ({ x: p.x, y: p.y })));
+  const lineB = buildPath(ptsB.map((p) => ({ x: p.x, y: p.y })));
+
+  const areaA = buildAreaPath(ptsA.map((p) => ({ x: p.x, y: p.y })), h - pad);
+  const areaB = buildAreaPath(ptsB.map((p) => ({ x: p.x, y: p.y })), h - pad);
+
+  const lastA = lastNonNullPoint(ptsA);
+  const lastB = lastNonNullPoint(ptsB);
+
+  const gradA = `gradA-${title.replaceAll(" ", "-").toLowerCase()}`;
+  const gradB = `gradB-${title.replaceAll(" ", "-").toLowerCase()}`;
+
+  // Use existing palette helper
+  const colorA = colorForLabel(aLabel); // e.g. revenue
+  const colorB = colorForLabel(bLabel); // e.g. orders
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-foreground">{title}</div>
+          {subtitle ? <div className="mt-1 text-xs text-muted-foreground">{subtitle}</div> : null}
+        </div>
+
+        <div className="text-xs text-muted-foreground">
+          {lastA ? (
+            <span className="mr-3">
+              <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: colorA, opacity: 0.95 }} />
+              {aLabel}: <span className="text-foreground">{valueFmt(lastA.v)}</span>
+            </span>
+          ) : null}
+          {lastB ? (
+            <span>
+              <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: colorB, opacity: 0.95 }} />
+              {bLabel}: <span className="text-foreground">{valueFmt(lastB.v)}</span>
+            </span>
+          ) : null}
+        </div>
+      </div>
+
+      <svg viewBox={`0 0 ${w} ${h}`} className="mt-3 h-[220px] w-full">
+        <defs>
+          <linearGradient id={gradA} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={colorA} stopOpacity="0.18" />
+            <stop offset="70%" stopColor={colorA} stopOpacity="0.06" />
+            <stop offset="100%" stopColor={colorA} stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id={gradB} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={colorB} stopOpacity="0.14" />
+            <stop offset="70%" stopColor={colorB} stopOpacity="0.05" />
+            <stop offset="100%" stopColor={colorB} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+
+        {/* axes */}
+        <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="currentColor" opacity="0.10" />
+        <line x1={pad} y1={pad} x2={pad} y2={h - pad} stroke="currentColor" opacity="0.10" />
+
+        {/* area fills (subtle, behind lines) */}
+        {areaA ? <path d={areaA} fill={`url(#${gradA})`} /> : null}
+        {areaB ? <path d={areaB} fill={`url(#${gradB})`} /> : null}
+
+        {/* lines */}
+        {lineA ? <path d={lineA} fill="none" stroke={colorA} strokeWidth="2.3" opacity="0.95" /> : null}
+        {lineB ? <path d={lineB} fill="none" stroke={colorB} strokeWidth="2.3" opacity="0.90" /> : null}
+
+        {/* last points */}
+        {lastA ? <circle cx={lastA.x} cy={lastA.y} r="3.8" fill={colorA} opacity="0.95" /> : null}
+        {lastB ? <circle cx={lastB.x} cy={lastB.y} r="3.8" fill={colorB} opacity="0.95" /> : null}
+      </svg>
+
+      <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+        <div>{labels.length ? labels[0] : "—"}</div>
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorA, opacity: 0.95 }} />
+            {aLabel}
+          </span>
+          <span className="inline-flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colorB, opacity: 0.95 }} />
+            {bLabel}
+          </span>
+        </div>
+        <div>{labels.length ? labels[labels.length - 1] : "—"}</div>
+      </div>
+    </div>
+  );
+}
+
 /** ---------- Sales Client ---------- */
 export function SalesClient() {
   const [windowCode, setWindowCode] = React.useState<"7d" | "30d" | "90d" | "ytd">("30d");
@@ -584,6 +854,8 @@ export function SalesClient() {
 
   const [locations, setLocations] = React.useState<LocationRow[]>([]);
   const [aovBuckets, setAovBuckets] = React.useState<AovBucket[]>([]);
+
+  
 
   // Load locations once
   React.useEffect(() => {
@@ -738,6 +1010,9 @@ export function SalesClient() {
 
   const gmDelta = kpis.find((x) => x.code === "SALES_GROSS_MARGIN")?.delta ?? 0;
   const discDelta = kpis.find((x) => x.code === "SALES_DISCOUNT_RATE")?.delta ?? 0;
+  const revDelta = (kpis.find((x) => x.code === "SALES_REVENUE")?.delta ?? null) as number | null;
+  const ordDelta = (kpis.find((x) => x.code === "SALES_ORDERS")?.delta ?? null) as number | null;
+  const aovDelta = (kpis.find((x) => x.code === "SALES_AOV")?.delta ?? null) as number | null;
 
   return (
     <div className="space-y-4">
@@ -856,11 +1131,22 @@ export function SalesClient() {
       {!loading && ok && series.day.length > 0 ? (
         <>
           <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-            <LineChart title="Revenue Trend" labels={series.day} values={series.revenue.map((x) => x)} valueFmt={fmtUsd0} tone="revenue" />
+            <CompareLineChart
+              title="Demand vs Basket Performance"
+              subtitle="Indexed (100) to compare Net Sales vs Orders movement in one view."
+              labels={series.day}
+              aLabel="Net Sales"
+              aValues={idx100(series.revenue)}
+              bLabel="Orders"
+              bValues={idx100(series.orders)}
+              valueFmt={fmtIdx}
+            />
+            <LineChart title="Net Sales Trend" labels={series.day} values={series.revenue.map((x) => x)} valueFmt={fmtUsd0} tone="revenue" />
             <LineChart title="Orders Trend" labels={series.day} values={series.orders.map((x) => x)} tone="orders" />
             <LineChart title="AOV Trend" labels={series.day} values={series.aov} valueFmt={fmtUsd2} tone="aov" />
 
             <Histogram title="AOV Distribution (Histogram)" buckets={aovBuckets} />
+            
 
             <LineChart
               title="Gross Margin % Trend"
@@ -881,97 +1167,138 @@ export function SalesClient() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-            <div className="xl:col-span-2 space-y-3">
-              <HorizontalBarChart
-                title="Top Items (Revenue)"
-                rows={topItems.map((x) => ({ ...x, label: x.item_name }))}
-                valueKey="item_revenue"
-                labelKey="label"
-                valueFmt={fmtUsd2}
-                onDownloadCsv={() => downloadCsv(`sales_top_items_${windowCode}_${locationId}.csv`, topItems)}
-              />
-
-              <SectionCard
-                title={
-                  <div className="flex items-end justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-foreground">Top Items (Detail)</div>
-                      <div className="mt-1 text-xs text-muted-foreground">Item revenue is gross (qty×unit_price). KPI revenue is net.</div>
-                    </div>
-                    <button
-                      className="h-9 rounded-xl border border-border bg-background px-3 text-sm hover:bg-muted"
-                      onClick={() => downloadCsv(`sales_top_items_detail_${windowCode}_${locationId}.csv`, topItems)}
-                    >
-                      Download CSV
-                    </button>
-                  </div>
-                }
-                subtitle={null as any}
-              >
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="text-xs text-muted-foreground">
-                      <tr className="border-b border-border">
-                        <th className="py-2 pr-3">Item</th>
-                        <th className="py-2 pr-3">Category</th>
-                        <th className="py-2 pr-3">Qty</th>
-                        <th className="py-2 pr-3">Orders</th>
-                        <th className="py-2 pr-0 text-right">Revenue</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {topItems.length ? (
-                        topItems.map((it, idx) => (
-                          <tr key={`${it.menu_item_id}-${idx}`} className="border-b border-border/60">
-                            <td className="py-2 pr-3">
-                              <div className="font-medium text-foreground">{it.item_name}</div>
-                              <div className="text-xs text-muted-foreground">{Number(it.revenue_share_pct ?? 0).toFixed(2)}% share</div>
-                            </td>
-                            <td className="py-2 pr-3 text-muted-foreground">{it.category}</td>
-                            <td className="py-2 pr-3 text-muted-foreground">{Number(it.qty).toFixed(0)}</td>
-                            <td className="py-2 pr-3 text-muted-foreground">{it.orders}</td>
-                            <td className="py-2 pr-0 text-right font-medium text-foreground">{fmtUsd2(Number(it.item_revenue))}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
-                            No items yet.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </SectionCard>
-            </div>
+          {/* ---------- Mix Section ---------- */}
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
 
             <DonutChart
               title="Category Mix"
-              subtitle="Share of item revenue (gross)."
+              subtitle="Share of net revenue."
               segments={categoryMix.map((c, i) => ({
                 label: String(c.category ?? `Category ${i + 1}`),
                 value: Number(c.revenue ?? 0),
-                secondary: `${Number(c.revenue_share_pct ?? 0).toFixed(2)}% • ${c.orders} orders`,
+                secondary: `${Number(c.share_pct ?? 0).toFixed(2)}%`,
               }))}
               valueFmt={fmtUsd2}
-              onDownloadCsv={() => downloadCsv(`sales_category_mix_${windowCode}_${locationId}.csv`, categoryMix)}
+              onDownloadCsv={() =>
+                downloadCsv(`sales_category_mix_${windowCode}_${locationId}.csv`, categoryMix)
+              }
             />
 
-            <div className="xl:col-span-3">
-              <DonutChart
-                title="Channel Mix"
-                subtitle="Share of net revenue (order-level)."
-                segments={channelMix.map((c, i) => ({
-                  label: String(c.channel ?? `Channel ${i + 1}`),
-                  value: Number(c.revenue ?? 0),
-                  secondary: `${Number(c.revenue_share_pct ?? 0).toFixed(2)}% • ${c.orders} orders`,
-                }))}
-                valueFmt={fmtUsd2}
-                onDownloadCsv={() => downloadCsv(`sales_channel_mix_${windowCode}_${locationId}.csv`, channelMix)}
-              />
-            </div>
+            <DonutChart
+              title="Channel Mix"
+              subtitle="Share of net revenue."
+              segments={channelMix.map((c, i) => ({
+                label: String(c.order_channel ?? `Channel ${i + 1}`),
+                value: Number(c.revenue ?? 0),
+                secondary: `${Number(c.share_pct ?? 0).toFixed(2)}%`,
+              }))}
+              valueFmt={fmtUsd2}
+              onDownloadCsv={() =>
+                downloadCsv(`sales_channel_mix_${windowCode}_${locationId}.csv`, channelMix)
+              }
+            />
+
+          </div>
+
+          {/* ---------- Top Items Section ---------- */}
+          <div className="grid grid-cols-1 gap-3">
+
+            <HorizontalBarChart
+              title="Top Items (Revenue)"
+              rows={topItems.map((x) => ({
+                label: x.item_name,
+                revenue_num: Number(x.revenue ?? 0),
+                share_pct: x.share_pct,
+                quantity: x.quantity,
+              }))}
+              valueKey="revenue_num"
+              labelKey="label"
+              valueFmt={fmtUsd2}
+              onDownloadCsv={() =>
+                downloadCsv(`sales_top_items_${windowCode}_${locationId}.csv`, topItems)
+              }
+            />
+
+            <SectionCard
+              title={
+                <div className="flex items-end justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-foreground">
+                      Top Items (Detail)
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Item revenue is gross (qty×unit_price). KPI revenue is net.
+                    </div>
+                  </div>
+                  <button
+                    className="h-9 rounded-xl border border-border bg-background px-3 text-sm hover:bg-muted"
+                    onClick={() =>
+                      downloadCsv(`sales_top_items_detail_${windowCode}_${locationId}.csv`, topItems)
+                    }
+                  >
+                    Download CSV
+                  </button>
+                </div>
+              }
+              subtitle={null as any}
+            >
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="text-xs text-muted-foreground">
+                    <tr className="border-b border-border">
+                      <th className="py-2 pr-3">Item</th>
+                      <th className="py-2 pr-3">Qty</th>
+                      <th className="py-2 pr-0 text-right">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topItems.length ? (
+                      topItems.map((it, idx) => (
+                        <tr
+                          key={`${it.item_name}-${idx}`}
+                          className="border-b border-border/60"
+                        >
+                          <td className="py-2 pr-3">
+                            <div className="font-medium text-foreground">
+                              {it.item_name}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {Number(it.share_pct ?? 0).toFixed(2)}% share
+                            </div>
+                          </td>
+                          <td className="py-2 pr-3 text-muted-foreground">
+                            {Number(it.quantity ?? 0).toFixed(0)}
+                          </td>
+                          <td className="py-2 pr-0 text-right font-medium text-foreground">
+                            {fmtUsd2(Number(it.revenue ?? 0))}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="py-6 text-center text-sm text-muted-foreground"
+                        >
+                          No items yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+            <CompareLineChart
+              title="Demand vs Basket Performance"
+              subtitle="Indexed (100) to compare Net Sales vs Orders movement in one view."
+              labels={series.day}
+              aLabel="Net Sales"
+              aValues={idx100(series.revenue)}
+              bLabel="Orders"
+              bValues={idx100(series.orders)}
+              valueFmt={fmtIdx}
+            />
+
           </div>
         </>
       ) : null}

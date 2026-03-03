@@ -29,7 +29,7 @@ type NavItem = {
 const ALWAYS: NavItem[] = [
   { label: "Overview", href: "/restaurant", icon: LayoutDashboard },
   { label: "Sales & Demand", href: "/restaurant/sales", icon: TrendingUp },
-  { label: "Ops Dashboard", href: "/restaurant/ops", icon: ClipboardList },
+  { label: "Operations", href: "/restaurant/ops", icon: ClipboardList },
   { label: "Alerts", href: "/restaurant/ops/alerts", icon: Bell },
   { label: "Data", href: "/restaurant/data", icon: Database },
 ];
