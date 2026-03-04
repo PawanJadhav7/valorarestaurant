@@ -11,7 +11,7 @@ export async function GET() {
       SELECT
         location_id,
         location_code,
-        name
+        location_name
       FROM restaurant.dim_location
       ORDER BY location_code ASC;
     `);

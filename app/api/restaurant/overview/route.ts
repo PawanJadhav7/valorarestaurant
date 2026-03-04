@@ -5,8 +5,7 @@ import { pool } from "@/lib/db";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Severity = "good" | "warn" | "risk";
-type Unit = "usd" | "pct" | "days" | "ratio" | "count";
+type Unit = "usd" | "pct" | "count" | "days" | "ratio";
 
 type Kpi = {
   code: string;
@@ -14,178 +13,222 @@ type Kpi = {
   value: number | null;
   unit: Unit;
   delta?: number | null;
-  severity?: Severity;
-  hint?: string;
 };
-
-function parseAsOf(searchParams: URLSearchParams): string | null {
-  const raw = searchParams.get("as_of");
-  if (!raw) return null;
-  const t = raw.trim();
-  return t.length ? t : null;
-}
 
 function toNum(v: any): number | null {
   if (v === null || v === undefined) return null;
-  const x = Number(v);
-  return Number.isFinite(x) ? x : null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizePct(v: number): number {
+  return v > 1.5 ? v / 100 : v;
+}
+
+function mapUnit(u: string | null | undefined): Unit {
+  const x = String(u ?? "").toLowerCase();
+  if (x.includes("%")) return "pct";
+  if (x.includes("day")) return "days";
+  if (x.includes("ratio")) return "ratio";
+  if (x.includes("count")) return "count";
+  return "usd";
+}
+
+function lastTwo(arr?: number[]) {
+  if (!arr || arr.length < 2) return null;
+  const prev = Number(arr[arr.length - 2]);
+  const curr = Number(arr[arr.length - 1]);
+  if (!Number.isFinite(prev) || !Number.isFinite(curr)) return null;
+  return { prev, curr };
+}
+
+function deltaPct(prev: number, curr: number) {
+  if (!Number.isFinite(prev) || prev === 0) return null;
+  return ((curr - prev) / prev) * 100;
+}
+
+function rollingAvg(arr: number[], window = 7): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const start = Math.max(0, i - window + 1);
+    const slice = arr.slice(start, i + 1);
+    const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+    out.push(avg);
+  }
+  return out;
+}
+
+function mapCode(dbCode: string): { code: string; label: string; unit?: Unit } | null {
+  const c = dbCode.toUpperCase();
+
+  if (c === "NET_SALES") return { code: "REVENUE", label: "Net Sales", unit: "usd" };
+
+  if (c === "COGS") return { code: "COGS", label: "COGS", unit: "usd" };
+  if (c === "LABOR") return { code: "LABOR", label: "Labor", unit: "usd" };
+  if (c === "PRIME_COST") return { code: "PRIME_COST", label: "Prime Cost", unit: "usd" };
+  if (c === "FIXED_COSTS") return { code: "FIXED_COSTS", label: "Fixed Costs", unit: "usd" };
+
+  if (c === "GROSS_PROFIT") return { code: "GROSS_PROFIT", label: "Gross Profit", unit: "usd" };
+  if (c === "GROSS_MARGIN") return { code: "GROSS_MARGIN", label: "Gross Margin", unit: "pct" };
+
+  if (c === "FOOD_COST_PCT") return { code: "FOOD_COST_RATIO", label: "Food Cost %", unit: "pct" };
+  if (c === "LABOR_COST_PCT") return { code: "LABOR_COST_RATIO", label: "Labor Cost %", unit: "pct" };
+  if (c === "PRIME_COST_PCT") return { code: "PRIME_COST_RATIO", label: "Prime Cost %", unit: "pct" };
+
+  if (c === "FIXED_COST_COVERAGE_RATIO")
+    return { code: "FIXED_COST_COVERAGE_RATIO", label: "Fixed Cost Coverage", unit: "ratio" };
+
+  if (c === "BREAK_EVEN_REVENUE")
+    return { code: "BREAK_EVEN_REVENUE", label: "Break-even Revenue", unit: "usd" };
+
+  if (c === "SAFETY_MARGIN_PCT")
+    return { code: "SAFETY_MARGIN", label: "Safety Margin", unit: "pct" };
+
+  if (c === "EBIT") return { code: "EBIT", label: "EBIT", unit: "usd" };
+  if (c === "INTEREST_EXPENSE")
+    return { code: "INTEREST_EXPENSE", label: "Interest Expense", unit: "usd" };
+  if (c === "INTEREST_COVERAGE_RATIO")
+    return { code: "INTEREST_COVERAGE_RATIO", label: "Interest Coverage", unit: "ratio" };
+
+  if (c === "DAYS_INVENTORY_ON_HAND")
+    return { code: "DAYS_INVENTORY_ON_HAND", label: "Days Inventory", unit: "days" };
+  if (c === "AR_DAYS") return { code: "AR_DAYS", label: "AR Days", unit: "days" };
+  if (c === "AP_DAYS") return { code: "AP_DAYS", label: "AP Days", unit: "days" };
+  if (c === "CASH_CONVERSION_CYCLE")
+    return { code: "CASH_CONVERSION_CYCLE", label: "Cash Conversion Cycle", unit: "days" };
+
+  if (c === "ORDERS") return { code: "ORDERS", label: "Orders", unit: "count" };
+  if (c === "CUSTOMERS") return { code: "CUSTOMERS", label: "Customers", unit: "count" };
+  if (c === "ARPU") return { code: "ARPU", label: "ARPU", unit: "usd" };
+
+  return null;
 }
 
 export async function GET(req: Request) {
   const refreshedAt = new Date().toISOString();
+  const url = new URL(req.url);
+  const locationId = url.searchParams.get("location_id");
 
-  try {
-    const url = new URL(req.url);
-    const asOf = parseAsOf(url.searchParams);
+  const r = await pool.query(
+    `select * from analytics.get_executive_kpis_by_location(now())`
+  );
 
-    // uuid OR "all" OR null
-    const locationIdRaw = url.searchParams.get("location_id");
-    const locationId = locationIdRaw && locationIdRaw !== "all" ? locationIdRaw : null;
+  const rows = r.rows;
 
-    /**
-     * Param strategy (avoid SQLSTATE param index errors):
-     * - If asOf provided: $1 = asOf
-     * - If locationId provided: $2 = locationId
-     * - If asOf not provided: "now()" is inlined, and $1 = locationId
-     */
+  const filtered = locationId
+    ? rows.filter((x) => String(x.location_id) === locationId)
+    : rows;
 
-    const sqlAll = asOf
-      ? `SELECT * FROM analytics.get_executive_kpis_all_locations($1::timestamptz);`
-      : `SELECT * FROM analytics.get_executive_kpis_all_locations(now());`;
+  const seriesRes = await pool.query(
+    `
+    select
+      day::date,
+      sum(revenue) revenue,
+      sum(cogs) cogs,
+      sum(labor) labor
+    from restaurant.raw_restaurant_daily
+    where day >= current_date - interval '30 days'
+      and ($1::text is null or location_id = $1::text)
+    group by 1
+    order by 1
+    `,
+    [locationId]
+  );
 
-    const sqlByLoc = (() => {
-      if (asOf && locationId) {
-        return `
-          SELECT *
-          FROM analytics.get_executive_kpis_by_location($1::timestamptz)
-          WHERE location_id = $2::uuid
-          ORDER BY revenue_30d DESC;
-        `;
-      }
-      if (asOf && !locationId) {
-        return `
-          SELECT *
-          FROM analytics.get_executive_kpis_by_location($1::timestamptz)
-          ORDER BY revenue_30d DESC;
-        `;
-      }
-      if (!asOf && locationId) {
-        return `
-          SELECT *
-          FROM analytics.get_executive_kpis_by_location(now())
-          WHERE location_id = $1::uuid
-          ORDER BY revenue_30d DESC;
-        `;
-      }
-      return `
-        SELECT *
-        FROM analytics.get_executive_kpis_by_location(now())
-        ORDER BY revenue_30d DESC;
-      `;
-    })();
+  const daily = seriesRes.rows;
 
-    const paramsAll = asOf ? [asOf] : [];
+  const revenueSeries: number[] = [];
+  const gmSeries: number[] = [];
+  const foodSeries: number[] = [];
+  const laborSeries: number[] = [];
+  const primeSeries: number[] = [];
 
-    const paramsByLoc = (() => {
-      if (asOf && locationId) return [asOf, locationId];
-      if (asOf && !locationId) return [asOf];
-      if (!asOf && locationId) return [locationId];
-      return [];
-    })();
+  for (const d of daily) {
+    const rev = Number(d.revenue);
+    const cogs = Number(d.cogs);
+    const labor = Number(d.labor);
 
-    const [allRes, byLocRes] = await Promise.all([
-      asOf ? pool.query(sqlAll, paramsAll) : pool.query(sqlAll),
-      pool.query(sqlByLoc, paramsByLoc),
-    ]);
+    revenueSeries.push(rev);
 
-    const executive = allRes.rows?.[0] ?? null;
-    const byLocation = byLocRes.rows ?? [];
+    if (rev > 0) {
+      gmSeries.push(((rev - cogs) / rev) * 100);
+      foodSeries.push((cogs / rev) * 100);
+      laborSeries.push((labor / rev) * 100);
+      primeSeries.push(((cogs + labor) / rev) * 100);
+    } else {
+      gmSeries.push(0);
+      foodSeries.push(0);
+      laborSeries.push(0);
+      primeSeries.push(0);
+    }
+  }
 
-    // If a specific location is requested, prefer that row; otherwise executive
-    const active = locationId ? byLocation?.[0] ?? null : executive;
+  // ✅ make series indexable
+  const series: Record<string, number[]> = {
+    REVENUE: rollingAvg(revenueSeries),
+    GROSS_MARGIN: rollingAvg(gmSeries).map(normalizePct),
+    FOOD_COST_RATIO: rollingAvg(foodSeries).map(normalizePct),
+    LABOR_COST_RATIO: rollingAvg(laborSeries).map(normalizePct),
+    PRIME_COST_RATIO: rollingAvg(primeSeries).map(normalizePct),
+  };
 
-    // Old behavior: no data => ok true with empty KPIs
-    if (!executive) {
-      return NextResponse.json(
-        {
-          ok: true,
-          as_of: null,
-          refreshed_at: refreshedAt,
-          location: { id: locationIdRaw ?? "all", name: locationIdRaw ? locationIdRaw : "All Locations" },
-          kpis: [],
-          series: {},
-          notes: "No data yet.",
-          executive: null,
-          by_location: [],
-          active: null,
-        },
-        { headers: { "Cache-Control": "no-store" } }
-      );
+  type Agg = { values: number[]; sum: number; unit?: string };
+
+  const byCode = new Map<string, Agg>();
+
+  for (const row of filtered) {
+    const v = toNum(row.kpi_value);
+    if (v === null) continue;
+
+    const key = String(row.kpi_code);
+    const cur: Agg = byCode.get(key) ?? { values: [] as number[], sum: 0, unit: row.unit };
+
+    cur.values.push(v);
+    cur.sum += v;
+    cur.unit = cur.unit ?? row.unit;
+
+    byCode.set(key, cur);
+  }
+
+  const kpis: Kpi[] = [];
+
+  for (const [dbCode, agg] of byCode.entries()) {
+    const mapped = mapCode(dbCode);
+    if (!mapped) continue;
+
+    const unit = mapped.unit ?? mapUnit(agg.unit);
+
+    const raw =
+      unit === "pct"
+        ? agg.values.reduce((a, b) => a + b, 0) / agg.values.length
+        : agg.sum;
+
+    const normalized = unit === "pct" ? normalizePct(raw) : raw;
+
+    const s = series[mapped.code];
+    const pair = lastTwo(s);
+
+    let delta: number | null = null;
+
+    if (pair) {
+      delta = unit === "pct" ? pair.curr - pair.prev : deltaPct(pair.prev, pair.curr);
     }
 
-    // Use ACTIVE row to populate tiles (location-specific or all)
-    const row = active ?? executive;
-
-    // Convert DB percent 0..100 -> old UI expects 0..1 for pct unit
-    const grossMarginPct = toNum(row.gross_margin_pct);
-    const foodCostPct = toNum(row.food_cost_ratio_pct);
-    const laborCostPct = toNum(row.labor_cost_ratio_pct);
-    const primeCostPct = toNum(row.prime_cost_ratio_pct);
-    const safetyMarginPct = toNum(row.safety_margin_pct);
-
-    const kpis: Kpi[] = [
-      { code: "REVENUE", label: "Revenue (30d)", value: toNum(row.revenue_30d), unit: "usd", delta: null, severity: "good", hint: "Total sales over last 30 days." },
-      { code: "COGS", label: "COGS (30d)", value: toNum(row.cogs_30d), unit: "usd", delta: null, severity: "good", hint: "Cost of goods sold over last 30 days." },
-      { code: "GROSS_PROFIT", label: "Gross Profit (30d)", value: toNum(row.gross_profit_30d), unit: "usd", delta: null, severity: "good", hint: "Revenue − COGS." },
-
-      { code: "GROSS_MARGIN", label: "Gross Margin", value: grossMarginPct === null ? null : grossMarginPct / 100, unit: "pct", delta: null, severity: "good", hint: "(Revenue − COGS) / Revenue." },
-      { code: "FOOD_COST_RATIO", label: "Food Cost Ratio", value: foodCostPct === null ? null : foodCostPct / 100, unit: "pct", delta: null, severity: "good", hint: "COGS / Revenue." },
-      { code: "LABOR_COST_RATIO", label: "Labor Cost Ratio", value: laborCostPct === null ? null : laborCostPct / 100, unit: "pct", delta: null, severity: "good", hint: "Labor / Revenue." },
-      { code: "PRIME_COST_RATIO", label: "Prime Cost Ratio", value: primeCostPct === null ? null : primeCostPct / 100, unit: "pct", delta: null, severity: "good", hint: "(COGS + Labor) / Revenue." },
-
-      { code: "FIXED_COSTS", label: "Fixed Costs (30d)", value: toNum(row.fixed_costs_30d), unit: "usd", delta: null, severity: "good", hint: "Rent, utilities, subscriptions, etc." },
-      { code: "FIXED_COST_COVERAGE_RATIO", label: "Fixed Cost Coverage Ratio", value: toNum(row.fixed_cost_coverage_ratio), unit: "ratio", delta: null, severity: "good", hint: "Gross Profit / Fixed Costs." },
-      { code: "BREAK_EVEN_REVENUE", label: "Break-even Revenue", value: toNum(row.break_even_revenue_30d), unit: "usd", delta: null, severity: "good", hint: "Fixed Costs / Gross Margin%." },
-      { code: "SAFETY_MARGIN", label: "Safety Margin", value: safetyMarginPct === null ? null : safetyMarginPct / 100, unit: "pct", delta: null, severity: "good", hint: "(Actual − Break-even) / Actual." },
-
-      { code: "DAYS_INVENTORY_ON_HAND", label: "Days of Inventory on Hand", value: toNum(row.days_inventory_on_hand), unit: "days", delta: null, severity: "good", hint: "Avg Inventory / COGS * 365." },
-      { code: "AR_DAYS", label: "AR Days", value: toNum(row.ar_days), unit: "days", delta: null, severity: "good", hint: "AR Balance / Revenue * 365." },
-      { code: "AP_DAYS", label: "AP Days", value: toNum(row.ap_days), unit: "days", delta: null, severity: "good", hint: "AP Balance / COGS * 365." },
-      { code: "CASH_CONVERSION_CYCLE", label: "Cash Conversion Cycle", value: toNum(row.cash_conversion_cycle_days), unit: "days", delta: null, severity: "good", hint: "Inventory + AR − AP (days)." },
-
-      // Growth (MVP placeholders)
-      { code: "ORDERS", label: "Orders (30d)", value: toNum(row.orders_30d), unit: "count", delta: null, severity: "good", hint: "Total orders over last 30 days." },
-      { code: "ARPU", label: "Average Revenue per Customer", value: null, unit: "usd", delta: null, severity: "good", hint: "Revenue / Avg Customers. (Enable after customer snapshots.)" },
-      { code: "CUSTOMER_CHURN", label: "Customer Churn Rate", value: null, unit: "pct", delta: null, severity: "good", hint: "Enable after snapshots." },
-      { code: "CAC", label: "Customer Acquisition Cost", value: null, unit: "usd", delta: null, severity: "good", hint: "Marketing / New Customers. (Enable after marketing + new customer data.)" },
-
-      { code: "EBIT", label: "EBIT (30d)", value: toNum(row.ebit_30d), unit: "usd", delta: null, severity: "good", hint: "Earnings before interest & taxes." },
-      { code: "INTEREST_EXPENSE", label: "Interest Expense (30d)", value: toNum(row.interest_expense_30d), unit: "usd", delta: null, severity: "good", hint: "Total interest expense (30d)." },
-      { code: "INTEREST_COVERAGE_RATIO", label: "Interest Coverage Ratio", value: toNum(row.interest_coverage_ratio), unit: "ratio", delta: null, severity: "good", hint: "EBIT / Interest Expense." },
-    ];
-
-    // MVP: keep empty series so UI won’t break if it expects object
-    const series: Record<string, number[]> = {};
-
-    return NextResponse.json(
-      {
-        ok: true,
-        as_of: row.as_of_ts ?? executive.as_of_ts ?? null,
-        refreshed_at: refreshedAt,
-        location: { id: locationIdRaw ?? "all", name: locationIdRaw ? locationIdRaw : "All Locations" },
-        kpis,
-        series,
-        notes: "KPI aggregation from analytics.* functions.",
-
-        // extras
-        executive,
-        by_location: byLocation,
-        active,
-      },
-      { headers: { "Cache-Control": "no-store" } }
-    );
-  } catch (err: any) {
-    console.error("GET /api/restaurant/overview failed:", err);
-    return NextResponse.json({ ok: false, error: err?.message ?? String(err) }, { status: 500 });
+    kpis.push({
+      code: mapped.code,
+      label: mapped.label,
+      value: normalized,
+      unit,
+      delta,
+    });
   }
+
+  return NextResponse.json({
+    ok: true,
+    as_of: refreshedAt,
+    refreshed_at: refreshedAt,
+    location: { id: locationId ?? "all" },
+    kpis,
+    series,
+  });
 }

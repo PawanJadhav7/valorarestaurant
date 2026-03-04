@@ -6,31 +6,9 @@ import Link from "next/link";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionCard } from "@/components/valora/SectionCard";
-import { DataFreshnessPill } from "@/components/restaurant/DataFreshnessPill";
-
-import {
-  RestaurantKpiTile,
-  type Kpi as RestaurantKpi,
-} from "@/components/restaurant/KpiTile";
-
-/**
- * FINAL FIXES IN THIS VERSION:
- * 1) Header uses SectionCard styling (consistent with the rest of the page).
- * 2) Header formatting is stacked lines (exact format requested).
- * 3) Location dropdown uses stable {id,label} mapping from /api/restaurant/locations, deduped.
- * 4) Location change triggers overview refetch (existing effect).
- * 5) No hooks (useMemo/useEffect) are called after early returns (rules-of-hooks safe).
- */
+import { RestaurantKpiTile, type Kpi as RestaurantKpi } from "@/components/restaurant/KpiTile";
 
 type LocationOpt = { id: string; label: string };
-
-type DataStatus = {
-  ok: boolean;
-  latest_day: string | null;
-  last_ingested_at: string | null;
-  rows_24h: string;
-  last_source_file: string | null;
-};
 
 type OverviewApi = {
   ok: boolean;
@@ -40,6 +18,7 @@ type OverviewApi = {
   kpis: RestaurantKpi[];
   series?: Record<string, number[]>;
   notes?: string;
+  error?: string;
 };
 
 function Skeleton() {
@@ -50,7 +29,7 @@ function Skeleton() {
         <div className="mt-2 h-4 w-96 rounded bg-muted/30" />
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
+        {Array.from({ length: 12 }).map((_, i) => (
           <div key={i} className="rounded-2xl border border-border bg-card p-4">
             <div className="h-3 w-32 rounded bg-muted/40" />
             <div className="mt-3 h-7 w-40 rounded bg-muted/30" />
@@ -67,25 +46,10 @@ export default function RestaurantOverviewPage() {
   const [err, setErr] = React.useState<string | null>(null);
 
   const [data, setData] = React.useState<OverviewApi | null>(null);
-  const [status, setStatus] = React.useState<DataStatus | null>(null);
 
   const [locations, setLocations] = React.useState<LocationOpt[]>([]);
   const [locationId, setLocationId] = React.useState<string>("all");
 
-  const fetchStatus = React.useCallback(async (signal?: AbortSignal) => {
-    try {
-      const r = await fetch("/api/restaurant/data-status", { cache: "no-store", signal });
-      if (!r.ok) return;
-      const j = (await r.json()) as DataStatus;
-      setStatus(j);
-    } catch (e: any) {
-      if (e?.name !== "AbortError") {
-        // non-critical
-      }
-    }
-  }, []);
-
-  // map /api/restaurant/locations response into stable {id,label}
   const fetchLocations = React.useCallback(async (signal?: AbortSignal) => {
     try {
       const r = await fetch("/api/restaurant/locations", { cache: "no-store", signal });
@@ -104,7 +68,6 @@ export default function RestaurantOverviewPage() {
         })
         .filter((x) => x.id);
 
-      // de-dupe by id
       const seen = new Set<string>();
       const uniq: LocationOpt[] = [];
       for (const m of mapped) {
@@ -128,17 +91,16 @@ export default function RestaurantOverviewPage() {
         const qs = locationId !== "all" ? `?location_id=${encodeURIComponent(locationId)}` : "";
         const res = await fetch(`/api/restaurant/overview${qs}`, { cache: "no-store", signal });
 
-        if (res.status === 404) {
-          setData(null);
-          return;
-        }
-
         if (!res.ok) throw new Error(`Restaurant overview HTTP ${res.status}`);
+
         const json = (await res.json()) as OverviewApi;
 
-        if (!Array.isArray((json as any).kpis)) {
-          throw new Error("Invalid API: kpis must be an array");
+        if (!(json as any)?.ok) {
+          throw new Error((json as any)?.error ?? "Overview API returned ok=false");
         }
+
+        if (!Array.isArray((json as any).kpis)) (json as any).kpis = [];
+        if (!(json as any).series) (json as any).series = {};
 
         setData(json);
       } catch (e: any) {
@@ -150,13 +112,12 @@ export default function RestaurantOverviewPage() {
     [locationId]
   );
 
-  // Mount: status + locations
+  // Mount: locations
   React.useEffect(() => {
     const ac = new AbortController();
-    fetchStatus(ac.signal);
     fetchLocations(ac.signal);
     return () => ac.abort();
-  }, [fetchStatus, fetchLocations]);
+  }, [fetchLocations]);
 
   // Location change: overview
   React.useEffect(() => {
@@ -164,12 +125,6 @@ export default function RestaurantOverviewPage() {
     fetchOverview(ac.signal);
     return () => ac.abort();
   }, [fetchOverview]);
-
-  // Optional: refresh status every 60s
-  React.useEffect(() => {
-    const id = window.setInterval(() => fetchStatus(), 60_000);
-    return () => window.clearInterval(id);
-  }, [fetchStatus]);
 
   if (loading) return <Skeleton />;
 
@@ -187,95 +142,96 @@ export default function RestaurantOverviewPage() {
     );
   }
 
-  // ---- header computed values (safe for both empty + data state) ----
   const asOfStr = data?.as_of ? new Date(data.as_of).toLocaleString() : "—";
-
   const locationLabel =
     locationId === "all"
       ? "All Locations"
-      : locations.find((l) => l.id === locationId)?.label ??
-        data?.location?.name ??
-        "Location";
+      : locations.find((l) => l.id === locationId)?.label ?? data?.location?.name ?? "Location";
 
-  const refreshedStr = data?.refreshed_at ? new Date(data.refreshed_at).toLocaleString() : null;
+  const kpis = data?.kpis ?? [];
+  const series = data?.series ?? {};
 
-  // Replace ONLY the HeaderCard block in your current app/restaurant/page.tsx
-// (Everything else stays the same.)
+  const byCode = new Map(kpis.map((k) => [k.code, k]));
+  const pick = (codes: string[]) => codes.map((c) => byCode.get(c)).filter(Boolean) as RestaurantKpi[];
 
-const HeaderCard = (
-  <SectionCard
-    title="Restaurant KPIs"
-    subtitle="Executive view for Profit, Growth, and Ops."
-  >
-    <div className="relative pt-2">
-      
-      {/* 🔹 Top-right location dropdown */}
-      <div className="absolute right-0 top-0">
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-muted-foreground">Location</label>
-          <select
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-          >
-            <option value="all">All Locations</option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.label}
-              </option>
-            ))}
-          </select>
+  // Professional structure
+  const revenueDemand = pick(["REVENUE", "ORDERS", "CUSTOMERS", "ARPU"]);
+
+  const unitEconomics = pick(["GROSS_MARGIN", "FOOD_COST_RATIO", "LABOR_COST_RATIO", "PRIME_COST_RATIO"]);
+
+  const profitability = pick([
+    "COGS",
+    "LABOR",
+    "PRIME_COST",
+    "GROSS_PROFIT",
+    "FIXED_COSTS",
+    "FIXED_COST_COVERAGE_RATIO",
+    "BREAK_EVEN_REVENUE",
+    "SAFETY_MARGIN",
+  ]);
+
+  const workingCapital = pick(["DAYS_INVENTORY_ON_HAND", "AR_DAYS", "AP_DAYS", "CASH_CONVERSION_CYCLE"]);
+
+  const stability = pick(["EBIT", "INTEREST_EXPENSE", "INTEREST_COVERAGE_RATIO"]);
+
+  // Header
+  const HeaderCard = (
+    <SectionCard title="Restaurant KPIs" subtitle="Executive view for Profit, Growth, and Cash discipline.">
+      <div className="relative pt-2">
+        <div className="absolute right-0 top-0">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted-foreground">Location</label>
+            <select
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+              className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+            >
+              <option value="all">All Locations</option>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="space-y-2 pr-[220px]">
+          <div className="text-sm text-muted-foreground">
+            As of: <span className="font-medium text-foreground">{asOfStr}</span>
+          </div>
+          <div className="text-sm font-semibold text-foreground">{locationLabel}</div>
         </div>
       </div>
+    </SectionCard>
+  );
 
-      {/* 🔹 Stacked info (left aligned) */}
-      <div className="space-y-2 pr-[220px]">
-        <div className="text-sm text-muted-foreground">
-          As of:{" "}
-          <span className="font-medium text-foreground">{asOfStr}</span>
-        </div>
-
-        <div className="text-sm font-semibold text-foreground">
-          {locationLabel}
-        </div>
-      </div>
-
-    </div>
-  </SectionCard>
-);
-
-  // ----- EMPTY STATE -----
-  if (!data) {
+  // Empty (no KPIs)
+  if (!kpis.length) {
     return (
       <div className="space-y-4">
         {HeaderCard}
 
-        <SectionCard title="Get started" subtitle="No restaurant data connected yet.">
+        <SectionCard title="Get started" subtitle="No KPI rows available for this selection yet.">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <Card className="rounded-2xl">
               <CardContent className="p-4">
-                <div className="text-sm font-semibold text-foreground">1) Upload CSV</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  Add sales, labor, and inventory extracts. We’ll normalize into the restaurant model.
-                </div>
+                <div className="text-sm font-semibold text-foreground">1) Load data</div>
+                <div className="mt-1 text-sm text-muted-foreground">Upload sales/labor/inventory or run ingestion.</div>
               </CardContent>
             </Card>
 
             <Card className="rounded-2xl">
               <CardContent className="p-4">
-                <div className="text-sm font-semibold text-foreground">2) Validate & map</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  Map columns (location, day, revenue, COGS, labor, fixed costs) and confirm KPI readiness.
-                </div>
+                <div className="text-sm font-semibold text-foreground">2) Validate</div>
+                <div className="mt-1 text-sm text-muted-foreground">Confirm raw_daily has revenue/cogs/labor.</div>
               </CardContent>
             </Card>
 
             <Card className="rounded-2xl">
               <CardContent className="p-4">
-                <div className="text-sm font-semibold text-foreground">3) Toast connector</div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  After CSV MVP, connect Toast for continuous ingestion + automated refresh.
-                </div>
+                <div className="text-sm font-semibold text-foreground">3) Re-check overview API</div>
+                <div className="mt-1 text-sm text-muted-foreground">Ensure /api/restaurant/overview returns kpis[].</div>
               </CardContent>
             </Card>
           </div>
@@ -290,103 +246,49 @@ const HeaderCard = (
     );
   }
 
-  // ----- DATA STATE -----
-  const kpis = data.kpis ?? [];
-  const series = data.series ?? {};
-
-  const byCode = new Map(kpis.map((k) => [k.code, k]));
-  const pick = (codes: string[]) =>
-    codes.map((c) => byCode.get(c)).filter(Boolean) as RestaurantKpi[];
-
-  const spotlight = pick([
-    "REVENUE",
-    "GROSS_MARGIN",
-    "FOOD_COST_RATIO",
-    "LABOR_COST_RATIO",
-    "PRIME_COST_RATIO",
-    "SAFETY_MARGIN",
-    "BREAK_EVEN_REVENUE",
-    "CASH_CONVERSION_CYCLE",
-  ]);
-
-  const profitCost = pick([
-    "COGS",
-    "GROSS_PROFIT",
-    "FIXED_COSTS",
-    "FIXED_COST_COVERAGE_RATIO",
-    "DAYS_INVENTORY_ON_HAND",
-    "AVG_INVENTORY",
-    "AR_DAYS",
-    "AP_DAYS",
-  ]);
-
-  const growth = pick(["ORDERS", "ARPU", "CUSTOMER_CHURN", "CAC"]);
-  const leverage = pick(["EBIT", "INTEREST_EXPENSE", "INTEREST_COVERAGE_RATIO"]);
-
-  const used = new Set([...spotlight, ...profitCost, ...growth, ...leverage].map((k) => k.code));
-  const remaining = kpis.filter((k) => !used.has(k.code));
-
   return (
     <div className="space-y-4">
       {HeaderCard}
 
-      <SectionCard
-        title="Executive spotlight"
-        subtitle="High-signal KPIs tied to Menu Pricing Power, Inflation, Efficiency, Inventory health, and Cash cycle."
-      >
+      <SectionCard title="Revenue & demand" subtitle="Top-line performance and pricing power.">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {spotlight.map((k) => (
+          {revenueDemand.map((k) => (
             <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
           ))}
         </div>
       </SectionCard>
 
-      <SectionCard
-        title="Profit & cost structure"
-        subtitle="Unit economics and break-even coverage (prime cost, fixed cost coverage, safety margin)."
-      >
+      <SectionCard title="Unit economics" subtitle="Core restaurant efficiency (margin + prime cost).">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {profitCost.map((k) => (
-            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
-          ))}
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Link href="/restaurant/costs" className="text-sm font-semibold text-foreground hover:underline">
-            Go deeper: Costs →
-          </Link>
-          <span className="text-muted-foreground">•</span>
-          <Link href="/restaurant/profit" className="text-sm font-semibold text-foreground hover:underline">
-            Go deeper: Profit →
-          </Link>
-        </div>
-      </SectionCard>
-
-      <SectionCard title="Growth" subtitle="Demand, customer retention, acquisition efficiency.">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {growth.map((k) => (
+          {unitEconomics.map((k) => (
             <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
           ))}
         </div>
       </SectionCard>
 
-      <SectionCard title="Leverage & credit" subtitle="Debt servicing capacity and interest stress.">
+      <SectionCard title="Profitability" subtitle="Revenue conversion into operating profit and break-even resilience.">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {leverage.map((k) => (
+          {profitability.map((k) => (
             <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
           ))}
         </div>
       </SectionCard>
 
-      {remaining.length ? (
-        <SectionCard title="Additional KPIs" subtitle="Automatically shown when new KPIs are added to the API.">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {remaining.map((k) => (
-              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
-            ))}
-          </div>
-        </SectionCard>
-      ) : null}
+      <SectionCard title="Working capital" subtitle="Inventory and cash efficiency over time.">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {workingCapital.map((k) => (
+            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Financial stability" subtitle="Debt servicing and financial resilience.">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {stability.map((k) => (
+            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+          ))}
+        </div>
+      </SectionCard>
     </div>
   );
 }

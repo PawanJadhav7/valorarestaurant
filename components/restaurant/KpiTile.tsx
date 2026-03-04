@@ -23,7 +23,8 @@ function fmtUsd2(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(n);
 }
 function fmtPct2(n: number) {
-  return `${(n * 100).toFixed(2)}%`;
+    //expects 0.100 for 10%
+   return `${n.toFixed(2)}%`;
 }
 function fmtNumber(n: number) {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(n);
@@ -113,8 +114,8 @@ function formatDelta(kpi: Kpi): string {
 
   // For overview, you mostly have null deltas today, but keep compatible.
   // If later you pass pct delta as fraction -> show %.
-  if (kpi.unit === "pct") return `${sign}${(d * 100).toFixed(2)} pp`;
-  return `${sign}${d.toFixed(2)}%`;
+  if (kpi.unit === "pct") {};
+  return `${sign}${d.toFixed(2)} pp`;
 }
 
 export function RestaurantKpiTile({ kpi, series }: { kpi: Kpi; series?: number[] }) {
@@ -145,7 +146,7 @@ export function RestaurantKpiTile({ kpi, series }: { kpi: Kpi; series?: number[]
 
       <div className="mt-3 flex items-center justify-between">
         <div className="text-[11px] text-muted-foreground">trend</div>
-        <div className="text-foreground">
+        <div className={sev === "risk" ? "text-rose-400" : sev === "warn" ? "text-amber-400" : "text-emerald-400"}>
           <Sparkline values={spark} />
         </div>
       </div>

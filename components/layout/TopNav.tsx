@@ -5,6 +5,7 @@ import Link from "next/link";
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { TopNavWidgets } from "@/components/restaurant/TopNavWidgets";
 
 type MeResp =
   | {
@@ -99,52 +100,134 @@ export function TopNav() {
   const onRestaurant = pathname === "/restaurant" || pathname.startsWith("/restaurant/");
 
   return (
-    <div className="glass flex items-center justify-between px-6 py-3">
-      <Link href={onHome} className="text-lg font-semibold">
-        Valora AI
-      </Link>
+  <div className="sticky top-0 z-50">
+    {/* subtle backdrop layer */}
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 -z-10"
+      style={{
+        background:
+          "linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.02))",
+      }}
+    />
 
-      <div className="flex items-center gap-3">
-        <ThemeToggle />
+    <div className="glass border-b border-border/20 px-6 py-3 backdrop-blur-xl">
+      <div className="flex items-center justify-between">
+        <Link href={onHome} className="text-lg font-semibold">
+          Valora AI
+        </Link>
 
-        {hasSession ? (
-          <>
-            {name ? (
-              <div className="hidden sm:block text-sm text-muted-foreground">
-                Hi, <span className="text-foreground font-semibold">{name}</span>
-              </div>
-            ) : loading ? (
-              <div className="hidden sm:block text-sm text-muted-foreground">Checking…</div>
-            ) : null}
+        <div className="flex items-center gap-3">
+          {/* Live widgets (weather • location • time) */}
+          <div className="hidden lg:block">
+            <TopNavWidgets />
+          </div>
 
-            {!onRestaurant ? (
-              <Link href={onDashboard} className="glass px-4 py-2 text-sm font-medium inline-flex items-center justify-center">
-                Go to Dashboard
+          <ThemeToggle />
+
+          {hasSession ? (
+            <>
+              {name ? (
+                <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="text-muted-foreground">Hi,</span>
+                  <span className="text-foreground font-semibold">{name}</span>
+                </div>
+              ) : loading ? (
+                <div className="hidden sm:block text-sm text-muted-foreground">Checking…</div>
+              ) : null}
+
+              {!onRestaurant ? (
+                <Link
+                  href={onDashboard}
+                  className="glass px-4 py-2 text-sm font-medium inline-flex items-center justify-center"
+                >
+                  Go to Dashboard
+                </Link>
+              ) : null}
+
+              <button
+                onClick={onLogout}
+                className="group relative flex items-center justify-center rounded-2xl px-4 py-2 text-sm transition-all duration-200
+                           glass border border-border/10 bg-background/15 backdrop-blur-xl
+                           shadow-[0_4px_20px_rgba(0,0,0,0.05)]
+                           hover:bg-background/25 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:-translate-y-[1px]
+                           focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              >
+                Logout
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href={onLogin}
+                className="glass px-4 py-2 text-sm font-medium inline-flex items-center justify-center"
+              >
+                Login
               </Link>
-            ) : null}
-
-            <button
-              onClick={onLogout}
-              className="group relative flex items-center justify-center rounded-2xl px-4 py-2 text-sm transition-all duration-200
-                         glass border border-border/10 bg-background/15 backdrop-blur-xl
-                         shadow-[0_4px_20px_rgba(0,0,0,0.05)]
-                         hover:bg-background/25 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:-translate-y-[1px]
-                         focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-            >
-              Logout
-            </button>
-          </>
-        ) : (
-          <>
-            <Link href={onLogin} className="glass px-4 py-2 text-sm font-medium inline-flex items-center justify-center">
-              Login
-            </Link>
-            <Link href={onSignup} className="glass px-4 py-2 text-sm font-medium inline-flex items-center justify-center">
-              Sign up
-            </Link>
-          </>
-        )}
+              <Link
+                href={onSignup}
+                className="glass px-4 py-2 text-sm font-medium inline-flex items-center justify-center"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
+        </div>
       </div>
     </div>
-  );
+  </div>
+);
+
+  // return (
+  //   <div className="glass flex items-center justify-between px-6 py-3">
+  //     <Link href={onHome} className="text-lg font-semibold">
+  //       Valora AI
+  //     </Link>
+
+  //     <div className="flex items-center gap-3">
+  //       {/* Live widgets (weather • location • time) */}
+  //       <TopNavWidgets />
+  //       <ThemeToggle />
+
+  //       {hasSession ? (
+  //         <>
+  //           {name ? (
+  //             <div className="hidden sm:flex items-center gap-2 rounded-2xl border border-border/20 bg-background/20 px-3 py-1.5 text-xs shadow-sm">
+  //               <span className="text-muted-foreground">Signed in</span>
+  //               <span className="text-foreground font-semibold">{name}</span>
+  //             </div>
+  //           ) : loading ? (
+  //             <div className="hidden sm:block text-sm text-muted-foreground">Checking…</div>
+  //           ) : null}
+
+  //           {!onRestaurant ? (
+  //             <Link href={onDashboard} className="glass px-4 py-2 text-sm font-medium inline-flex items-center justify-center">
+  //               Go to Dashboard
+  //             </Link>
+  //           ) : null}
+
+  //           <button
+  //             onClick={onLogout}
+  //             className="group relative flex items-center justify-center rounded-2xl px-4 py-2 text-sm transition-all duration-200
+  //                        glass border border-border/10 bg-background/15 backdrop-blur-xl
+  //                        shadow-[0_4px_20px_rgba(0,0,0,0.05)]
+  //                        hover:bg-background/25 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:-translate-y-[1px]
+  //                        focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+  //           >
+  //             Logout
+  //           </button>
+  //         </>
+  //       ) : (
+  //         <>
+  //           <Link href={onLogin} className="glass px-4 py-2 text-sm font-medium inline-flex items-center justify-center">
+  //             Login
+  //           </Link>
+  //           <Link href={onSignup} className="glass px-4 py-2 text-sm font-medium inline-flex items-center justify-center">
+  //             Sign up
+  //           </Link>
+  //         </>
+  //       )}
+  //     </div>
+  //   </div>
+  // );
 }

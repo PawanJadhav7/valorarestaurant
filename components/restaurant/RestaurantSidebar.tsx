@@ -190,63 +190,65 @@ export function RestaurantSidebar() {
   }, []);
 
   return (
-    <div className="glass rounded-3xl border border-border/20 bg-background/20 p-4 shadow-lg">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="text-sm font-semibold text-foreground">Valora Restaurant</div>
-            <DataHealthDot />
-          </div>
-
-          <div className="mt-1 text-xs text-muted-foreground">
-            {clientName ? (
-              <>
-                <span className="font-medium text-foreground">{clientName}</span>
-                <span className="mx-2 text-muted-foreground/60">•</span>
-                Executive KPIs • Multi-location (MVP)
-              </>
-            ) : (
-              "Executive KPIs • Multi-location (MVP)"
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Always-visible */}
-      <div className="mt-4 space-y-2">
-        {ALWAYS.map((n) => (
-          <NavLink key={n.href} item={n} pathname={pathname} />
-        ))}
-      </div>
-
-      {/* More accordion */}
-      <GlassAccordion title="More" open={openMore} onToggle={() => setOpenMore((v) => !v)}>
-        {MORE.map((n) => (
-          <NavLink key={n.href} item={n} pathname={pathname} />
-        ))}
-      </GlassAccordion>
-
-      {/* Footer (short) */}
-      <div className="mt-6">
-        <div
-          className={[
-            "glass rounded-2xl border border-border/10 bg-background/15 backdrop-blur-xl",
-            "shadow-[0_4px_20px_rgba(0,0,0,0.05)]",
-            "p-3",
-          ].join(" ")}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-foreground">{clientName ?? "Valora Restaurant"}</div>
+    <aside className="sticky top-0 h-dvh w-[280px] shrink-0 p-4">
+      <div className="glass rounded-3xl border border-border/20 bg-background/20 p-4 shadow-lg">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <div className="text-sm font-semibold text-foreground">Valora Restaurant</div>
+              <DataHealthDot />
             </div>
 
-            <div className="shrink-0 rounded-xl border border-border/20 bg-background/20 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-              v0.3.0
+            <div className="mt-1 text-xs text-muted-foreground">
+              {clientName ? (
+                <>
+                  <span className="font-medium text-foreground">{clientName}</span>
+                  <span className="mx-2 text-muted-foreground/60">•</span>
+                  Executive KPIs • Multi-location (MVP)
+                </>
+              ) : (
+                "Executive KPIs • Multi-location (MVP)"
+              )}
             </div>
           </div>
         </div>
+
+        {/* Always-visible */}
+        <div className="mt-4 space-y-2">
+          {ALWAYS.map((n) => (
+            <NavLink key={n.href} item={n} pathname={pathname} />
+          ))}
+        </div>
+
+        {/* More accordion */}
+        <GlassAccordion title="More" open={openMore} onToggle={() => setOpenMore((v) => !v)}>
+          {MORE.map((n) => (
+            <NavLink key={n.href} item={n} pathname={pathname} />
+          ))}
+        </GlassAccordion>
+
+        {/* Footer (short) */}
+        <div className="mt-6">
+          <div
+            className={[
+              "glass rounded-2xl border border-border/10 bg-background/15 backdrop-blur-xl",
+              "shadow-[0_4px_20px_rgba(0,0,0,0.05)]",
+              "p-3",
+            ].join(" ")}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-foreground">{clientName ?? "Valora Restaurant"}</div>
+              </div>
+
+              <div className="shrink-0 rounded-xl border border-border/20 bg-background/20 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                v0.3.0
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </aside>
   );
 }
