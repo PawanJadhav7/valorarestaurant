@@ -110,7 +110,7 @@ export default function HomePage() {
                   Sign up
                 </Link>
                 <Link
-                  href="/login"
+                  href="/signin"
                   className="inline-flex h-10 flex-1 items-center justify-center rounded-xl border border-border bg-background/30 px-4 text-sm font-semibold text-foreground hover:bg-muted/40"
                 >
                   Login
