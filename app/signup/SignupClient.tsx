@@ -1,7 +1,18 @@
+//app/signup/SignupClient.tsx
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+
+async function safeJson(res: Response) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Signup API returned non-JSON (${res.status}). BodyPreview=${text.slice(0, 160)}`);
+  }
+}
 
 export default function SignupClient() {
   const router = useRouter();
@@ -33,15 +44,9 @@ export default function SignupClient() {
         }),
       });
 
-      const text = await r.text();
-      let j: any;
-      try {
-        j = JSON.parse(text);
-      } catch {
-        throw new Error(`Signup API returned non-JSON (${r.status}). BodyPreview=${text.slice(0, 160)}`);
-      }
-
+      const j = await safeJson(r);
       if (!j.ok) throw new Error(j.error ?? "Signup failed");
+
       router.push(j.redirect ?? "/onboarding");
       router.refresh();
     } catch (e: any) {
@@ -53,9 +58,11 @@ export default function SignupClient() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-10">
-      <div className="glass rounded-3xl border border-border/20 bg-background/20 p-6 shadow-lg">
-        <div className="text-lg font-semibold text-foreground">Create account</div>
-        <div className="mt-1 text-sm text-muted-foreground">Start your multi-location KPIs in minutes.</div>
+      <div className="glass rounded-3xl border border-border/20 bg-background/20 p-6 shadow-lg backdrop-blur-xl">
+        <div className="text-2xl font-semibold tracking-tight text-foreground">Create account</div>
+        <div className="mt-1 text-sm text-muted-foreground">
+          Start your multi-location KPI workspace in minutes.
+        </div>
 
         {err ? (
           <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm">
@@ -66,14 +73,14 @@ export default function SignupClient() {
         <form onSubmit={submit} className="mt-5 space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <input
-              className="h-10 w-full rounded-xl border border-border bg-background px-3"
+              className="h-11 w-full rounded-xl border border-border bg-background/70 px-3 text-sm outline-none transition focus:border-foreground/30"
               placeholder="First name"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               required
             />
             <input
-              className="h-10 w-full rounded-xl border border-border bg-background px-3"
+              className="h-11 w-full rounded-xl border border-border bg-background/70 px-3 text-sm outline-none transition focus:border-foreground/30"
               placeholder="Last name"
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
@@ -82,22 +89,23 @@ export default function SignupClient() {
           </div>
 
           <input
-            className="h-10 w-full rounded-xl border border-border bg-background px-3"
+            className="h-11 w-full rounded-xl border border-border bg-background/70 px-3 text-sm outline-none transition focus:border-foreground/30"
             placeholder="Contact (phone)"
             value={contact}
             onChange={(e) => setContact(e.target.value)}
           />
 
           <input
-            className="h-10 w-full rounded-xl border border-border bg-background px-3"
+            className="h-11 w-full rounded-xl border border-border bg-background/70 px-3 text-sm outline-none transition focus:border-foreground/30"
             placeholder="Email"
+            type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
           />
 
           <input
-            className="h-10 w-full rounded-xl border border-border bg-background px-3"
+            className="h-11 w-full rounded-xl border border-border bg-background/70 px-3 text-sm outline-none transition focus:border-foreground/30"
             placeholder="Password (8+ chars)"
             type="password"
             value={password}
@@ -107,16 +115,16 @@ export default function SignupClient() {
 
           <button
             disabled={loading}
-            className="h-10 w-full rounded-xl border border-border bg-background hover:bg-muted disabled:opacity-60"
+            className="h-11 w-full rounded-xl border border-border bg-foreground text-sm font-semibold text-background transition hover:opacity-90 disabled:opacity-60"
           >
             {loading ? "Creating…" : "Create account"}
           </button>
 
           <div className="text-center text-sm text-muted-foreground">
             Have an account?{" "}
-            <a className="font-semibold text-foreground hover:underline" href="/signin">
+            <Link className="font-semibold text-foreground hover:underline" href="/signin">
               Sign in
-            </a>
+            </Link>
           </div>
         </form>
       </div>

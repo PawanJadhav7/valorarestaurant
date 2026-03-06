@@ -1,3 +1,4 @@
+//app/signin/page.tsx
 import { Suspense } from "react";
 import SignInClient from "./signin-client";
 
@@ -7,8 +8,10 @@ export default function SignInPage() {
   return (
     <Suspense
       fallback={
-        <div className="rounded-2xl border border-border bg-card p-6">
-          <div className="text-sm text-muted-foreground">Loading…</div>
+        <div className="mx-auto max-w-md px-4 py-10">
+          <div className="glass rounded-3xl border border-border/20 bg-background/20 p-6 shadow-lg">
+            <div className="text-sm text-muted-foreground">Loading…</div>
+          </div>
         </div>
       }
     >

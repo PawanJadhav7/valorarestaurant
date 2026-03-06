@@ -8,7 +8,10 @@ export default async function RestaurantLayout({ children }: { children: ReactNo
   const user = await getSessionUser();
 
   if (!user) redirect("/signin");
-  if (user.onboarding_status !== "complete") redirect("/onboarding");
+
+  const s = user.onboarding_status;
+  const done = s === "tenant_done" || s === "complete";
+  if (!done) redirect("/onboarding");
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6">

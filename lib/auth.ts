@@ -1,8 +1,9 @@
-// lib/auth.ts
+//lib/auth.ts
 import { pool } from "@/lib/db";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import type { NextResponse } from "next/server";
 
 const SESSION_COOKIE = "valora_session";
 
@@ -44,16 +45,30 @@ export async function createSession(userId: string) {
   return { session_id, expires_at: expires_at.toISOString() };
 }
 
-export async function setSessionCookie(sessionId: string, expiresAtIso: string) {
+export function attachSessionCookie(
+  res: NextResponse,
+  sessionId: string,
+  expiresAtIso: string
+) {
   const expires = new Date(expiresAtIso);
-  const c = await cookies();
-  c.set(SESSION_COOKIE, sessionId, {
+
+  res.cookies.set(SESSION_COOKIE, sessionId, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     expires,
   });
+
+  return res;
+}
+
+export function clearSessionCookieOnResponse(res: NextResponse) {
+  res.cookies.set(SESSION_COOKIE, "", {
+    path: "/",
+    expires: new Date(0),
+  });
+  return res;
 }
 
 export async function clearSessionCookie() {
@@ -66,7 +81,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const sessionId = c.get(SESSION_COOKIE)?.value ?? "";
   if (!sessionId) return null;
 
-  // 1) Validate session (session_id -> user_id, expires_at)
   const s = await pool.query(
     `
     select user_id, expires_at
@@ -82,7 +96,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   const expiresAt = sess.expires_at ? new Date(sess.expires_at) : null;
   if (!expiresAt || expiresAt.getTime() <= Date.now()) {
-    // best-effort cleanup
     try {
       await pool.query(`delete from auth.user_session where session_id = $1::uuid`, [sessionId]);
     } catch {}
@@ -92,7 +105,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   const userId = String(sess.user_id);
 
-  // 2) Fetch user record
   const r = await pool.query(
     `
     select
@@ -121,6 +133,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     last_name: row.last_name ?? null,
     contact: row.contact ?? null,
     onboarding_status: row.onboarding_status ?? null,
-    client_name: null, // ✅ keep safe until tenant linking is finalized
+    client_name: null,
   };
 }

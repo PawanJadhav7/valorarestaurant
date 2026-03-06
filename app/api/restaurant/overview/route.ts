@@ -1,6 +1,7 @@
 // app/api/restaurant/overview/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,12 +82,10 @@ function mapCode(dbCode: string): { code: string; label: string; unit?: Unit } |
   if (c === "BREAK_EVEN_REVENUE")
     return { code: "BREAK_EVEN_REVENUE", label: "Break-even Revenue", unit: "usd" };
 
-  if (c === "SAFETY_MARGIN_PCT")
-    return { code: "SAFETY_MARGIN", label: "Safety Margin", unit: "pct" };
+  if (c === "SAFETY_MARGIN_PCT") return { code: "SAFETY_MARGIN", label: "Safety Margin", unit: "pct" };
 
   if (c === "EBIT") return { code: "EBIT", label: "EBIT", unit: "usd" };
-  if (c === "INTEREST_EXPENSE")
-    return { code: "INTEREST_EXPENSE", label: "Interest Expense", unit: "usd" };
+  if (c === "INTEREST_EXPENSE") return { code: "INTEREST_EXPENSE", label: "Interest Expense", unit: "usd" };
   if (c === "INTEREST_COVERAGE_RATIO")
     return { code: "INTEREST_COVERAGE_RATIO", label: "Interest Coverage", unit: "ratio" };
 
@@ -104,131 +103,227 @@ function mapCode(dbCode: string): { code: string; label: string; unit?: Unit } |
   return null;
 }
 
+type Agg = { values: number[]; sum: number; unit?: string };
+
 export async function GET(req: Request) {
   const refreshedAt = new Date().toISOString();
+
+  const user = await getSessionUser();
+  if (!user) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+
   const url = new URL(req.url);
-  const locationId = url.searchParams.get("location_id");
+  const locationIdParam = url.searchParams.get("location_id");
+  const locationId = locationIdParam === null ? null : Number(locationIdParam);
 
-  const r = await pool.query(
-    `select * from analytics.get_executive_kpis_by_location(now())`
-  );
-
-  const rows = r.rows;
-
-  const filtered = locationId
-    ? rows.filter((x) => String(x.location_id) === locationId)
-    : rows;
-
-  const seriesRes = await pool.query(
-    `
-    select
-      day::date,
-      sum(revenue) revenue,
-      sum(cogs) cogs,
-      sum(labor) labor
-    from restaurant.raw_restaurant_daily
-    where day >= current_date - interval '30 days'
-      and ($1::text is null or location_id = $1::text)
-    group by 1
-    order by 1
-    `,
-    [locationId]
-  );
-
-  const daily = seriesRes.rows;
-
-  const revenueSeries: number[] = [];
-  const gmSeries: number[] = [];
-  const foodSeries: number[] = [];
-  const laborSeries: number[] = [];
-  const primeSeries: number[] = [];
-
-  for (const d of daily) {
-    const rev = Number(d.revenue);
-    const cogs = Number(d.cogs);
-    const labor = Number(d.labor);
-
-    revenueSeries.push(rev);
-
-    if (rev > 0) {
-      gmSeries.push(((rev - cogs) / rev) * 100);
-      foodSeries.push((cogs / rev) * 100);
-      laborSeries.push((labor / rev) * 100);
-      primeSeries.push(((cogs + labor) / rev) * 100);
-    } else {
-      gmSeries.push(0);
-      foodSeries.push(0);
-      laborSeries.push(0);
-      primeSeries.push(0);
-    }
+  if (locationIdParam !== null && !Number.isFinite(locationId)) {
+    return NextResponse.json({ ok: false, error: "location_id must be a number" }, { status: 400 });
   }
 
-  // ✅ make series indexable
-  const series: Record<string, number[]> = {
-    REVENUE: rollingAvg(revenueSeries),
-    GROSS_MARGIN: rollingAvg(gmSeries).map(normalizePct),
-    FOOD_COST_RATIO: rollingAvg(foodSeries).map(normalizePct),
-    LABOR_COST_RATIO: rollingAvg(laborSeries).map(normalizePct),
-    PRIME_COST_RATIO: rollingAvg(primeSeries).map(normalizePct),
-  };
+  const client = await pool.connect();
 
-  type Agg = { values: number[]; sum: number; unit?: string };
-
-  const byCode = new Map<string, Agg>();
-
-  for (const row of filtered) {
-    const v = toNum(row.kpi_value);
-    if (v === null) continue;
-
-    const key = String(row.kpi_code);
-    const cur: Agg = byCode.get(key) ?? { values: [] as number[], sum: 0, unit: row.unit };
-
-    cur.values.push(v);
-    cur.sum += v;
-    cur.unit = cur.unit ?? row.unit;
-
-    byCode.set(key, cur);
+  async function bail(status: number, payload: any) {
+    try {
+      await client.query("rollback");
+    } catch {}
+    return NextResponse.json(payload, { status });
   }
 
-  const kpis: Kpi[] = [];
+  try {
+    await client.query("begin");
 
-  for (const [dbCode, agg] of byCode.entries()) {
-    const mapped = mapCode(dbCode);
-    if (!mapped) continue;
+    const tenantRes = await client.query(
+      `
+      select tenant_id
+      from app.tenant_user
+      where user_id = $1::uuid
+      order by created_at asc
+      limit 1
+      `,
+      [user.user_id]
+    );
 
-    const unit = mapped.unit ?? mapUnit(agg.unit);
-
-    const raw =
-      unit === "pct"
-        ? agg.values.reduce((a, b) => a + b, 0) / agg.values.length
-        : agg.sum;
-
-    const normalized = unit === "pct" ? normalizePct(raw) : raw;
-
-    const s = series[mapped.code];
-    const pair = lastTwo(s);
-
-    let delta: number | null = null;
-
-    if (pair) {
-      delta = unit === "pct" ? pair.curr - pair.prev : deltaPct(pair.prev, pair.curr);
+    const tenantId: string | null = tenantRes.rows?.[0]?.tenant_id ?? null;
+    if (!tenantId) {
+      return await bail(403, { ok: false, error: "User not linked to a tenant yet" });
     }
 
-    kpis.push({
-      code: mapped.code,
-      label: mapped.label,
-      value: normalized,
-      unit,
-      delta,
+    await client.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
+
+    const allowedRes = await client.query(
+      `
+      with tenant_allowed as (
+        select tl.location_id::bigint as location_id
+        from app.tenant_location tl
+        where tl.tenant_id = $1::uuid
+          and tl.is_active = true
+      ),
+      user_allowed as (
+        select ul.location_id::bigint as location_id
+        from app.user_location ul
+        where ul.tenant_id = $1::uuid
+          and ul.user_id = $2::uuid
+          and ul.is_active = true
+      ),
+      effective as (
+        select location_id from user_allowed
+        union all
+        select ta.location_id
+        from tenant_allowed ta
+        where not exists (select 1 from user_allowed)
+      )
+      select distinct location_id
+      from effective
+      order by 1
+      `,
+      [tenantId, user.user_id]
+    );
+
+    const allowedIds = allowedRes.rows.map((r) => Number(r.location_id)).filter(Number.isFinite);
+
+    if (allowedIds.length === 0) {
+      return await bail(403, { ok: false, error: "No locations assigned to this tenant/user yet" });
+    }
+
+    if (locationId !== null && !allowedIds.includes(locationId)) {
+      return await bail(403, { ok: false, error: "Forbidden location" });
+    }
+
+    const kpiRes = await client.query(
+      `
+      with allowed as (
+        select unnest($1::bigint[]) as location_id
+      )
+      select *
+      from analytics.get_executive_kpis_by_location(now())
+      where location_id in (select location_id from allowed)
+        and ($2::bigint is null or location_id = $2::bigint)
+      `,
+      [allowedIds, locationId]
+    );
+
+    const rows = kpiRes.rows;
+
+    const seriesRes = await client.query(
+      `
+      with allowed as (
+        select unnest($1::bigint[]) as location_id
+      )
+      select
+        day::date,
+        sum(revenue) as revenue,
+        sum(cogs) as cogs,
+        sum(labor) as labor
+      from restaurant.raw_restaurant_daily
+      where day >= current_date - interval '30 days'
+        and location_id_bigint in (select location_id from allowed)
+        and ($2::bigint is null or location_id_bigint = $2::bigint)
+      group by 1
+      order by 1
+      `,
+      [allowedIds, locationId]
+    );
+
+    const daily = seriesRes.rows;
+
+    const revenueSeries: number[] = [];
+    const gmSeries: number[] = [];
+    const foodSeries: number[] = [];
+    const laborSeries: number[] = [];
+    const primeSeries: number[] = [];
+
+    for (const d of daily) {
+      const rev = Number(d.revenue);
+      const cogs = Number(d.cogs);
+      const labor = Number(d.labor);
+
+      revenueSeries.push(rev);
+
+      if (rev > 0) {
+        gmSeries.push(((rev - cogs) / rev) * 100);
+        foodSeries.push((cogs / rev) * 100);
+        laborSeries.push((labor / rev) * 100);
+        primeSeries.push(((cogs + labor) / rev) * 100);
+      } else {
+        gmSeries.push(0);
+        foodSeries.push(0);
+        laborSeries.push(0);
+        primeSeries.push(0);
+      }
+    }
+
+    const series: Record<string, number[]> = {
+      REVENUE: rollingAvg(revenueSeries),
+      GROSS_MARGIN: rollingAvg(gmSeries).map(normalizePct),
+      FOOD_COST_RATIO: rollingAvg(foodSeries).map(normalizePct),
+      LABOR_COST_RATIO: rollingAvg(laborSeries).map(normalizePct),
+      PRIME_COST_RATIO: rollingAvg(primeSeries).map(normalizePct),
+    };
+
+    const byCode = new Map<string, Agg>();
+
+    for (const row of rows) {
+      const v = toNum(row.kpi_value);
+      if (v === null) continue;
+
+      const key = String(row.kpi_code);
+      const cur = byCode.get(key) ?? { values: [], sum: 0, unit: row.unit as string | undefined };
+
+      cur.values.push(v);
+      cur.sum += v;
+      cur.unit = cur.unit ?? (row.unit as string | undefined);
+
+      byCode.set(key, cur);
+    }
+
+    const kpis: Kpi[] = [];
+
+    for (const [dbCode, agg] of byCode.entries()) {
+      const mapped = mapCode(dbCode);
+      if (!mapped) continue;
+
+      const unit = mapped.unit ?? mapUnit(agg.unit);
+
+      const raw =
+        unit === "pct" ? agg.values.reduce((a, b) => a + b, 0) / agg.values.length : agg.sum;
+
+      const normalized = unit === "pct" ? normalizePct(raw) : raw;
+
+      const s = series[mapped.code];
+      const pair = lastTwo(s);
+
+      let delta: number | null = null;
+      if (pair) {
+        delta = unit === "pct" ? pair.curr - pair.prev : deltaPct(pair.prev, pair.curr);
+      }
+
+      kpis.push({
+        code: mapped.code,
+        label: mapped.label,
+        value: normalized,
+        unit,
+        delta,
+      });
+    }
+
+    await client.query("commit");
+
+    return NextResponse.json({
+      ok: true,
+      as_of: refreshedAt,
+      refreshed_at: refreshedAt,
+      tenant_id: tenantId,
+      location: { id: locationId ?? "all" },
+      allowed_location_ids: allowedIds,
+      kpis,
+      series,
     });
-  }
+  } catch (e: any) {
+    try {
+      await client.query("rollback");
+    } catch {}
 
-  return NextResponse.json({
-    ok: true,
-    as_of: refreshedAt,
-    refreshed_at: refreshedAt,
-    location: { id: locationId ?? "all" },
-    kpis,
-    series,
-  });
+    return NextResponse.json({ ok: false, error: e?.message ?? "Overview API failed" }, { status: 500 });
+  } finally {
+    client.release();
+  }
 }
