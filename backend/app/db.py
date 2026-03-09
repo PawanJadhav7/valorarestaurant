@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 
-# Try repo-root .env.local for local development
 ENV_PATH = Path(__file__).resolve().parents[2] / ".env.local"
 if ENV_PATH.exists():
     load_dotenv(ENV_PATH)
