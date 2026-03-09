@@ -14,7 +14,7 @@ export const pool =
   new Pool({
     connectionString: process.env.DATABASE_URL,
     // Neon typically requires SSL in serverless environments.
-    ssl: process.env.PGSSLMODE === "disable" ? undefined : { rejectUnauthorized: false },
+    //ssl: process.env.PGSSLMODE === "disable" ? undefined : { rejectUnauthorized: false },
     max: 5,
   });
 

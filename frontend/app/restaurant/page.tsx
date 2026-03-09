@@ -257,10 +257,9 @@ export default function RestaurantOverviewPage() {
 
   const fetchLatestInsightDate = React.useCallback(
   async (signal?: AbortSignal) => {
-    const res = await fetch(`${API_BASE}/api/dashboard/latest-date`, {
+    const res = await fetch(`/api/dashboard/latest-date`, {
       cache: "no-store",
       signal,
-      credentials: "include",
     });
 
     if (!res.ok) {
@@ -282,14 +281,10 @@ export default function RestaurantOverviewPage() {
       limit: "100",
     });
 
-    const res = await fetch(
-      `${API_BASE}/api/dashboard/control-tower?${qs.toString()}`,
-      {
-        cache: "no-store",
-        signal,
-        credentials: "include",
-      }
-    );
+    const res = await fetch(`/api/dashboard/control-tower?${qs.toString()}`, {
+      cache: "no-store",
+      signal,
+    });
 
     if (!res.ok) throw new Error(`Control Tower HTTP ${res.status}`);
 
@@ -314,14 +309,10 @@ export default function RestaurantOverviewPage() {
       limit: "20",
     });
 
-    const res = await fetch(
-      `${API_BASE}/api/dashboard/alerts?${qs.toString()}`,
-      {
-        cache: "no-store",
-        signal,
-        credentials: "include",
-      }
-    );
+    const res = await fetch(`/api/dashboard/alerts?${qs.toString()}`, {
+      cache: "no-store",
+      signal,
+    });
 
     if (!res.ok) throw new Error(`Alerts HTTP ${res.status}`);
 
