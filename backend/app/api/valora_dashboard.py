@@ -1,6 +1,6 @@
 from datetime import date
 from uuid import UUID
-
+from app.security import get_current_tenant_id
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -217,9 +217,9 @@ def get_dashboard_opportunities(
 
 @router.get("/control-tower")
 def get_control_tower(
-    tenant_id: UUID,
     day: date,
     limit: int = Query(100, ge=1, le=500),
+    tenant_id: str = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
 ):
     sql = text("""
@@ -296,9 +296,9 @@ def get_control_tower(
 
 @router.get("/alerts")
 def get_dashboard_alerts(
-    tenant_id: UUID,
     day: date,
     limit: int = Query(20, ge=1, le=200),
+    tenant_id: str = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
 ):
     sql = text("""
@@ -322,14 +322,14 @@ def get_dashboard_alerts(
 
     rows = db.execute(
         sql,
-        {"tenant_id": str(tenant_id), "day": day, "limit": limit}
+        {"tenant_id": tenant_id, "day": day, "limit": limit}
     ).mappings().all()
 
     return {"items": [dict(r) for r in rows]}
 
 @router.get("/latest-date")
 def get_latest_dashboard_date(
-    tenant_id: UUID,
+    tenant_id: str = Depends(get_current_tenant_id),
     db: Session = Depends(get_db),
 ):
     sql = text("""
@@ -338,9 +338,9 @@ def get_latest_dashboard_date(
         WHERE tenant_id = :tenant_id
     """)
 
-    row = db.execute(sql, {"tenant_id": str(tenant_id)}).mappings().first()
+    row = db.execute(sql, {"tenant_id": tenant_id}).mappings().first()
 
     return {
-        "tenant_id": str(tenant_id),
+        "tenant_id": tenant_id,
         "latest_date": row["latest_date"] if row and row["latest_date"] else None,
     }

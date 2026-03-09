@@ -256,90 +256,86 @@ export default function RestaurantOverviewPage() {
   );
 
   const fetchLatestInsightDate = React.useCallback(
-    async (tenantId: string, signal?: AbortSignal) => {
-      const qs = new URLSearchParams({ tenant_id: tenantId });
+  async (signal?: AbortSignal) => {
+    const res = await fetch(`${API_BASE}/api/dashboard/latest-date`, {
+      cache: "no-store",
+      signal,
+      credentials: "include",
+    });
 
-      const res = await fetch(
-        `${API_BASE}/api/dashboard/latest-date?${qs.toString()}`,
-        {
-          cache: "no-store",
-          signal,
-        }
-      );
+    if (!res.ok) {
+      throw new Error(`Latest date HTTP ${res.status}`);
+    }
 
-      if (!res.ok) {
-        throw new Error(`Latest date HTTP ${res.status}`);
-      }
-
-      const json = (await res.json()) as LatestDateApi;
-      setInsightDate(json?.latest_date ?? null);
-    },
-    []
-  );
+    const json = (await res.json()) as LatestDateApi;
+    setInsightDate(json?.latest_date ?? null);
+  },
+  []
+);
 
   const fetchControlTower = React.useCallback(
-    async (signal?: AbortSignal) => {
-      if (!activeTenantId || !insightDate) return;
+  async (signal?: AbortSignal) => {
+    if (!insightDate) return;
 
-      const qs = new URLSearchParams({
-        tenant_id: activeTenantId,
-        day: insightDate,
-        limit: "100",
-      });
+    const qs = new URLSearchParams({
+      day: insightDate,
+      limit: "100",
+    });
 
-      const res = await fetch(
-        `${API_BASE}/api/dashboard/control-tower?${qs.toString()}`,
-        {
-          cache: "no-store",
-          signal,
-        }
-      );
+    const res = await fetch(
+      `${API_BASE}/api/dashboard/control-tower?${qs.toString()}`,
+      {
+        cache: "no-store",
+        signal,
+        credentials: "include",
+      }
+    );
 
-      if (!res.ok) throw new Error(`Control Tower HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`Control Tower HTTP ${res.status}`);
 
-      const json = (await res.json()) as ControlTowerApi;
-      const rows = json?.items ?? [];
+    const json = (await res.json()) as ControlTowerApi;
+    const rows = json?.items ?? [];
 
-      setControlTower(
-        locationId === "all"
-          ? rows
-          : rows.filter((row) => String(row.location_id) === String(locationId))
-      );
-    },
-    [activeTenantId, insightDate, locationId]
-  );
+    setControlTower(
+      locationId === "all"
+        ? rows
+        : rows.filter((row) => String(row.location_id) === String(locationId))
+    );
+  },
+  [insightDate, locationId]
+);
 
   const fetchAlerts = React.useCallback(
-    async (signal?: AbortSignal) => {
-      if (!activeTenantId || !insightDate) return;
+  async (signal?: AbortSignal) => {
+    if (!insightDate) return;
 
-      const qs = new URLSearchParams({
-        tenant_id: activeTenantId,
-        day: insightDate,
-        limit: "20",
-      });
+    const qs = new URLSearchParams({
+      day: insightDate,
+      limit: "20",
+    });
 
-      const res = await fetch(
-        `${API_BASE}/api/dashboard/alerts?${qs.toString()}`,
-        {
-          cache: "no-store",
-          signal,
-        }
-      );
+    const res = await fetch(
+      `${API_BASE}/api/dashboard/alerts?${qs.toString()}`,
+      {
+        cache: "no-store",
+        signal,
+        credentials: "include",
+      }
+    );
 
-      if (!res.ok) throw new Error(`Alerts HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`Alerts HTTP ${res.status}`);
 
-      const json = (await res.json()) as AlertsApi;
-      const rows = json?.items ?? [];
+    const json = (await res.json()) as AlertsApi;
+    const rows = json?.items ?? [];
 
-      setAlerts(
-        locationId === "all"
-          ? rows
-          : rows.filter((row) => String(row.location_id) === String(locationId))
-      );
-    },
-    [activeTenantId, insightDate, locationId]
-  );
+    setAlerts(
+      locationId === "all"
+        ? rows
+        : rows.filter((row) => String(row.location_id) === String(locationId))
+    );
+  },
+  [insightDate, locationId]
+);
 
   const insights = controlTower
     .filter((row) => row.headline || row.summary_text)
@@ -378,22 +374,20 @@ export default function RestaurantOverviewPage() {
   }, [fetchOverview]);
 
   React.useEffect(() => {
-    if (!activeTenantId) return;
+  const ac = new AbortController();
 
-    const ac = new AbortController();
-
-    (async () => {
-      try {
-        await fetchLatestInsightDate(activeTenantId, ac.signal);
-      } catch (e: any) {
-        if (e?.name !== "AbortError") {
-          setErr(e?.message ?? "Failed to load latest AI snapshot date");
-        }
+  (async () => {
+    try {
+      await fetchLatestInsightDate(ac.signal);
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        setErr(e?.message ?? "Failed to load latest AI snapshot date");
       }
-    })();
+    }
+  })();
 
-    return () => ac.abort();
-  }, [activeTenantId, fetchLatestInsightDate]);
+  return () => ac.abort();
+}, [fetchLatestInsightDate]);
 
   React.useEffect(() => {
     if (!activeTenantId || !insightDate) return;
