@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 
-ENV_PATH = Path(__file__).resolve().parents[2] / ".env.local"
+ENV_PATH = Path(__file__).resolve().parents[1] / ".env.local"
 if ENV_PATH.exists():
     load_dotenv(ENV_PATH)
 

@@ -1,20 +1,46 @@
-node_modules
-# Next.js
-.next
-out
-
-# Node
-node_modules
-
-# Logs
+# ----------------------------
+# Node / Next.js
+# ----------------------------
+node_modules/
+.next/
+out/
+*.tsbuildinfo
 npm-debug.log*
 
-# Environment
-.env*
-.env.local
+# ----------------------------
+# Environment variables
+# ----------------------------
+.env
+.env.*
+!.env.example
+backend/.env.local
+frontend/.env.local
 
-# macOS
+# ----------------------------
+# Python
+# ----------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# ----------------------------
+# Build / cache
+# ----------------------------
+dist/
+build/
+.cache/
+
+# ----------------------------
+# OS files
+# ----------------------------
 .DS_Store
+Thumbs.db
 
-# TypeScript
-*.tsbuildinfo
+# ----------------------------
+# IDE
+# ----------------------------
+.vscode/
+.idea/

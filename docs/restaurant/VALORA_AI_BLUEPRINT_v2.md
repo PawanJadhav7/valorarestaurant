@@ -87,3 +87,77 @@ Core mapping:
 - TopNav (tenant/location selector, widgets)
 - Sidebar tabs
 - Pages per domain (Overview, Sales, Labor, Inventory, Finance)
+
+
+                         ┌─────────────────────────────┐
+                         │        End Users            │
+                         │ Restaurant operators/admins │
+                         └──────────────┬──────────────┘
+                                        │
+                                        ▼
+                    ┌────────────────────────────────────────┐
+                    │           Frontend Layer               │
+                    │      Vercel / Next.js (frontend)       │
+                    │                                        │
+                    │  /restaurant                           │
+                    │  /restaurant/location/[locationId]     │
+                    │  /signin /signup /onboarding           │
+                    └─────────────────┬──────────────────────┘
+                                      │ HTTPS API calls
+                                      ▼
+                    ┌────────────────────────────────────────┐
+                    │            Backend Layer               │
+                    │      Render / FastAPI (backend)        │
+                    │                                        │
+                    │  /api/dashboard/control-tower          │
+                    │  /api/dashboard/alerts                 │
+                    │  /api/dashboard/risks                  │
+                    │  /api/dashboard/opportunities          │
+                    │  /api/dashboard/insights               │
+                    └─────────────────┬──────────────────────┘
+                                      │ SQLAlchemy
+                                      ▼
+                    ┌────────────────────────────────────────┐
+                    │            Data Layer                  │
+                    │         Neon PostgreSQL                │
+                    │                                        │
+                    │ raw / analytics / restaurant / ml      │
+                    └─────────────────┬──────────────────────┘
+                                      │
+                 ┌────────────────────┼────────────────────┐
+                 │                    │                    │
+                 ▼                    ▼                    ▼
+   ┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────┐
+   │  Feature Store      │ │    AI / ML Layer    │ │  Serving / Read     │
+   │                     │ │                     │ │  Models / MVs        │
+   │ restaurant.         │ │ ml.location_        │ │ ml.mv_dashboard_     │
+   │ f_location_daily_   │ │ risk_daily          │ │ top_risks            │
+   │ features            │ │ ml.recommended_     │ │ ml.mv_valora_        │
+   │                     │ │ action_daily        │ │ control_tower        │
+   │ revenue, margin,    │ │ ml.profit_          │ │ ml.mv_dashboard_     │
+   │ waste, stockouts,   │ │ opportunity_daily   │ │ profit_opportunity   │
+   │ inventory, etc.     │ │ ml.insight_         │ │ ml.mv_dashboard_     │
+   │                     │ │ brief_daily         │ │ insight_briefs       │
+   └─────────────────────┘ └─────────────────────┘ └─────────────────────┘
+
+
+   valorarestaurant/
+├── backend/                 # Render deployment target
+│   ├── main.py
+│   ├── requirements.txt
+│   └── app/
+│       ├── db.py
+│       └── api/
+│           ├── valora_dashboard.py
+│           └── valora_location.py
+│
+├── frontend/                # Vercel deployment target
+│   ├── app/
+│   ├── components/
+│   ├── lib/
+│   ├── package.json
+│   └── tsconfig.json
+│
+├── db/
+├── docs/
+└── ...

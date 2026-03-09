@@ -1,4 +1,3 @@
-// app/restaurant/page.tsx
 "use client";
 
 import * as React from "react";
@@ -24,6 +23,11 @@ type OverviewApi = {
   series?: Record<string, number[]>;
   notes?: string;
   error?: string;
+};
+
+type LatestDateApi = {
+  tenant_id?: string;
+  latest_date?: string | null;
 };
 
 type ControlTowerRow = {
@@ -80,8 +84,8 @@ type AlertsApi = {
   items?: AlertRow[];
 };
 
-// const CONTROL_TOWER_DAY = data?.as_of?.split("T")[0] ?? new Date().toISOString().split("T")[0];
-const API_BASE = process.env.NEXT_PUBLIC_VALORA_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE =
+  process.env.NEXT_PUBLIC_VALORA_API_BASE_URL || "http://127.0.0.1:8000";
 
 function formatCurrency(value: unknown) {
   return `$${Number(value ?? 0).toLocaleString()}`;
@@ -177,12 +181,16 @@ export default function RestaurantOverviewPage() {
 
   const [data, setData] = React.useState<OverviewApi | null>(null);
   const [controlTower, setControlTower] = React.useState<ControlTowerRow[]>([]);
+  const [alerts, setAlerts] = React.useState<AlertRow[]>([]);
   const [locations, setLocations] = React.useState<LocationOpt[]>([]);
   const [locationId, setLocationId] = React.useState<string>("all");
-  const [alerts, setAlerts] = React.useState<AlertRow[]>([]);
-  const activeTenantId = data?.tenant_id;
-  const CONTROL_TOWER_DAY = data?.as_of?.split("T")[0] ?? new Date().toISOString().split("T")[0];
+  const [insightDate, setInsightDate] = React.useState<string | null>(null);
 
+  const activeTenantId = data?.tenant_id;
+
+  const insightDateLabel = insightDate
+    ? new Date(insightDate).toLocaleDateString()
+    : "—";
 
   const fetchLocations = React.useCallback(async (signal?: AbortSignal) => {
     try {
@@ -221,9 +229,6 @@ export default function RestaurantOverviewPage() {
 
   const fetchOverview = React.useCallback(
     async (signal?: AbortSignal) => {
-      setLoading(true);
-      setErr(null);
-
       const qs =
         locationId !== "all"
           ? `?location_id=${encodeURIComponent(locationId)}`
@@ -250,66 +255,100 @@ export default function RestaurantOverviewPage() {
     [locationId]
   );
 
-  const fetchControlTower = React.useCallback(
-  async (signal?: AbortSignal) => {
-    if (!activeTenantId) return;
+  const fetchLatestInsightDate = React.useCallback(
+    async (tenantId: string, signal?: AbortSignal) => {
+      const qs = new URLSearchParams({ tenant_id: tenantId });
 
-    const qs = new URLSearchParams({
-      tenant_id: activeTenantId,
-      day: CONTROL_TOWER_DAY,
-      limit: "100",
-    });
+      const res = await fetch(
+        `${API_BASE}/api/dashboard/latest-date?${qs.toString()}`,
+        {
+          cache: "no-store",
+          signal,
+        }
+      );
 
-    const res = await fetch(`${API_BASE}/api/dashboard/control-tower?${qs.toString()}`, {
-      cache: "no-store",
-      signal,
-    });
+      if (!res.ok) {
+        throw new Error(`Latest date HTTP ${res.status}`);
+      }
 
-    if (!res.ok) throw new Error(`Control Tower HTTP ${res.status}`);
-
-    const json = (await res.json()) as ControlTowerApi;
-    const rows = json?.items ?? [];
-
-    setControlTower(
-      locationId === "all"
-        ? rows
-        : rows.filter((row) => String(row.location_id) === String(locationId))
-    );
-  },
-  [activeTenantId, locationId]
+      const json = (await res.json()) as LatestDateApi;
+      setInsightDate(json?.latest_date ?? null);
+    },
+    []
   );
 
-const fetchAlerts = React.useCallback(
-  async (signal?: AbortSignal) => {
-    if (!activeTenantId) return;
+  const fetchControlTower = React.useCallback(
+    async (signal?: AbortSignal) => {
+      if (!activeTenantId || !insightDate) return;
 
-    const qs = new URLSearchParams({
-      tenant_id: activeTenantId,
-      day: CONTROL_TOWER_DAY,
-      limit: "20",
-    });
+      const qs = new URLSearchParams({
+        tenant_id: activeTenantId,
+        day: insightDate,
+        limit: "100",
+      });
 
-    const res = await fetch(`${API_BASE}/api/dashboard/alerts?${qs.toString()}`, {
-      cache: "no-store",
-      signal,
-    });
+      const res = await fetch(
+        `${API_BASE}/api/dashboard/control-tower?${qs.toString()}`,
+        {
+          cache: "no-store",
+          signal,
+        }
+      );
 
-    if (!res.ok) throw new Error(`Alerts HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Control Tower HTTP ${res.status}`);
 
-    const json = (await res.json()) as AlertsApi;
-    setAlerts(json?.items ?? []);
-  },
-  [activeTenantId]
-);
+      const json = (await res.json()) as ControlTowerApi;
+      const rows = json?.items ?? [];
 
-const insights = controlTower
-  .filter((row) => row.headline || row.summary_text)
-  .map((row) => ({
-    location_id: row.location_id,
-    location_name: row.location_name,
-    headline: row.headline ?? "AI insight",
-    summary_text: row.summary_text ?? "No summary available.",
-  }));
+      setControlTower(
+        locationId === "all"
+          ? rows
+          : rows.filter((row) => String(row.location_id) === String(locationId))
+      );
+    },
+    [activeTenantId, insightDate, locationId]
+  );
+
+  const fetchAlerts = React.useCallback(
+    async (signal?: AbortSignal) => {
+      if (!activeTenantId || !insightDate) return;
+
+      const qs = new URLSearchParams({
+        tenant_id: activeTenantId,
+        day: insightDate,
+        limit: "20",
+      });
+
+      const res = await fetch(
+        `${API_BASE}/api/dashboard/alerts?${qs.toString()}`,
+        {
+          cache: "no-store",
+          signal,
+        }
+      );
+
+      if (!res.ok) throw new Error(`Alerts HTTP ${res.status}`);
+
+      const json = (await res.json()) as AlertsApi;
+      const rows = json?.items ?? [];
+
+      setAlerts(
+        locationId === "all"
+          ? rows
+          : rows.filter((row) => String(row.location_id) === String(locationId))
+      );
+    },
+    [activeTenantId, insightDate, locationId]
+  );
+
+  const insights = controlTower
+    .filter((row) => row.headline || row.summary_text)
+    .map((row) => ({
+      location_id: row.location_id,
+      location_name: row.location_name,
+      headline: row.headline ?? "AI insight",
+      summary_text: row.summary_text ?? "No summary available.",
+    }));
 
   React.useEffect(() => {
     const ac = new AbortController();
@@ -321,12 +360,11 @@ const insights = controlTower
     const ac = new AbortController();
 
     (async () => {
+      setLoading(true);
+      setErr(null);
+
       try {
-        await Promise.all([
-          fetchOverview(ac.signal),
-          fetchControlTower(ac.signal),
-          fetchAlerts(ac.signal),
-        ]);
+        await fetchOverview(ac.signal);
       } catch (e: any) {
         if (e?.name !== "AbortError") {
           setErr(e?.message ?? "Failed to load restaurant overview");
@@ -337,7 +375,43 @@ const insights = controlTower
     })();
 
     return () => ac.abort();
-  }, [fetchOverview, fetchControlTower, fetchAlerts]);
+  }, [fetchOverview]);
+
+  React.useEffect(() => {
+    if (!activeTenantId) return;
+
+    const ac = new AbortController();
+
+    (async () => {
+      try {
+        await fetchLatestInsightDate(activeTenantId, ac.signal);
+      } catch (e: any) {
+        if (e?.name !== "AbortError") {
+          setErr(e?.message ?? "Failed to load latest AI snapshot date");
+        }
+      }
+    })();
+
+    return () => ac.abort();
+  }, [activeTenantId, fetchLatestInsightDate]);
+
+  React.useEffect(() => {
+    if (!activeTenantId || !insightDate) return;
+
+    const ac = new AbortController();
+
+    (async () => {
+      try {
+        await Promise.all([fetchControlTower(ac.signal), fetchAlerts(ac.signal)]);
+      } catch (e: any) {
+        if (e?.name !== "AbortError") {
+          setErr(e?.message ?? "Failed to load AI dashboard data");
+        }
+      }
+    })();
+
+    return () => ac.abort();
+  }, [activeTenantId, insightDate, fetchControlTower, fetchAlerts]);
 
   if (loading) return <Skeleton />;
 
@@ -449,6 +523,10 @@ const insights = controlTower
         <div className="space-y-2 pr-[220px]">
           <div className="text-sm text-muted-foreground">
             As of: <span className="font-medium text-foreground">{asOfStr}</span>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            AI snapshot:{" "}
+            <span className="font-medium text-foreground">{insightDateLabel}</span>
           </div>
           <div className="text-sm font-semibold text-foreground">
             {locationLabel}
@@ -573,9 +651,10 @@ const insights = controlTower
           ))}
         </div>
       </SectionCard>
+
       <SectionCard
         title="Control tower summary"
-        subtitle="Daily AI operating view for all selected locations."
+        subtitle={`Daily AI operating view for all selected locations. Insights available through ${insightDateLabel}`}
       >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-border bg-card p-4">
@@ -608,7 +687,7 @@ const insights = controlTower
 
       <SectionCard
         title="AI Control Tower"
-        subtitle="Location-level risks, recommended actions, and profit opportunities."
+        subtitle={`Location-level risks, recommended actions, and profit opportunities. Insights available through ${insightDateLabel}`}
       >
         <div className="overflow-x-auto rounded-2xl border border-border bg-card">
           <table className="w-full text-sm">
@@ -689,7 +768,7 @@ const insights = controlTower
 
       <SectionCard
         title="Alert Center"
-        subtitle="High-priority issues requiring operator attention."
+        subtitle={`High-priority issues requiring operator attention. Insights available through ${insightDateLabel}`}
       >
         <div className="overflow-x-auto rounded-2xl border border-border bg-card">
           <table className="w-full text-sm">
@@ -704,71 +783,75 @@ const insights = controlTower
 
             <tbody>
               {alerts.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="p-4 text-muted-foreground">
-                      No active alerts detected.
+                <tr>
+                  <td colSpan={4} className="p-4 text-muted-foreground">
+                    No active alerts detected.
+                  </td>
+                </tr>
+              ) : (
+                alerts.map((a, i) => (
+                  <tr
+                    key={`${a.location_id}-${a.risk_type}-${i}`}
+                    className="border-t border-border"
+                  >
+                    <td className="p-3 font-medium">
+                      <Link
+                        href={`/restaurant/location/${a.location_id}`}
+                        className="hover:underline"
+                      >
+                        {a.location_name}
+                      </Link>
+                    </td>
+
+                    <td className="p-3">
+                      <span className={riskBadgeClasses(a.risk_type)}>
+                        {humanizeCode(a.risk_type)}
+                      </span>
+                    </td>
+
+                    <td className="p-3 font-medium">
+                      {formatCurrency0(a.impact_estimate)}
+                    </td>
+
+                    <td className="p-3 text-muted-foreground">
+                      {a.headline ??
+                        `Investigate ${humanizeCode(a.risk_type).toLowerCase()} at this location.`}
                     </td>
                   </tr>
-                ) : (
-                  alerts.map((a, i) => (
-                    <tr key={`${a.location_id}-${a.risk_type}-${i}`} className="border-t border-border">
-                      <td className="p-3 font-medium">
-                        <Link
-                          href={`/restaurant/location/${a.location_id}`}
-                          className="hover:underline"
-                        >
-                          {a.location_name}
-                        </Link>
-                      </td>
-
-                      <td className="p-3">
-                        <span className={riskBadgeClasses(a.risk_type)}>
-                          {humanizeCode(a.risk_type)}
-                        </span>
-                      </td>
-
-                      <td className="p-3 font-medium">
-                        {formatCurrency0(a.impact_estimate)}
-                      </td>
-
-                      <td className="p-3 text-muted-foreground">
-                        {a.headline ?? `Investigate ${humanizeCode(a.risk_type).toLowerCase()} at this location.`}
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </SectionCard>
 
       <SectionCard
-          title="AI Daily Insights"
-          subtitle="Automatically generated operating insights for today."
-        >
-          <div className="space-y-3 text-sm">
-
-            {insights.length === 0 ? (
-              <div className="text-muted-foreground">
-                No insights generated for today.
-              </div>
-            ) : (
-              insights.map((i, idx) => (
-                <div
-                  key={idx}
-                  className="rounded-xl border border-border bg-card p-3"
-                >
-                  <div className="font-medium">{i.headline}</div>
-
-                  <div className="text-muted-foreground mt-1">
-                    {i.summary_text}
-                  </div>
+        title="AI Daily Insights"
+        subtitle={`Automatically generated operating insights. Insights available through ${insightDateLabel}`}
+      >
+        <div className="space-y-3 text-sm">
+          {insights.length === 0 ? (
+            <div className="text-muted-foreground">
+              No insights generated for the latest AI snapshot.
+            </div>
+          ) : (
+            insights.map((i) => (
+              <div
+                key={i.location_id}
+                className="rounded-xl border border-border bg-card p-3"
+              >
+                <div className="font-medium">
+                  {i.headline} — {i.location_name}
                 </div>
-              ))
-            )}
 
-          </div>
-        </SectionCard>
+                <div className="mt-1 text-muted-foreground">
+                  {i.summary_text}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </SectionCard>
     </div>
   );
 }
