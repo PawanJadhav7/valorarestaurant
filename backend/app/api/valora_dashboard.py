@@ -326,3 +326,21 @@ def get_dashboard_alerts(
     ).mappings().all()
 
     return {"items": [dict(r) for r in rows]}
+
+@router.get("/latest-date")
+def get_latest_dashboard_date(
+    tenant_id: UUID,
+    db: Session = Depends(get_db),
+):
+    sql = text("""
+        SELECT MAX(as_of_date) AS latest_date
+        FROM ml.mv_valora_control_tower
+        WHERE tenant_id = :tenant_id
+    """)
+
+    row = db.execute(sql, {"tenant_id": str(tenant_id)}).mappings().first()
+
+    return {
+        "tenant_id": str(tenant_id),
+        "latest_date": row["latest_date"] if row and row["latest_date"] else None,
+    }
