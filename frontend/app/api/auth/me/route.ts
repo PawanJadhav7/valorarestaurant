@@ -29,7 +29,7 @@
 // }
 
 // export async function GET() {
-//   console.log("AUTH ME route hit");
+//  
 //   try {
     
 //     const user = await getSessionUser();
@@ -76,14 +76,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  console.log("AUTH ME route hit");
+  
 
   try {
     const user = await getSessionUser();
-    console.log("AUTH ME resolved user =", user);
+    
 
     if (!user) {
-      console.log("AUTH ME returning 401");
+      
       return NextResponse.json(
         { ok: false, user: null },
         {
@@ -98,7 +98,7 @@ export async function GET() {
       [user.first_name, user.last_name].filter(Boolean).join(" ").trim() ||
       user.email;
 
-    console.log("AUTH ME returning 200");
+    
 
     return NextResponse.json(
       {
@@ -121,7 +121,7 @@ export async function GET() {
       }
     );
   } catch (e: any) {
-    console.log("AUTH ME returning 500", e?.message);
+    
     return NextResponse.json(
       {
         ok: false,

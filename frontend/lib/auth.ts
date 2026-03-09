@@ -81,9 +81,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const sessionId = c.get(SESSION_COOKIE)?.value ?? "";
 
   if (!sessionId) return null;
-  console.log("SESSION_COOKIE =", SESSION_COOKIE);
-  console.log("sessionId from cookie =", sessionId);
-  console.log("DATABASE_URL starts with =", process.env.DATABASE_URL?.slice(0, 60));
+ 
   const s = await pool.query(
     `
     select user_id, expires_at
@@ -128,8 +126,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   const row = r.rows?.[0] ?? null;
   if (!row) return null;
-  console.log("user query rowCount =", r.rowCount);
-  console.log("user row =", r.rows?.[0] ?? null);
+  
   return {
     user_id: String(row.user_id),
     email: String(row.email),

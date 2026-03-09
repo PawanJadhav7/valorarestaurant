@@ -23,7 +23,7 @@ async function getCurrentTenantIdForUser(userId: string): Promise<string | null>
     `,
     [userId]
   );
-  console.log("dashboard alerts user_id =", userId);
+  
   if (tenantRes.rowCount === 0) return null;
   return tenantRes.rows[0]?.tenant_id ?? null;
 }
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     }
 
     const tenantId = await getCurrentTenantIdForUser(user.user_id);
-    console.log("dashboard alerts tenantId =", tenantId);
+    
 
     if (!tenantId) {
       return NextResponse.json({ error: "Tenant not resolved" }, { status: 403 });
