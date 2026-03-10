@@ -31,7 +31,7 @@ const CORE: NavItem[] = [
   { label: "Sales & Demand", href: "/restaurant/sales", icon: TrendingUp },
   { label: "Operations", href: "/restaurant/ops", icon: ClipboardList },
   { label: "Cost Control", href: "/restaurant/cost-control", icon: BadgeDollarSign },
-  { label: "Menu Intelligence", href: "/restaurant/menu-intelligence", icon: UtensilsCrossed },
+  { label: "Menu Optimization", href: "/restaurant/menu-intelligence", icon: UtensilsCrossed },
   { label: "Inventory", href: "/restaurant/ops/inventory", icon: Boxes },
   { label: "Staff", href: "/restaurant/ops/labor", icon: Users },
 ];
