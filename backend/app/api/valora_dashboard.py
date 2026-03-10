@@ -344,8 +344,8 @@ def get_latest_dashboard_date(
         sql,
         {"tenant_id": str(tenant_id)},
     ).mappings().first()
-
+    latest_date = row["latest_date"] if row and row["latest_date"] else None
     return {
         "tenant_id": str(tenant_id),
-        "latest_date": row["latest_date"] if row and row["latest_date"] else None,
+        "latest_date": latest_date,
     }

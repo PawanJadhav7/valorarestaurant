@@ -160,6 +160,24 @@ export function MenuIntelligenceClient() {
         </table>
       </SectionCard>
 
+      {/* Menu Optimization Recommendations */}
+      <SectionCard title="Menu Optimization Recommendations">
+
+        <div className="flex flex-col items-center justify-center py-10 text-center">
+
+          <div className="text-sm text-muted-foreground max-w-md">
+            Valora AI will analyze item popularity and profitability to recommend
+            which menu items to promote, reprice, redesign, or remove.
+          </div>
+
+          <div className="mt-3 text-xs text-muted-foreground/70">
+            Recommendations will appear once sufficient sales data is available.
+          </div>
+
+        </div>
+
+      </SectionCard>
+
     </div>
   );
 }

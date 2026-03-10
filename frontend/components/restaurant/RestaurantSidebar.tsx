@@ -1,12 +1,10 @@
-// components/restaurant/RestaurantSidebar.tsx
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import * as React from "react";
 import { DataHealthDot } from "@/components/restaurant/DataHealthDot";
 
-// lucide icons (single import only)
 import {
   LayoutDashboard,
   TrendingUp,
@@ -18,6 +16,8 @@ import {
   Boxes,
   Bell,
   ChevronDown,
+  UtensilsCrossed,
+  BadgeDollarSign,
 } from "lucide-react";
 
 type NavItem = {
@@ -26,19 +26,23 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string }>;
 };
 
-const ALWAYS: NavItem[] = [
+const CORE: NavItem[] = [
   { label: "Overview", href: "/restaurant", icon: LayoutDashboard },
   { label: "Sales & Demand", href: "/restaurant/sales", icon: TrendingUp },
   { label: "Operations", href: "/restaurant/ops", icon: ClipboardList },
-  { label: "Alerts", href: "/restaurant/ops/alerts", icon: Bell },
-  { label: "Data", href: "/restaurant/data", icon: Database },
-];
-
-const MORE: NavItem[] = [
-  { label: "Cost Control", href: "/restaurant/cost-control", icon: Sparkles },
+  { label: "Cost Control", href: "/restaurant/cost-control", icon: BadgeDollarSign },
+  { label: "Menu Intelligence", href: "/restaurant/menu-intelligence", icon: UtensilsCrossed },
   { label: "Inventory", href: "/restaurant/ops/inventory", icon: Boxes },
   { label: "Staff", href: "/restaurant/ops/labor", icon: Users },
+];
+
+const INSIGHTS: NavItem[] = [
+  { label: "Alerts", href: "/restaurant/ops/alerts", icon: Bell },
   { label: "AI Insights", href: "/restaurant/insights", icon: Sparkles },
+];
+
+const ADMIN: NavItem[] = [
+  { label: "Data", href: "/restaurant/data", icon: Database },
   { label: "Settings", href: "/restaurant/settings", icon: Settings },
 ];
 
@@ -145,8 +149,12 @@ function GlassAccordion({
         </div>
       </button>
 
-      {/* Smooth open/close using CSS grid rows */}
-      <div className={["grid transition-all duration-250 ease-out", open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"].join(" ")}>
+      <div
+        className={[
+          "grid transition-all duration-250 ease-out",
+          open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        ].join(" ")}
+      >
         <div className="overflow-hidden">
           <div className="mt-2 space-y-2">{children}</div>
         </div>
@@ -157,17 +165,16 @@ function GlassAccordion({
 
 export function RestaurantSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
-  const [openMore, setOpenMore] = React.useState(false);
+
+  const [openInsights, setOpenInsights] = React.useState(false);
+  const [openAdmin, setOpenAdmin] = React.useState(false);
   const [clientName, setClientName] = React.useState<string | null>(null);
 
-  // Auto-open "More" if the active route is inside MORE
   React.useEffect(() => {
-    const activeInMore = MORE.some((n) => isActivePath(pathname, n.href));
-    if (activeInMore) setOpenMore(true);
+    if (INSIGHTS.some((n) => isActivePath(pathname, n.href))) setOpenInsights(true);
+    if (ADMIN.some((n) => isActivePath(pathname, n.href))) setOpenAdmin(true);
   }, [pathname]);
 
-  // Fetch client name (tenant) for header
   React.useEffect(() => {
     let alive = true;
     (async () => {
@@ -214,21 +221,36 @@ export function RestaurantSidebar() {
           </div>
         </div>
 
-        {/* Always-visible */}
+        {/* Core business nav */}
         <div className="mt-4 space-y-2">
-          {ALWAYS.map((n) => (
+          {CORE.map((n) => (
             <NavLink key={n.href} item={n} pathname={pathname} />
           ))}
         </div>
 
-        {/* More accordion */}
-        <GlassAccordion title="More" open={openMore} onToggle={() => setOpenMore((v) => !v)}>
-          {MORE.map((n) => (
+        {/* Insights */}
+        <GlassAccordion
+          title="Insights"
+          open={openInsights}
+          onToggle={() => setOpenInsights((v) => !v)}
+        >
+          {INSIGHTS.map((n) => (
             <NavLink key={n.href} item={n} pathname={pathname} />
           ))}
         </GlassAccordion>
 
-        {/* Footer (short) */}
+        {/* Admin */}
+        <GlassAccordion
+          title="Admin"
+          open={openAdmin}
+          onToggle={() => setOpenAdmin((v) => !v)}
+        >
+          {ADMIN.map((n) => (
+            <NavLink key={n.href} item={n} pathname={pathname} />
+          ))}
+        </GlassAccordion>
+
+        {/* Footer */}
         <div className="mt-6">
           <div
             className={[
@@ -239,7 +261,9 @@ export function RestaurantSidebar() {
           >
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-foreground">{clientName ?? "Valora Restaurant"}</div>
+                <div className="truncate text-sm font-semibold text-foreground">
+                  {clientName ?? "Valora Restaurant"}
+                </div>
               </div>
 
               <div className="shrink-0 rounded-xl border border-border/20 bg-background/20 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
