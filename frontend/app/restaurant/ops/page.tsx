@@ -6,6 +6,7 @@ import Link from "next/link";
 import { SectionCard } from "@/components/valora/SectionCard";
 import { RestaurantKpiTile, type Kpi as RestaurantKpi } from "@/components/restaurant/KpiTile";
 import { OpsDriversPanel, type OpsDriver } from "@/components/restaurant/OpsDriversPanel";
+import { SeverityBadge } from "@/components/ui/SeverityBadge";
 
 type Severity = "good" | "warn" | "risk";
 type Unit = "usd" | "pct" | "days" | "ratio" | "count" | "hours";
@@ -389,80 +390,80 @@ export default function OpsDashboardPage() {
 
   return (
     <div className="space-y-4">
+      
       {/* Header */}
-      <SectionCard
-        title="Operations"
-        subtitle="Daily operations health across labor + inventory (with actionable exceptions)."
-      >
-        <div className="relative pt-2">
-          {/* Controls */}
-          <div className="absolute right-0 top-0 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-muted-foreground">Location</label>
-              <select
-                className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
+        <SectionCard
+          title="Operations"
+          subtitle="Daily operations health across labor + inventory (with actionable exceptions)."
+        >
+          <div className="space-y-3">
+            {/* controls */}
+            <div className="flex items-end gap-4">
+              <div className="flex flex-col">
+                <label className="text-xs text-muted-foreground">Location</label>
+                <select
+                  className="h-9 min-w-[200px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+                  value={locationId}
+                  onChange={(e) => setLocationId(e.target.value)}
+                >
+                  <option value="all">All Locations</option>
+                  {locationsUnique.map((l) => (
+                    <option key={l.location_id} value={l.location_id}>
+                      {l.location_code} — {l.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <label className="text-xs text-muted-foreground">Window</label>
+                <select
+                  className="h-9 min-w-[110px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+                  value={windowCode}
+                  onChange={(e) => setWindowCode(e.target.value as any)}
+                >
+                  <option value="7d">7D</option>
+                  <option value="30d">30D</option>
+                  <option value="90d">90D</option>
+                  <option value="ytd">YTD</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <label className="text-xs text-muted-foreground">Snapshot</label>
+                <input
+                  className="h-9 w-[240px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+                  value={asOf}
+                  onChange={(e) => setAsOf(e.target.value)}
+                  placeholder="(optional) 2026-02-18T19:00:00-05:00"
+                />
+              </div>
+
+              <button
+                className="h-9 rounded-xl border border-border bg-background px-4 text-sm hover:bg-muted"
+                onClick={load}
+                disabled={loading}
               >
-                <option value="all">All Locations</option>
-                {locationsUnique.map((l) => (
-                  <option key={l.location_id} value={l.location_id}>
-                    {l.location_code} — {l.name}
-                  </option>
-                ))}
-              </select>
+                {loading ? "Loading…" : "Refresh"}
+              </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-muted-foreground">Window</label>
-              <select
-                className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-                value={windowCode}
-                onChange={(e) => setWindowCode(e.target.value as any)}
-              >
-                <option value="7d">7D</option>
-                <option value="30d">30D</option>
-                <option value="90d">90D</option>
-                <option value="ytd">YTD</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-muted-foreground">As of</label>
-              <input
-                className="h-9 w-[240px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-                value={asOf}
-                onChange={(e) => setAsOf(e.target.value)}
-                placeholder="(optional) 2026-02-18T19:00:00-05:00"
-              />
-            </div>
-
-            <button
-              className="h-9 rounded-xl border border-border bg-background px-3 text-sm hover:bg-muted"
-              onClick={load}
-              disabled={loading}
-            >
-              {loading ? "Loading…" : "Refresh"}
-            </button>
-          </div>
-
-          {/* Left stack */}
-          <div className="space-y-2 pr-[760px]">
-            <div className="text-sm text-muted-foreground">What’s broken today + what to do next.</div>
+            {/* header info */}
             <div className="text-sm text-muted-foreground">
-              As of: <span className="font-medium text-foreground">{asOfStr}</span>
+              Last Updated:{" "}
+              <span className="font-semibold text-foreground">{asOfStr}</span>
+              <span className="mx-2">•</span>
+              <span className="font-semibold text-foreground">{locLabel}</span>
             </div>
-            <div className="text-sm font-semibold text-foreground">{locLabel}</div>
-          </div>
 
-          {!ok && data?.error ? (
-            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
-              <div className="font-medium">Ops API Error</div>
-              <div className="mt-1 text-xs text-muted-foreground">{data.error}</div>
-            </div>
-          ) : null}
-        </div>
-      </SectionCard>
+            {!ok && data?.error ? (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
+                <div className="font-medium">Ops API Error</div>
+                <div className="mt-1 text-xs text-muted-foreground">{data.error}</div>
+              </div>
+            ) : null}
+          </div>
+        </SectionCard>
 
       {/* KPI Spotlight */}
       {loading ? (
@@ -514,18 +515,7 @@ export default function OpsDashboardPage() {
                         <div className="text-sm font-semibold text-foreground">{a.title}</div>
                         <div className="mt-1 text-xs text-muted-foreground">{a.detail ?? ""}</div>
                       </div>
-                      <span
-                        className={[
-                          "shrink-0 rounded-xl border px-2 py-1 text-[11px] font-medium",
-                          a.severity === "risk"
-                            ? "border-rose-500/30 bg-rose-500/10 text-rose-200"
-                            : a.severity === "warn"
-                            ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
-                            : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-                        ].join(" ")}
-                      >
-                        {a.severity}
-                      </span>
+                      <SeverityBadge severity={a.severity} />
                     </div>
                   </div>
                 ))}

@@ -153,14 +153,16 @@ export default function LaborOpsPage() {
   return (
     <div className="space-y-4">
       {/* Header (same premium pattern as Sales/Overview) */}
-      <SectionCard title="Labor" subtitle="Labor cost control, overtime, and productivity for the selected window.">
-        <div className="relative pt-2">
-          {/* top-right controls */}
-          <div className="absolute right-0 top-0 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
+        <SectionCard title="Labor" subtitle="Labor cost control, overtime, and productivity for the selected window."
+        >
+        <div className="space-y-3">
+
+          {/* controls */}
+          <div className="flex items-end gap-4">
+            <div className="flex flex-col">
               <label className="text-xs text-muted-foreground">Location</label>
               <select
-                className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+                className="h-9 min-w-[200px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
                 value={locationId}
                 onChange={(e) => setLocationId(e.target.value)}
               >
@@ -173,10 +175,10 @@ export default function LaborOpsPage() {
               </select>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col">
               <label className="text-xs text-muted-foreground">Window</label>
               <select
-                className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+                className="h-9 min-w-[110px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
                 value={windowCode}
                 onChange={(e) => setWindowCode(e.target.value as any)}
               >
@@ -187,8 +189,8 @@ export default function LaborOpsPage() {
               </select>
             </div>
 
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-muted-foreground">As of</label>
+            <div className="flex flex-col">
+              <label className="text-xs text-muted-foreground">Snapshot</label>
               <input
                 className="h-9 w-[240px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
                 value={asOf}
@@ -198,7 +200,7 @@ export default function LaborOpsPage() {
             </div>
 
             <button
-              className="h-9 rounded-xl border border-border bg-background px-3 text-sm hover:bg-muted"
+              className="h-9 rounded-xl border border-border bg-background px-4 text-sm hover:bg-muted"
               onClick={load}
               disabled={loading}
             >
@@ -206,23 +208,21 @@ export default function LaborOpsPage() {
             </button>
           </div>
 
-          {/* left stacked info */}
-          <div className="space-y-2 pr-[760px]">
-            <div className="text-sm text-muted-foreground">Control labor %, reduce overtime, improve output per hour.</div>
-
-            <div className="text-sm text-muted-foreground">
-              As of: <span className="font-medium text-foreground">{asOfLabel}</span>
-            </div>
-
-            <div className="text-sm font-semibold text-foreground">{locLabel}</div>
+          {/* header info */}
+          <div className="text-sm text-muted-foreground">
+            Last Updated:{" "}
+            <span className="font-semibold text-foreground">{asOfLabel}</span>
+            <span className="mx-2">•</span>
+            <span className="font-semibold text-foreground">{locLabel}</span>
           </div>
 
           {!ok && data?.error ? (
-            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
               <div className="font-medium">Labor API Error</div>
               <div className="mt-1 text-xs text-muted-foreground">{data.error}</div>
             </div>
           ) : null}
+
         </div>
       </SectionCard>
 

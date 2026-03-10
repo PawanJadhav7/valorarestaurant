@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { SectionCard } from "@/components/valora/SectionCard";
+import { SeverityBadge } from "@/components/ui/SeverityBadge";
 
 type Severity = "good" | "warn" | "risk";
 type Unit = "usd" | "pct" | "days" | "ratio" | "count" | "hours";
@@ -198,9 +199,7 @@ export function OpsDriversPanel({
                     </div>
                   </div>
 
-                  <div className={`shrink-0 rounded-xl border px-2 py-1 text-[11px] ${sevPill(d.severity)}`}>
-                    {d.severity}
-                  </div>
+                  <SeverityBadge severity={d.severity} />
                 </div>
 
                 <div className="mt-3 flex items-center justify-between gap-3">

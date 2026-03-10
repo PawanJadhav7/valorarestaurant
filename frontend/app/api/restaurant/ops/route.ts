@@ -1,7 +1,6 @@
-// app/api/restaurant/ops/route.ts
+//frontend/app/api/restaurant/inventory/drivers/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { toNum, toNumOrZero } from "@/lib/number";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,42 +18,6 @@ type Kpi = {
   hint?: string;
 };
 
-// ---------------- helpers ----------------
-function percentile(sortedAsc: number[], p: number): number {
-  if (sortedAsc.length === 0) return 0;
-  const idx = (sortedAsc.length - 1) * p;
-  const lo = Math.floor(idx);
-  const hi = Math.ceil(idx);
-  if (lo === hi) return sortedAsc[lo];
-  const w = idx - lo;
-  return sortedAsc[lo] * (1 - w) + sortedAsc[hi] * w;
-}
-
-function sevFromThresholds(v: number, warnAt: number, riskAt: number): Severity {
-  if (v >= riskAt) return "risk";
-  if (v >= warnAt) return "warn";
-  return "good";
-}
-
-// function toNum(v: any): number | null {
-//   if (v === null || v === undefined) return null;
-//   const n = Number(v);
-//   return Number.isFinite(n) ? n : null;
-// }
-
-// function toNumOrZero(v: any): number {
-//   const n = Number(v);
-//   return Number.isFinite(n) ? n : 0;
-// }
-
-function fmtUsd(n: number) {
-  return n.toLocaleString(undefined, {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  });
-}
-
 function parseAsOf(sp: URLSearchParams): string | null {
   const raw = sp.get("as_of");
   if (!raw) return null;
@@ -62,426 +25,585 @@ function parseAsOf(sp: URLSearchParams): string | null {
   return t.length ? t : null;
 }
 
-function parseWindow(sp: URLSearchParams): string {
+function parseWindow(sp: URLSearchParams): "7d" | "30d" | "90d" | "ytd" {
   const w = (sp.get("window") ?? "30d").toLowerCase();
-  return ["7d", "30d", "90d", "ytd"].includes(w) ? w : "30d";
+  if (w === "7d" || w === "30d" || w === "90d" || w === "ytd") return w;
+  return "30d";
 }
 
-function parseUuid(sp: URLSearchParams, key: string): string | null {
-  const v = sp.get(key);
-  if (!v) return null;
-  const t = v.trim();
-  return t.length ? t : null;
+function parseLocationId(sp: URLSearchParams): number | null {
+  const raw = sp.get("location_id");
+  if (!raw || raw.trim() === "" || raw.trim().toLowerCase() === "all") return null;
+  const n = Number(raw.trim());
+  return Number.isInteger(n) ? n : null;
 }
 
-function safeDivPct(numer: any, denom: any): number | null {
-  const n = Number(numer);
-  const d = Number(denom);
-  if (!Number.isFinite(n) || !Number.isFinite(d) || d <= 0) return null;
-  return (n / d) * 100;
+function toNum(v: any): number | null {
+  if (v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
-function pickNum(row: any, keys: string[]): number | null {
-  for (const k of keys) {
-    const v = row?.[k];
-    const n = Number(v);
-    if (Number.isFinite(n)) return n;
-  }
-  return null;
+function pctDelta(prevVal: number | null, currVal: number | null): number | null {
+  if (prevVal === null || currVal === null || prevVal === 0) return null;
+  return Number((((currVal - prevVal) / prevVal) * 100).toFixed(2));
 }
 
-function forwardFill(nums: (number | null)[]) {
-  let last: number | null = null;
-  return nums.map((v) => {
-    if (typeof v === "number" && Number.isFinite(v)) {
-      last = v;
-      return v;
-    }
-    return last; // keep last known
-  });
+function ppDelta(prevVal: number | null, currVal: number | null): number | null {
+  if (prevVal === null || currVal === null) return null;
+  return Number((currVal - prevVal).toFixed(2));
 }
 
+function severityFromNegativeDelta(delta: number | null): Severity {
+  if (delta === null) return "good";
+  if (delta < -10) return "risk";
+  if (delta < 0) return "warn";
+  return "good";
+}
 
-// ---------------- route ----------------
+function severityFromHigherIsBad(value: number | null, warnAt: number, riskAt: number): Severity {
+  if (value === null) return "good";
+  if (value >= riskAt) return "risk";
+  if (value >= warnAt) return "warn";
+  return "good";
+}
+
+function windowDays(windowCode: "7d" | "30d" | "90d" | "ytd", asOfDate: Date): number {
+  if (windowCode === "7d") return 7;
+  if (windowCode === "30d") return 30;
+  if (windowCode === "90d") return 90;
+  const yearStart = new Date(Date.UTC(asOfDate.getUTCFullYear(), 0, 1));
+  const diffMs = asOfDate.getTime() - yearStart.getTime();
+  return Math.floor(diffMs / 86400000) + 1;
+}
+
 export async function GET(req: Request) {
   const refreshedAt = new Date().toISOString();
 
   try {
     const url = new URL(req.url);
-    let asOf = parseAsOf(url.searchParams);
+    const windowCode = parseWindow(url.searchParams);
+    const locationId = parseLocationId(url.searchParams);
 
+    let asOf = parseAsOf(url.searchParams);
     if (!asOf) {
       const r = await pool.query(`
-        SELECT MAX(snapshot_date)::timestamptz AS as_of_ts
-        FROM restaurant.fact_inventory_item_on_hand_daily
+        select max(day)::timestamptz as as_of_ts
+        from restaurant.f_location_daily_features
       `);
       const ts = r.rows?.[0]?.as_of_ts;
       asOf = ts ? new Date(ts).toISOString() : null;
     }
-    const windowCode = parseWindow(url.searchParams);
-    const locRaw = url.searchParams.get("location_id");
-    const locationId =
-      !locRaw || locRaw.trim() === "" || locRaw.trim().toLowerCase() === "all"
-        ? null
-        : locRaw.trim();
 
-    // params for "windowed" functions:
-    // with as_of:    [$1=asOf, $2=windowCode, $3=locationId]
-    // without as_of: [$1=windowCode, $2=locationId]
-    const paramsWin = asOf ? [asOf, windowCode, locationId] : [windowCode, locationId];
+    if (!asOf) {
+      return NextResponse.json(
+        {
+          ok: true,
+          as_of: null,
+          refreshed_at: refreshedAt,
+          window: windowCode,
+          location: { id: locationId ?? "all", name: locationId ? `Location ${locationId}` : "All Locations" },
+          kpis: [],
+          series: {
+            day: [],
+            LABOR_PCT: [],
+            OVERTIME_PCT: [],
+            DIOH: [],
+            WASTE_PCT: [],
+          },
+          alerts: [],
+          actions: [],
+          raw: { anchor_missing: true },
+        },
+        { headers: { "Cache-Control": "no-store" } }
+      );
+    }
 
-    // ---------- SQL: Ops ----------
-    const sqlDelta = asOf
-      ? `SELECT * FROM analytics.get_ops_kpis_delta($1::timestamptz, $2::text, $3::uuid);`
-      : `SELECT * FROM analytics.get_ops_kpis_delta(now(), $1::text, $2::uuid);`;
+    const asOfDate = new Date(asOf);
+    const days = windowDays(windowCode, asOfDate);
 
-    const sqlSeries = asOf
-      ? `SELECT * FROM analytics.get_ops_timeseries_daily($1::timestamptz, $2::text, $3::uuid);`
-      : `SELECT * FROM analytics.get_ops_timeseries_daily(now(), $1::text, $2::uuid);`;
+    const currRes = await pool.query(
+      `
+      with params as (
+        select
+          $1::timestamptz::date as as_of_day,
+          $2::int as n_days,
+          $3::bigint as p_location
+      ),
+      curr as (
+        select f.*
+        from restaurant.f_location_daily_features f
+        cross join params p
+        where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
+          and (p.p_location is null or f.location_id = p.p_location)
+      )
+      select
+        coalesce(sum(revenue), 0)::numeric as revenue,
+        coalesce(sum(orders), 0)::numeric as orders,
+        coalesce(sum(customers), 0)::numeric as customers,
+        coalesce(avg(revenue), 0)::numeric as avg_daily_revenue,
+        coalesce(avg(orders), 0)::numeric as avg_daily_orders,
+        coalesce(avg(avg_inventory), 0)::numeric as avg_inventory,
+        coalesce(avg(dio), 0)::numeric as dioh,
+        coalesce(avg(ar_days), 0)::numeric as ar_days,
+        coalesce(avg(ap_days), 0)::numeric as ap_days,
+        coalesce(avg(cash_conversion_cycle), 0)::numeric as ccc,
+        coalesce(avg(labor_cost_pct), 0)::numeric * 100 as labor_pct,
+        coalesce(sum(labor), 0)::numeric as labor_cost
+      from curr
+      `,
+      [asOf, days, locationId]
+    );
 
-    // ---------- SQL: Inventory intelligence ----------
-    const sqlInvKpis = asOf
-      ? `SELECT * FROM analytics.get_inventory_kpis($1::timestamptz, $2::text, $3::uuid, 60);`
-      : `SELECT * FROM analytics.get_inventory_kpis(now(), $1::text, $2::uuid, 60);`;
+    const prevRes = await pool.query(
+      `
+      with params as (
+        select
+          $1::timestamptz::date as as_of_day,
+          $2::int as n_days,
+          $3::bigint as p_location
+      ),
+      bounds as (
+        select
+          (as_of_day - (n_days - 1))::date as curr_start,
+          as_of_day::date as curr_end,
+          n_days,
+          p_location
+        from params
+      ),
+      prev_range as (
+        select
+          (curr_start - n_days)::date as prev_start,
+          (curr_start - 1)::date as prev_end,
+          p_location
+        from bounds
+      ),
+      prev as (
+        select f.*
+        from restaurant.f_location_daily_features f
+        cross join prev_range p
+        where f.day between p.prev_start and p.prev_end
+          and (p.p_location is null or f.location_id = p.p_location)
+      )
+      select
+        coalesce(sum(revenue), 0)::numeric as revenue,
+        coalesce(sum(orders), 0)::numeric as orders,
+        coalesce(sum(customers), 0)::numeric as customers,
+        coalesce(avg(revenue), 0)::numeric as avg_daily_revenue,
+        coalesce(avg(orders), 0)::numeric as avg_daily_orders,
+        coalesce(avg(avg_inventory), 0)::numeric as avg_inventory,
+       coalesce(avg(dio), 0)::numeric as dioh,
+        coalesce(avg(ar_days), 0)::numeric as ar_days,
+        coalesce(avg(ap_days), 0)::numeric as ap_days,
+        coalesce(avg(cash_conversion_cycle), 0)::numeric as ccc,
+        coalesce(avg(labor_cost_pct), 0)::numeric * 100 as labor_pct,
+        coalesce(sum(labor), 0)::numeric as labor_cost
+      from prev
+      `,
+      [asOf, days, locationId]
+    );
 
-    const sqlInvAlerts = asOf
-      ? `SELECT * FROM analytics.get_inventory_alerts($1::timestamptz, $2::text, $3::uuid, 60, 75, 100);`
-      : `SELECT * FROM analytics.get_inventory_alerts(now(), $1::text, $2::uuid, 60, 75, 100);`;
+    const curr = currRes.rows?.[0] ?? {};
+    const prev = prevRes.rows?.[0] ?? {};
 
-    const sqlInvActions = asOf
-      ? `SELECT * FROM analytics.get_inventory_actions($1::timestamptz, $2::text, $3::uuid, 60, 75, 100);`
-      : `SELECT * FROM analytics.get_inventory_actions(now(), $1::text, $2::uuid, 60, 75, 100);`;
+    const revenue = toNum(curr.revenue);
+    const orders = toNum(curr.orders);
+    const customers = toNum(curr.customers);
 
-    // ---------- SQL: Inventory drivers ----------
-    // signature: (as_of_ts, window_code, p_location_id, p_limit)
-    const sqlTopOnhand = asOf
-      ? `SELECT * FROM analytics.get_inventory_top_onhand_items($1::timestamptz, $2::text, $3::uuid, 10::int);`
-      : `SELECT * FROM analytics.get_inventory_top_onhand_items(now(), $1::text, $2::uuid, 10::int);`;
+    const aov =
+      orders && orders > 0 && revenue !== null ? Number((revenue / orders).toFixed(2)) : 0;
 
-    const sqlCategoryMix = asOf
-      ? `SELECT * FROM analytics.get_inventory_category_mix($1::timestamptz, $2::text, $3::uuid);`
-      : `SELECT * FROM analytics.get_inventory_category_mix(now(), $1::text, $2::uuid);`;
+    const revenuePerCustomer =
+      customers && customers > 0 && revenue !== null
+        ? Number((revenue / customers).toFixed(2))
+        : 0;
 
-    
+    const avgDailyOrders = toNum(curr.avg_daily_orders);
+    const avgDailyRevenue = toNum(curr.avg_daily_revenue);
 
-    // ---------- queries ----------
-    const [
-      deltaRes,
-      seriesRes,
-      invKpiRes,
-      invAlertsRes,
-      invActionsRes,
-      topOnhandRes,
-      catMixRes,
-    ] = await Promise.all([
-      pool.query(sqlDelta, paramsWin),
-      pool.query(sqlSeries, paramsWin),
-      pool.query(sqlInvKpis, paramsWin),
-      pool.query(sqlInvAlerts, paramsWin),
-      pool.query(sqlInvActions, paramsWin),
-      pool.query(sqlTopOnhand, paramsWin),
-      pool.query(sqlCategoryMix, paramsWin),
-    ]);
+    const laborPct = toNum(curr.labor_pct);
+    const laborCost = toNum(curr.labor_cost);
 
-    
+    const laborHours =
+      laborCost !== null ? Number((laborCost / 22).toFixed(2)) : 0;
 
-    // ---------- rows ----------
-    const k = deltaRes.rows?.[0] ?? null;
+    const avgHourlyRate =
+      laborHours > 0 && laborCost !== null ? Number((laborCost / laborHours).toFixed(2)) : 22;
+
+    const salesPerLaborHour =
+      laborHours > 0 && revenue !== null ? Number((revenue / laborHours).toFixed(2)) : 0;
+
+    const dioh = toNum(curr.dioh);
+    const avgInventory = toNum(curr.avg_inventory);
+    const ccc = toNum(curr.ccc);
+    const apDays = toNum(curr.ap_days);
+
+    const prevRevenue = toNum(prev.revenue);
+    const prevOrders = toNum(prev.orders);
+    const prevCustomers = toNum(prev.customers);
+    const wastePct = toNum(curr.waste_pct);
+
+    const prevAov =
+      prevOrders && prevOrders > 0 && prevRevenue !== null
+        ? prevRevenue / prevOrders
+        : null;
+
+    const prevRpc =
+      prevCustomers && prevCustomers > 0 && prevRevenue !== null
+        ? prevRevenue / prevCustomers
+        : null;
+
+    const kpis: Kpi[] = [
+      {
+        code: "OPS_ORDERS",
+        label: `Orders (${windowCode.toUpperCase()})`,
+        value: orders,
+        unit: "count",
+        delta: pctDelta(prevOrders, orders),
+        severity: severityFromNegativeDelta(pctDelta(prevOrders, orders)),
+        hint: "Total orders in selected window.",
+      },
+      {
+        code: "OPS_CUSTOMERS",
+        label: `Customers (${windowCode.toUpperCase()})`,
+        value: customers,
+        unit: "count",
+        delta: pctDelta(prevCustomers, customers),
+        severity: severityFromNegativeDelta(pctDelta(prevCustomers, customers)),
+        hint: "Total customers in selected window.",
+      },
+      {
+        code: "OPS_AOV",
+        label: "AOV",
+        value: aov,
+        unit: "usd",
+        delta: pctDelta(prevAov, aov),
+        severity: severityFromNegativeDelta(pctDelta(prevAov, aov)),
+        hint: "Average order value.",
+      },
+      {
+        code: "OPS_REVENUE_PER_CUSTOMER",
+        label: "Revenue / Customer",
+        value: revenuePerCustomer,
+        unit: "usd",
+        delta: pctDelta(prevRpc, revenuePerCustomer),
+        severity: severityFromNegativeDelta(pctDelta(prevRpc, revenuePerCustomer)),
+        hint: "Revenue per customer.",
+      },
+      {
+        code: "OPS_AVG_DAILY_ORDERS",
+        label: "Avg Daily Orders",
+        value: avgDailyOrders,
+        unit: "count",
+        delta: pctDelta(toNum(prev.avg_daily_orders), avgDailyOrders),
+        severity: severityFromNegativeDelta(pctDelta(toNum(prev.avg_daily_orders), avgDailyOrders)),
+        hint: "Average orders per day.",
+      },
+      {
+        code: "OPS_AVG_DAILY_REVENUE",
+        label: "Avg Daily Revenue",
+        value: avgDailyRevenue,
+        unit: "usd",
+        delta: pctDelta(toNum(prev.avg_daily_revenue), avgDailyRevenue),
+        severity: severityFromNegativeDelta(pctDelta(toNum(prev.avg_daily_revenue), avgDailyRevenue)),
+        hint: "Average revenue per day.",
+      },
+      {
+        code: "OPS_LABOR_RATIO",
+        label: "Labor %",
+        value: laborPct,
+        unit: "pct",
+        delta: ppDelta(toNum(prev.labor_pct), laborPct),
+        severity: severityFromHigherIsBad(laborPct, 28, 34),
+        hint: "Labor cost as % of revenue.",
+      },
+      {
+        code: "OPS_LABOR_COST",
+        label: "Labor Cost",
+        value: laborCost,
+        unit: "usd",
+        delta: pctDelta(toNum(prev.labor_cost), laborCost),
+        severity: severityFromHigherIsBad(laborPct, 28, 34),
+        hint: "Total labor cost in selected window.",
+      },
+      {
+        code: "OPS_LABOR_HOURS",
+        label: "Labor Hours",
+        value: laborHours,
+        unit: "count",
+        delta: null,
+        severity: "good",
+        hint: "Estimated labor hours (demo).",
+      },
+      {
+        code: "OPS_AVG_HOURLY_RATE",
+        label: "Avg Hourly Rate",
+        value: avgHourlyRate,
+        unit: "usd",
+        delta: null,
+        severity: "good",
+        hint: "Estimated hourly labor rate (demo).",
+      },
+      {
+        code: "OPS_SALES_PER_LABOR_HOUR",
+        label: "Sales / Labor Hour",
+        value: salesPerLaborHour,
+        unit: "usd",
+        delta: null,
+        severity: "good",
+        hint: "Revenue generated per labor hour.",
+      },
+      {
+        code: "OPS_DIH",
+        label: "Days Inventory on Hand",
+        value: dioh,
+        unit: "days",
+        delta: ppDelta(toNum(prev.dioh), dioh),
+        severity: severityFromHigherIsBad(dioh, 35, 50),
+        hint: "Average inventory days on hand.",
+      },
+      {
+        code: "OPS_INV_TURNS",
+        label: "Inventory Turns",
+        value: dioh && dioh > 0 ? Number((365 / dioh).toFixed(2)) : 0,
+        unit: "ratio",
+        delta: null,
+        severity: "good",
+        hint: "Annualized inventory turns.",
+      },
+      {
+        code: "OPS_AVG_INVENTORY",
+        label: "Avg Inventory",
+        value: avgInventory,
+        unit: "usd",
+        delta: pctDelta(toNum(prev.avg_inventory), avgInventory),
+        severity: "good",
+        hint: "Average inventory value.",
+      },
+      {
+        code: "OPS_CCC",
+        label: "Cash Conversion Cycle",
+        value: ccc,
+        unit: "days",
+        delta: ppDelta(toNum(prev.ccc), ccc),
+        severity: severityFromHigherIsBad(ccc, 30, 45),
+        hint: "Cash conversion cycle.",
+      },
+      {
+        code: "OPS_AP_DAYS",
+        label: "AP Days",
+        value: apDays,
+        unit: "days",
+        delta: ppDelta(toNum(prev.ap_days), apDays),
+        severity: "good",
+        hint: "Average payables days.",
+      },
+    ];
+
+    const seriesRes = await pool.query(
+      `
+      with params as (
+        select
+          $1::timestamptz::date as as_of_day,
+          $2::int as n_days,
+          $3::bigint as p_location
+      ),
+      curr as (
+        select f.*
+        from restaurant.f_location_daily_features f
+        cross join params p
+        where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
+          and (p.p_location is null or f.location_id = p.p_location)
+      )
+      select
+        day,
+        coalesce(sum(revenue), 0)::numeric as revenue,
+        coalesce(sum(orders), 0)::numeric as orders,
+        coalesce(sum(customers), 0)::numeric as customers,
+        case when coalesce(sum(orders), 0) = 0 then 0
+             else round((sum(revenue) / sum(orders))::numeric, 2)
+        end as aov,
+        case when coalesce(sum(customers), 0) = 0 then 0
+             else round((sum(revenue) / sum(customers))::numeric, 2)
+        end as revenue_per_customer,
+        coalesce(avg(labor_cost_pct), 0)::numeric * 100 as labor_pct,
+        0::numeric as overtime_pct,
+        coalesce(avg(dio), 0)::numeric as dioh,
+       coalesce(avg(waste_pct),0)::numeric as waste_pct
+      from curr
+      group by day
+      order by day
+      `,
+      [asOf, days, locationId]
+    );
+
     const rows = seriesRes.rows ?? [];
 
-    const invKpis = invKpiRes.rows?.[0] ?? null;
-    const invAlerts = invAlertsRes.rows ?? [];
-    const invActions = invActionsRes.rows ?? [];
+    const locationSummaryRes = await pool.query(
+      `
+      with params as (
+        select
+          $1::timestamptz::date as as_of_day,
+          $2::int as n_days,
+          $3::bigint as p_location
+      ),
+      curr as (
+        select f.*
+        from restaurant.f_location_daily_features f
+        cross join params p
+        where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
+          and (p.p_location is null or f.location_id = p.p_location)
+      )
+      select
+        dl.location_id,
+        dl.location_name,
+        round(coalesce(sum(curr.revenue), 0)::numeric, 2) as revenue,
+        coalesce(sum(curr.orders), 0)::int as orders,
+        coalesce(sum(curr.customers), 0)::int as customers,
+        case when coalesce(sum(curr.orders), 0) = 0 then 0
+             else round((sum(curr.revenue) / sum(curr.orders))::numeric, 2)
+        end as aov,
+        case when coalesce(sum(curr.customers), 0) = 0 then 0
+             else round((sum(curr.revenue) / sum(curr.customers))::numeric, 2)
+        end as revenue_per_customer
+      from curr
+      join restaurant.dim_location dl
+        on dl.location_id = curr.location_id
+      group by dl.location_id, dl.location_name
+      order by revenue desc
+      `,
+      [asOf, days, locationId]
+    );
 
-    const top_onhand_items = topOnhandRes.rows ?? [];
-    const category_mix = catMixRes.rows ?? [];
-
-    // ✅ Top 3 actions for Ops page
-    const actions = invActions.slice(0, 3);
-
-    // ✅ Exceptions & Alerts (currently inventory alerts only)
-    const alerts = invAlerts;
-
-   
-
-    // ---------- KPIs (preserve nulls) ----------
-    const kpis: Kpi[] = k
+    const alerts: any[] = [
+    ...(laborPct !== null && laborPct >= 28
       ? [
           {
-            code: "OPS_LABOR_COST",
-            label: "Labor Cost",
-            value: toNum(k.labor_cost),
-            unit: "usd",
-            delta: toNum(k.labor_cost_delta_pct),
-            severity: "good",
-            hint: "Total labor cost vs previous window (%).",
-          },
-          {
-            code: "OPS_LABOR_HOURS",
-            label: "Labor Hours",
-            value: toNum(k.labor_hours),
-            unit: "count",
-            delta: toNum(k.labor_hours_delta_pct),
-            severity: "good",
-            hint: "Total labor hours vs previous window (%).",
-          },
-          {
-            code: "OPS_AVG_HOURLY_RATE",
-            label: "Avg Hourly Rate",
-            value: toNum(k.avg_hourly_rate),
-            unit: "usd",
-            delta: null,
-            severity: "good",
-            hint: "Labor cost / labor hours.",
-          },
-          {
-            code: "OPS_LABOR_RATIO",
-            label: "Labor Cost Ratio",
-            value: toNum(k.labor_cost_ratio_pct),
-            unit: "pct",
-            delta: toNum(k.labor_ratio_delta_pp), // pp
-            severity: "good",
-            hint: "Labor % of revenue and change (pp).",
-          },
-          {
-            code: "OPS_SALES_PER_LABOR_HOUR",
-            label: "Sales per Labor Hour",
-            value: toNum(k.sales_per_labor_hour),
-            unit: "usd",
-            delta: toNum(k.sales_per_labor_hour_delta_pct),
-            severity: "good",
-            hint: "Revenue / labor hours vs previous window (%).",
-          },
-          {
-            code: "OPS_AVG_INVENTORY",
-            label: "Avg Inventory Value",
-            value: toNum(k.avg_inventory_value),
-            unit: "usd",
-            delta: toNum(k.avg_inventory_delta_pct),
-            severity: "good",
-            hint: "Average inventory value vs previous window (%).",
-          },
-          {
-            code: "OPS_DIH",
-            label: "Days Inventory on Hand",
-            value: toNum(k.dih_days),
-            unit: "days",
-            delta: toNum(k.dih_delta_pct),
-            severity: "good",
-            hint: "Inventory days vs previous window (%).",
-          },
-          {
-            code: "OPS_INV_TURNS",
-            label: "Inventory Turns",
-            value: toNum(k.inventory_turns),
-            unit: "ratio",
-            delta: toNum(k.inv_turns_delta_pct),
-            severity: "good",
-            hint: "Annualized COGS / Avg inventory vs previous window (%).",
-          },
-          {
-            code: "OPS_AR_DAYS",
-            label: "AR Days",
-            value: toNum(k.ar_days),
-            unit: "days",
-            delta: null,
-            severity: "good",
-            hint: "Avg AR balance / daily revenue.",
-          },
-          {
-            code: "OPS_AP_DAYS",
-            label: "AP Days",
-            value: toNum(k.ap_days),
-            unit: "days",
-            delta: null,
-            severity: "good",
-            hint: "Avg AP balance / daily COGS.",
-          },
-          {
-            code: "OPS_CCC",
-            label: "Cash Conversion Cycle",
-            value: toNum(k.ccc_days),
-            unit: "days",
-            delta: toNum(k.ccc_delta_days),
-            severity: "good",
-            hint: "DIH + AR − AP (delta in days).",
+            id: "ops_labor_pct",
+            severity: laborPct >= 34 ? "risk" : "warn",
+            title: "Labor cost ratio is elevated",
+            detail: `Labor is ${laborPct.toFixed(1)}% of revenue.`,
           },
         ]
-      : [];
+      : []),
 
+    ...(dioh !== null && dioh >= 35
+      ? [
+          {
+            id: "ops_dioh",
+            severity: dioh >= 50 ? "risk" : "warn",
+            title: "Inventory days on hand is elevated",
+            detail: `DIOH is ${dioh.toFixed(1)} days.`,
+          },
+        ]
+      : []),
 
-    
+    ...(ccc !== null && ccc >= 30
+      ? [
+          {
+            id: "ops_ccc",
+            severity: ccc >= 45 ? "risk" : "warn",
+            title: "Cash conversion cycle is elevated",
+            detail: `CCC is ${ccc.toFixed(1)} days.`,
+          },
+        ]
+      : []),
 
-    // ---------- Step 2: dynamic thresholds + severity badges ----------
-    // Top on-hand: use distribution-based cutoffs, with sane floors (so tiny datasets don't set silly cutoffs)
-    const onhandVals = top_onhand_items
-      .map((r: any) => Number(r.avg_on_hand_value ?? NaN))
-      .filter((x) => Number.isFinite(x) && x > 0)
-      .sort((a, b) => a - b);
+    ...(wastePct !== null && wastePct >= 2
+      ? [
+          {
+            id: "ops_waste_pct",
+            severity: wastePct >= 4 ? "risk" : "warn",
+            title: "Waste % is elevated",
+            detail: `Waste is ${wastePct.toFixed(1)}% of sales.`,
+          },
+        ]
+      : []),
+  ];
 
-    const onhandWarn = Math.max(150, percentile(onhandVals, 0.75)); // floor $150
-    const onhandRisk = Math.max(250, percentile(onhandVals, 0.9));  // floor $250
+  const actions: any[] = [
+    ...(laborPct !== null && laborPct >= 28
+      ? [
+          {
+            id: "act_labor_tighten",
+            priority: 1,
+            title: "Tighten labor scheduling",
+            rationale: "Reduce off-peak coverage and align staffing more closely to demand.",
+            owner: "GM",
+          },
+        ]
+      : []),
 
-    const top_onhand_items_badged = top_onhand_items.map((r: any) => {
-      const v = Number(r.avg_on_hand_value ?? 0);
-      const sev = sevFromThresholds(v, onhandWarn, onhandRisk);
-      return {
-        ...r,
-        severity: sev,
-        badge_reason:
-          sev === "risk"
-            ? `High on-hand value: ${fmtUsd(v)} (≥ ${fmtUsd(onhandRisk)})`
-            : sev === "warn"
-            ? `Elevated on-hand value: ${fmtUsd(v)} (≥ ${fmtUsd(onhandWarn)})`
-            : `On-hand value in range: ${fmtUsd(v)}`,
-      };
+    ...(dioh !== null && dioh >= 35
+      ? [
+          {
+            id: "act_inventory_reduce",
+            priority: 2,
+            title: "Reduce inventory exposure",
+            rationale: "Trim next purchase orders and reduce pars on slower-moving stock.",
+            owner: "Purchasing",
+          },
+        ]
+      : []),
+
+    ...(ccc !== null && ccc >= 30
+      ? [
+          {
+            id: "act_ccc_release_cash",
+            priority: 3,
+            title: "Release cash from working capital",
+            rationale: "Lower inventory days and review receivable/payable timing.",
+            owner: "Finance / Ops",
+          },
+        ]
+      : []),
+  ].slice(0, 3);
+
+  /* Fallback action so panel never looks empty */
+  if (actions.length < 3 && salesPerLaborHour !== null && salesPerLaborHour < 130) {
+    actions.push({
+      id: "act_labor_productivity",
+      priority: 3,
+      title: "Improve labor productivity",
+      rationale: "Review deployment by shift and tighten staffing during low-demand periods.",
+      owner: "Operations",
     });
+  }
 
-    // Category mix: distribution-based cutoffs with floors (15% warn, 25% risk)
-    const catPcts = category_mix
-      .map((r: any) => Number(r.pct_of_total ?? NaN))
-      .filter((x) => Number.isFinite(x) && x >= 0)
-      .sort((a, b) => a - b);
-
-    const catWarn = Math.max(15, percentile(catPcts, 0.75));
-    const catRisk = Math.max(25, percentile(catPcts, 0.9));
-
-
-    
-
-    const category_mix_badged = category_mix.map((r: any) => {
-      const p = Number(r.pct_of_total ?? 0);
-      const sev = sevFromThresholds(p, catWarn, catRisk);
-      return {
-        ...r,
-        severity: sev,
-        badge_reason:
-          sev === "risk"
-            ? `Concentrated inventory: ${p.toFixed(1)}% (≥ ${catRisk.toFixed(1)}%)`
-            : sev === "warn"
-            ? `High inventory share: ${p.toFixed(1)}% (≥ ${catWarn.toFixed(1)}%)`
-            : `Balanced share: ${p.toFixed(1)}%`,
-      };
-    });
-
-    // ---------- series (charts: safe zero fallback) ----------
-    // ---------- series (charts) ----------
-    const day = rows.map((r) => String(r.day));
-
-    // Preserve NULLs for charting (do NOT coerce to 0)
-    const revenue = rows.map((r) => (r.revenue === null ? null : Number(r.revenue)));
-    const labor_cost = rows.map((r) => (r.labor_cost === null ? null : Number(r.labor_cost)));
-    const labor_hours = rows.map((r) => (r.labor_hours === null ? null : Number(r.labor_hours)));
-    const inventory_value = rows.map((r) => (r.inventory_value === null ? null : Number(r.inventory_value)));
-    const cogs = rows.map((r) => (r.cogs === null ? null : Number(r.cogs)));
-
-    const overtime_hours = rows.map((r) => {
-      const n = Number((r as any).overtime_hours);
-      return Number.isFinite(n) ? n : null;
-    });
-
-    const waste_cost = rows.map((r) => {
-      const n = Number((r as any).waste_cost);
-      return Number.isFinite(n) ? n : null;
-    });
-
-    // Derived series your UI expects (all are percent values, not 0..1)
-    const LABOR_PCT = rows.map((r) => safeDivPct(r.labor_cost, r.revenue));
-
-    const SPLH = rows.map((r) => {
-      const rev = Number(r.revenue);
-      const hrs = Number(r.labor_hours);
-      if (!Number.isFinite(rev) || !Number.isFinite(hrs) || hrs <= 0) return null;
-      return rev / hrs;
-    });
-
-    // DIOH proxy = inventory_value / daily cogs
-    const DIOH = rows.map((r) => {
-      const inv = Number(r.inventory_value);
-      const dcogs = Number(r.cogs);
-      if (!Number.isFinite(inv) || !Number.isFinite(dcogs) || dcogs <= 0) return null;
-      return inv / dcogs;
-    });
-
-    const OVERTIME_PCT = rows.map((r) => safeDivPct((r as any).overtime_hours, r.labor_hours));
-    const WASTE_PCT = rows.map((r) => safeDivPct((r as any).waste_cost, r.revenue));
-
-    // If you want forward-fill, use it here; otherwise delete these lines.
-    // const OVERTIME_PCT = forwardFill(OVERTIME_PCT_RAW);
-    // const WASTE_PCT = forwardFill(WASTE_PCT_RAW);
-
-    const series = {
-      day,
-
-      // raw series
-      revenue,
-      labor_cost,
-      labor_hours,
-      overtime_hours,
-      waste_cost,
-      inventory_value,
-      cogs,
-
-      // keys UI expects
-      LABOR_PCT,
-      OVERTIME_PCT,
-      DIOH,
-      WASTE_PCT,
-      SPLH,
-    };
     return NextResponse.json(
       {
         ok: true,
-        as_of: k?.as_of_ts ?? asOf ?? null,
+        as_of: asOf,
         refreshed_at: refreshedAt,
         window: windowCode,
-        location: { id: locationId ?? "all", name: locationId ? "Location" : "All Locations" },
-
-        kpis,
-        series,
-
-        // inventory intelligence passthrough
-        inventory: {
-          kpis: invKpis,
-          alerts: invAlerts,
+        location: {
+          id: locationId ?? "all",
+          name: locationId ? `Location ${locationId}` : "All Locations",
         },
-
-        // Ops page: Exceptions & Alerts + Top 3 Actions
+        kpis,
+        series: {
+          day: rows.map((r: any) => String(r.day)),
+          ORDERS: rows.map((r: any) => Number(r.orders ?? 0)),
+          CUSTOMERS: rows.map((r: any) => Number(r.customers ?? 0)),
+          AOV: rows.map((r: any) => Number(r.aov ?? 0)),
+          REVENUE_PER_CUSTOMER: rows.map((r: any) => Number(r.revenue_per_customer ?? 0)),
+          REVENUE: rows.map((r: any) => Number(r.revenue ?? 0)),
+          LABOR_PCT: rows.map((r: any) => Number(r.labor_pct ?? 0)),
+          OVERTIME_PCT: rows.map((r: any) => Number(r.overtime_pct ?? 0)),
+          DIOH: rows.map((r: any) => Number(r.dioh ?? 0)),
+          WASTE_PCT: rows.map((r: any) => Number(r.waste_pct ?? 0)),
+        },
+        location_summary: locationSummaryRes.rows ?? [],
         alerts,
         actions,
-
-        // Ops page: Drivers (NOW includes badged arrays + dynamic policy)
-        drivers: {
-          inventory: {
-            policy: {
-              top_onhand_warn_usd: Number(onhandWarn.toFixed(2)),
-              top_onhand_risk_usd: Number(onhandRisk.toFixed(2)),
-              category_warn_pct: Number(catWarn.toFixed(2)),
-              category_risk_pct: Number(catRisk.toFixed(2)),
-              method: "percentiles(p75=warn, p90=risk) with floors",
-            },
-            top_onhand_items: top_onhand_items_badged,
-            category_mix: category_mix_badged,
-          },
-        },
-
-        raw: {
-          ops_delta_row: Boolean(k),
-          series_rows: rows.length,
-          inventory_kpis_row: Boolean(invKpis),
-          inventory_alerts_count: invAlerts.length,
-          inventory_actions_count: invActions.length,
-          merged_alerts_count: alerts.length,
-          top_onhand_items_count: top_onhand_items.length,
-          category_mix_count: category_mix.length,
-          series_sample_row: rows?.[0] ?? null,
-          series_sample_keys: rows?.[0] ? Object.keys(rows[0]) : [],
-        },
       },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (e: any) {
     console.error("GET /api/restaurant/ops failed:", e);
-    return NextResponse.json({ ok: false, error: e?.message ?? String(e) }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message ?? "ops route error" },
+      { status: 500 }
+    );
   }
 }

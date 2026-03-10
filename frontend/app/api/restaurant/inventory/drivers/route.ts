@@ -250,7 +250,7 @@ export async function GET(req: Request) {
         const score = scoreFrom(sev, v);
 
         return {
-          id: `drv_onhand_${r.menu_item_id.slice(0, 8)}`,
+          id: `drv_onhand_${String(r.menu_item_id ?? "unknown").slice(0, 8)}`,
           domain: "inventory" as const,
           severity: sev,
           title: `High on-hand value: ${r.item_name}`,

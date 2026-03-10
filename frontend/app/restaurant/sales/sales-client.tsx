@@ -4,6 +4,7 @@
 import * as React from "react";
 import { SectionCard } from "@/components/valora/SectionCard";
 import { RestaurantKpiTile, type Kpi as RestaurantKpi } from "@/components/restaurant/KpiTile";
+import { useRefreshState } from "@/components/restaurant/useRefreshState";
 
 /** ---------- Types ---------- */
 type Severity = "good" | "warn" | "risk";
@@ -72,6 +73,21 @@ type AovBucket = {
 };
 
 /** ---------- Formatting helpers ---------- */
+
+function formatAsOf(ts?: string | null) {
+  if (!ts) return "—";
+
+  const d = new Date(ts);
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(d).replace(",", " •");
+}
+
 function fmtUsd0(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 }
@@ -218,6 +234,7 @@ function LineChart({
   const max = nums.length ? Math.max(...nums) : 1;
   const span = max - min || 1;
   const xStep = labels.length > 1 ? (w - pad * 2) / (labels.length - 1) : 0;
+  
 
   const pts = clean.map((v, i) => {
     const x = pad + i * xStep;
@@ -851,6 +868,7 @@ export function SalesClient() {
 
   const [data, setData] = React.useState<SalesResponse | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
+  const { refreshState, startRefresh, finishRefresh, failRefresh, isRefreshing } = useRefreshState();
 
   const [locations, setLocations] = React.useState<LocationRow[]>([]);
   const [aovBuckets, setAovBuckets] = React.useState<AovBucket[]>([]);
@@ -893,6 +911,7 @@ export function SalesClient() {
 
   const load = React.useCallback(async () => {
   setLoading(true);
+  startRefresh();
 
   try {
     const sp = new URLSearchParams();
@@ -947,7 +966,9 @@ export function SalesClient() {
       share_pct: Number(b.share_pct),
     }));
     setAovBuckets(buckets);
+    finishRefresh();
   } catch (e: any) {
+    failRefresh();
     setData({
       ok: false,
       as_of: null,
@@ -962,7 +983,7 @@ export function SalesClient() {
     } finally {
     setLoading(false);
     }
-  }, [windowCode, locationId, asOf]);
+  }, [windowCode, locationId, asOf, startRefresh, finishRefresh, failRefresh]);
 
   React.useEffect(() => {
     load();
@@ -1018,65 +1039,73 @@ export function SalesClient() {
     <div className="space-y-4">
       {/* Header (Overview-style) */}
       <SectionCard title="Sales" subtitle="Sales KPIs and mix analysis for the selected window.">
-        <div className="relative pt-2">
-          {/* top-right controls */}
-          <div className="absolute right-0 top-0 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-muted-foreground">Location</label>
-              <select
-                className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-              >
-                <option value="all">All Locations</option>
-                {locationsUnique.map((l) => (
-                  <option key={l.location_id} value={l.location_id}>
-                    {l.location_code} — {l.name}
-                  </option>
-                ))}
-              </select>
+        <div className="space-y-3">
+          {/* controls */}
+            <div className="flex items-end gap-4">
+              <div className="flex flex-col">
+                <label className="text-xs text-muted-foreground">Location</label>
+                <select
+                  className="h-9 min-w-[200px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+                  value={locationId}
+                  onChange={(e) => setLocationId(e.target.value)}
+                >
+                  <option value="all">All Locations</option>
+                  {locationsUnique.map((l) => (
+                    <option key={l.location_id} value={l.location_id}>
+                      {l.location_code} — {l.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <label className="text-xs text-muted-foreground">Window</label>
+                <select
+                  className="h-9 min-w-[110px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+                  value={windowCode}
+                  onChange={(e) => setWindowCode(e.target.value as any)}
+                >
+                  <option value="7d">7D</option>
+                  <option value="30d">30D</option>
+                  <option value="90d">90D</option>
+                  <option value="ytd">YTD</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <label className="text-xs text-muted-foreground">Snapshot</label>
+                <input
+                  className="h-9 w-[240px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+                  value={asOf}
+                  onChange={(e) => setAsOf(e.target.value)}
+                  placeholder="2026-02-18T19:00:00-05:00"
+                />
+              </div>
+
+              <button
+                  className="h-9 rounded-xl border border-border bg-background px-4 text-sm hover:bg-muted disabled:opacity-70"
+                  onClick={load}
+                  disabled={isRefreshing}
+                >
+                  {refreshState === "loading"
+                    ? "Loading…"
+                    : refreshState === "done"
+                    ? "✓ Updated"
+                    : "Refresh"}
+                </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-muted-foreground">Window</label>
-              <select
-                className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-                value={windowCode}
-                onChange={(e) => setWindowCode(e.target.value as any)}
-              >
-                <option value="7d">7D</option>
-                <option value="30d">30D</option>
-                <option value="90d">90D</option>
-                <option value="ytd">YTD</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-muted-foreground">As of</label>
-              <input
-                className="h-9 w-[240px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-                value={asOf}
-                onChange={(e) => setAsOf(e.target.value)}
-                placeholder="2026-02-18T19:00:00-05:00"
-              />
-            </div>
-
-            <button className="h-9 rounded-xl border border-border bg-background px-3 text-sm hover:bg-muted" onClick={load} disabled={loading}>
-              {loading ? "Loading…" : "Refresh"}
-            </button>
-          </div>
-
-          {/* left stacked info */}
-          <div className="space-y-2 pr-[760px]">
-            <div className="text-sm text-muted-foreground">Sales KPIs and mix analysis.</div>
+            {/* header info */}
             <div className="text-sm text-muted-foreground">
-              As of: <span className="font-medium text-foreground">{data?.as_of ?? "—"}</span>
+              Last Updated:{" "}
+              <span className="font-medium">{formatAsOf(data?.as_of)}</span>
+              <span className="mx-2 text-muted-foreground">•</span>
+              <span className="font-medium">{locLabel}</span>
             </div>
-            <div className="text-sm font-semibold text-foreground">{locLabel}</div>
-          </div>
+            
 
           {!ok && data?.error ? (
-            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
               <div className="font-medium">Sales API Error</div>
               <div className="mt-1 text-xs text-muted-foreground">{data.error}</div>
             </div>
