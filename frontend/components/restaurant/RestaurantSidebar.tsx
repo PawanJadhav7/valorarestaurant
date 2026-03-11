@@ -19,6 +19,7 @@ import {
   UtensilsCrossed,
   BadgeDollarSign,
 } from "lucide-react";
+import { APP_VERSION } from "@/lib/app-version";
 
 type NavItem = {
   label: string;
@@ -185,7 +186,7 @@ export function RestaurantSidebar() {
           return;
         }
         const j = await safeJson(r);
-        const name = j?.user?.client_name ?? j?.user?.full_name ?? null;
+        const name = j?.user?.tenant_name ?? null;
         if (alive) setClientName(typeof name === "string" && name.trim() ? name.trim() : null);
       } catch {
         if (alive) setClientName(null);
@@ -202,22 +203,12 @@ export function RestaurantSidebar() {
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="text-sm font-semibold text-foreground">Valora Restaurant</div>
-              <DataHealthDot />
+           <div className="flex items-center gap-2">
+            <div className="text-sm font-semibold text-foreground truncate">
+              {clientName ?? "Tenant Workspace"}
             </div>
-
-            <div className="mt-1 text-xs text-muted-foreground">
-              {clientName ? (
-                <>
-                  <span className="font-medium text-foreground">{clientName}</span>
-                  <span className="mx-2 text-muted-foreground/60">•</span>
-                  Executive KPIs • Multi-location (MVP)
-                </>
-              ) : (
-                "Executive KPIs • Multi-location (MVP)"
-              )}
-            </div>
+            <DataHealthDot />
+          </div>
           </div>
         </div>
 
@@ -250,6 +241,7 @@ export function RestaurantSidebar() {
           ))}
         </GlassAccordion>
 
+       
         {/* Footer */}
         <div className="mt-6">
           <div
@@ -259,16 +251,9 @@ export function RestaurantSidebar() {
               "p-3",
             ].join(" ")}
           >
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-foreground">
-                  {clientName ?? "Valora Restaurant"}
-                </div>
-              </div>
-
-              <div className="shrink-0 rounded-xl border border-border/20 bg-background/20 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-                v0.3.0
-              </div>
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span className="capitalize">{process.env.NODE_ENV}</span>
+              <span>v{APP_VERSION}</span>
             </div>
           </div>
         </div>
