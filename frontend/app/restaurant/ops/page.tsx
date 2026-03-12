@@ -7,6 +7,7 @@ import { SectionCard } from "@/components/valora/SectionCard";
 import { RestaurantKpiTile, type Kpi as RestaurantKpi } from "@/components/restaurant/KpiTile";
 import { OpsDriversPanel, type OpsDriver } from "@/components/restaurant/OpsDriversPanel";
 import { SeverityBadge } from "@/components/ui/SeverityBadge";
+import { RefreshCcw } from "lucide-react";
 
 type Severity = "good" | "warn" | "risk";
 type Unit = "usd" | "pct" | "days" | "ratio" | "count" | "hours";
@@ -444,7 +445,7 @@ export default function OpsDashboardPage() {
                 onClick={load}
                 disabled={loading}
               >
-                {loading ? "Loading…" : "Refresh"}
+                <RefreshCcw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
               </button>
             </div>
 

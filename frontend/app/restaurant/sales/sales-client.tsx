@@ -5,6 +5,8 @@ import * as React from "react";
 import { SectionCard } from "@/components/valora/SectionCard";
 import { RestaurantKpiTile, type Kpi as RestaurantKpi } from "@/components/restaurant/KpiTile";
 import { useRefreshState } from "@/components/restaurant/useRefreshState";
+import { RefreshCcw } from "lucide-react";
+
 
 /** ---------- Types ---------- */
 type Severity = "good" | "warn" | "risk";
@@ -1083,16 +1085,12 @@ export function SalesClient() {
               </div>
 
               <button
-                  className="h-9 rounded-xl border border-border bg-background px-4 text-sm hover:bg-muted disabled:opacity-70"
-                  onClick={load}
-                  disabled={isRefreshing}
-                >
-                  {refreshState === "loading"
-                    ? "Loading…"
-                    : refreshState === "done"
-                    ? "✓ Updated"
-                    : "Refresh"}
-                </button>
+                className="group h-9 rounded-xl border border-border bg-background px-4 text-sm hover:bg-muted disabled:opacity-70"
+                onClick={load}
+                disabled={loading}
+              >
+                <RefreshCcw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
+              </button>
             </div>
 
             {/* header info */}

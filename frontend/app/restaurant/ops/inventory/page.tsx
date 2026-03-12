@@ -4,6 +4,7 @@
 import * as React from "react";
 import { SectionCard } from "@/components/valora/SectionCard";
 import { RestaurantKpiTile, type Kpi as RestaurantKpi } from "@/components/restaurant/KpiTile";
+import { RefreshCcw } from "lucide-react";
 
 type Unit = "usd" | "pct" | "days" | "ratio" | "count";
 type Severity = "good" | "warn" | "risk";
@@ -204,7 +205,7 @@ export default function InventoryOpsPage() {
                 onClick={load}
                 disabled={loading}
               >
-                {loading ? "Loading…" : "Refresh"}
+                <RefreshCcw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
               </button>
             </div>
 
