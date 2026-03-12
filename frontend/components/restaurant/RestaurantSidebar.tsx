@@ -18,6 +18,7 @@ import {
   ChevronDown,
   UtensilsCrossed,
   BadgeDollarSign,
+  DollarSign,
 } from "lucide-react";
 import { APP_VERSION } from "@/lib/app-version";
 
@@ -32,6 +33,7 @@ const CORE: NavItem[] = [
   { label: "Sales & Demand", href: "/restaurant/sales", icon: TrendingUp },
   { label: "Operations", href: "/restaurant/ops", icon: ClipboardList },
   { label: "Cost Control", href: "/restaurant/cost-control", icon: BadgeDollarSign },
+  { label: "Profit", href: "/restaurant/profit", icon: DollarSign },
   { label: "Menu Optimization", href: "/restaurant/menu-intelligence", icon: UtensilsCrossed },
   { label: "Inventory", href: "/restaurant/ops/inventory", icon: Boxes },
   { label: "Staff", href: "/restaurant/ops/labor", icon: Users },
