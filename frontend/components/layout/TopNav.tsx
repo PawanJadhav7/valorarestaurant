@@ -1,3 +1,4 @@
+//frontend/components/layout/TopNav.tsx
 "use client";
 
 import Link from "next/link";
@@ -5,6 +6,7 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { TopNavWidgets } from "@/components/restaurant/TopNavWidgets";
+import Image from "next/image";
 
 type MeResp =
   | {
@@ -130,8 +132,17 @@ export function TopNav() {
 
       <div className="glass border-b border-border/20 px-6 py-3 backdrop-blur-xl">
         <div className="flex items-center justify-between">
-          <Link href={onHome} className="text-lg font-semibold">
-            Valora AI
+          <Link href="/" className="flex items-center gap-2">
+            <Image
+              src="/valoraailogo.png"
+              alt="Valora AI"
+              width={36}
+              height={36}
+              priority
+            />
+            <span className="font-semibold text-sm tracking-tight">
+              Valora AI
+            </span>
           </Link>
 
           <div className="flex items-center gap-3">
