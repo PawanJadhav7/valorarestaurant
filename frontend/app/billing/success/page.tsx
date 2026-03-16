@@ -3,10 +3,11 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SectionCard } from "@/components/valora/SectionCard";
 
-export default function BillingSuccessPage() {
+function BillingSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
@@ -85,5 +86,26 @@ export default function BillingSuccessPage() {
         </div>
       </SectionCard>
     </div>
+  );
+}
+
+export default function BillingSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="pt-16 space-y-6">
+          <SectionCard
+            title="Subscription activated"
+            subtitle="Your Valora plan is being finalized."
+          >
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl backdrop-blur-xl text-sm text-muted-foreground">
+              Loading billing confirmation...
+            </div>
+          </SectionCard>
+        </div>
+      }
+    >
+      <BillingSuccessContent />
+    </Suspense>
   );
 }
