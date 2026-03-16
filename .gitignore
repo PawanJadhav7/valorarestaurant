@@ -44,3 +44,6 @@ Thumbs.db
 # ----------------------------
 .vscode/
 .idea/
+*.html
+*_files/
+Social Media for ValoraAI/

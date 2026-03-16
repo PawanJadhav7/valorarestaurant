@@ -53,10 +53,13 @@ export async function GET() {
         );
 
         const status = String(sub.rows?.[0]?.subscription_status ?? "").toLowerCase();
+        subscription_active = ["active", "trial", "trialing"].includes(status);
 
-        subscription_active =
-          status === "active" ||
-          status === "trial";
+        // subscription_active =
+        //   status === "active" ||
+        //   status === "trial" ||
+        //   status === "trialing";
+
       } catch (subErr) {
         console.error("auth status subscription lookup error", subErr);
         subscription_active = false;

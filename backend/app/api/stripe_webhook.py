@@ -122,6 +122,12 @@ def handle_checkout_completed(event: dict, db) -> None:
                 stripe_customer_id = COALESCE(:stripe_customer_id, stripe_customer_id),
                 stripe_subscription_id = COALESCE(:stripe_subscription_id, stripe_subscription_id),
                 billing_provider = 'stripe',
+                stripe_status = COALESCE(stripe_status, 'active'),
+                subscription_status = CASE
+                    WHEN subscription_status IS NULL OR subscription_status IN ('pending', 'trial', 'past_due')
+                    THEN 'active'
+                    ELSE subscription_status
+                END,
                 updated_at = now()
             WHERE tenant_id = CAST(:tenant_id AS uuid)
         """),
