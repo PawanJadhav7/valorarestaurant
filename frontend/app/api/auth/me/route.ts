@@ -1,6 +1,6 @@
+// frontend/app/api/auth/me/route.ts
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { pool } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,24 +24,6 @@ export async function GET() {
       [user.first_name, user.last_name].filter(Boolean).join(" ").trim() ||
       user.email;
 
-    // Fetch active tenant/workspace
-    const tenantRes = await pool.query(
-      `
-      select
-        tu.tenant_id,
-        t.tenant_name
-      from app.tenant_user tu
-      join app.tenant t
-        on t.tenant_id = tu.tenant_id
-      where tu.user_id = $1
-      order by tu.created_at desc
-      limit 1
-      `,
-      [user.user_id]
-    );
-
-    const tenantRow = tenantRes.rows?.[0] ?? null;
-
     return NextResponse.json(
       {
         ok: true,
@@ -54,8 +36,9 @@ export async function GET() {
           contact: user.contact,
           onboarding_status: user.onboarding_status,
           display_name,
-          tenant_id: tenantRow?.tenant_id ?? null,
-          tenant_name: tenantRow?.tenant_name ?? null,
+          tenant_id: user.tenant_id ?? null,
+          tenant_name: user.client_name ?? null,
+          has_tenant: user.has_tenant ?? false,
         },
       },
       {

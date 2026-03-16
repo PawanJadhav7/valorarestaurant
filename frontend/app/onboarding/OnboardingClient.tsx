@@ -1,9 +1,10 @@
-//app/onboarding/OnboardingClient.tsx
+// frontend/app/onboarding/OnboardingClient.tsx
 "use client";
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { SectionCard } from "@/components/valora/SectionCard";
+import { setFlag } from "@/lib/va-session";
 
 type Profile = {
   user_id: string;
@@ -106,6 +107,9 @@ export default function OnboardingClient() {
 
       const j = await safeJson(r);
       if (!j.ok) throw new Error(j.error ?? "Onboarding profile save failed");
+
+      // user has passed auth/profile step
+      setFlag("va_authed", true);
 
       await load();
     } catch (e: any) {

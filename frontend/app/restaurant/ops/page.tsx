@@ -50,7 +50,7 @@ type OpsResponse = {
   window: "7d" | "30d" | "90d" | "ytd" | string;
   location: { id: string; name: string };
   kpis: ApiKpi[];
-  series: Record<string, any[]>; // day is string[], rest are (number|null)[]
+  series: Record<string, any[]>;
   alerts: ApiAlert[];
   actions: ApiAction[];
   error?: string;
@@ -185,7 +185,6 @@ function LineChart({
   );
 }
 
-// Safer: parse JSON with body preview (no crashes on HTML/404)
 async function safeJson(res: Response, label: string) {
   const text = await res.text();
   try {
@@ -243,7 +242,6 @@ export default function OpsDashboardPage() {
   const [loading, setLoading] = React.useState<boolean>(true);
   const [locations, setLocations] = React.useState<LocationRow[]>([]);
 
-  // Drivers state (separate endpoints)
   const [laborDrivers, setLaborDrivers] = React.useState<OpsDriver[]>([]);
   const [invDrivers, setInvDrivers] = React.useState<OpsDriver[]>([]);
   const [driversLoading, setDriversLoading] = React.useState<boolean>(true);
@@ -352,7 +350,6 @@ export default function OpsDashboardPage() {
   const alerts = data?.alerts ?? [];
   const actions = data?.actions ?? [];
 
-  // Normalize for RestaurantKpiTile (pct to 0..1 if needed)
   const tileKpisAll: RestaurantKpi[] = React.useMemo(() => {
     return (kpis ?? []).map((k) => {
       const v = k.unit === "pct" && typeof k.value === "number" && k.value > 1 ? k.value / 100 : k.value;
@@ -360,19 +357,28 @@ export default function OpsDashboardPage() {
     });
   }, [kpis]);
 
-  // IMPORTANT: Ops API KPIs are OPS_* codes (not LABOR_PCT/DIOH etc)
   const spotlightCodes: string[] = [
+    "OPS_ORDERS",
+    "OPS_CUSTOMERS",
+    "OPS_AOV",
+    "OPS_REVENUE_PER_CUSTOMER",
     "OPS_LABOR_RATIO",
-    "OPS_LABOR_COST",
     "OPS_LABOR_HOURS",
-    "OPS_AVG_HOURLY_RATE",
     "OPS_SALES_PER_LABOR_HOUR",
     "OPS_DIH",
     "OPS_INV_TURNS",
     "OPS_AVG_INVENTORY",
-    "OPS_CCC",
-    "OPS_AP_DAYS",
   ];
+
+  const kpiSeriesKey: Record<string, string> = {
+    OPS_ORDERS: "ORDERS",
+    OPS_CUSTOMERS: "CUSTOMERS",
+    OPS_AOV: "AOV",
+    OPS_REVENUE_PER_CUSTOMER: "REVENUE_PER_CUSTOMER",
+    OPS_AVG_DAILY_REVENUE: "REVENUE",
+    OPS_LABOR_RATIO: "LABOR_PCT",
+    OPS_DIH: "DIOH",
+  };
 
   const byCode = React.useMemo(() => new Map(tileKpisAll.map((k) => [k.code, k])), [tileKpisAll]);
   const spotlight = spotlightCodes.map((c) => byCode.get(c)).filter(Boolean) as RestaurantKpi[];
@@ -383,7 +389,6 @@ export default function OpsDashboardPage() {
   const asOfStr = data?.as_of ? new Date(data.as_of).toLocaleString() : "—";
   const dayLabels = pickDayLabels(series);
 
-  // ✅ Trend sources from Ops API series (use the keys your API now returns)
   const laborPctTrend = toPctPoints((series as any)["LABOR_PCT"] ?? []);
   const overtimeTrend = toPctPoints((series as any)["OVERTIME_PCT"] ?? []);
   const diohTrend = toNums((series as any)["DIOH"] ?? []);
@@ -391,89 +396,90 @@ export default function OpsDashboardPage() {
 
   return (
     <div className="space-y-4">
-      
-      {/* Header */}
-        <SectionCard
-          title="Operations"
-          subtitle="Daily operations health across labor + inventory (with actionable exceptions)."
-        >
-          <div className="space-y-3">
-            {/* controls */}
-            <div className="flex items-end gap-4">
-              <div className="flex flex-col">
-                <label className="text-xs text-muted-foreground">Location</label>
-                <select
-                  className="h-9 min-w-[200px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-                  value={locationId}
-                  onChange={(e) => setLocationId(e.target.value)}
-                >
-                  <option value="all">All Locations</option>
-                  {locationsUnique.map((l) => (
-                    <option key={l.location_id} value={l.location_id}>
-                      {l.location_code} — {l.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex flex-col">
-                <label className="text-xs text-muted-foreground">Window</label>
-                <select
-                  className="h-9 min-w-[110px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-                  value={windowCode}
-                  onChange={(e) => setWindowCode(e.target.value as any)}
-                >
-                  <option value="7d">7D</option>
-                  <option value="30d">30D</option>
-                  <option value="90d">90D</option>
-                  <option value="ytd">YTD</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col">
-                <label className="text-xs text-muted-foreground">Snapshot</label>
-                <input
-                  className="h-9 w-[240px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-                  value={asOf}
-                  onChange={(e) => setAsOf(e.target.value)}
-                  placeholder="(optional) 2026-02-18T19:00:00-05:00"
-                />
-              </div>
-
-              <button
-                className="h-9 rounded-xl border border-border bg-background px-4 text-sm hover:bg-muted"
-                onClick={load}
-                disabled={loading}
+      <SectionCard
+        title="Operations"
+        subtitle="Daily execution health across throughput, labor, and inventory pressure."
+      >
+        <div className="space-y-3">
+          <div className="flex items-end gap-4">
+            <div className="flex flex-col">
+              <label className="text-xs text-muted-foreground">Location</label>
+              <select
+                className="h-9 min-w-[200px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
               >
-                <RefreshCcw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
-              </button>
+                <option value="all">All Locations</option>
+                {locationsUnique.map((l) => (
+                  <option key={l.location_id} value={l.location_id}>
+                    {l.location_code} — {l.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            {/* header info */}
-            <div className="text-sm text-muted-foreground">
-              Last Updated:{" "}
-              <span className="font-semibold text-foreground">{asOfStr}</span>
-              <span className="mx-2">•</span>
-              <span className="font-semibold text-foreground">{locLabel}</span>
+            <div className="flex flex-col">
+              <label className="text-xs text-muted-foreground">Window</label>
+              <select
+                className="h-9 min-w-[110px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+                value={windowCode}
+                onChange={(e) => setWindowCode(e.target.value as any)}
+              >
+                <option value="7d">7D</option>
+                <option value="30d">30D</option>
+                <option value="90d">90D</option>
+                <option value="ytd">YTD</option>
+              </select>
             </div>
 
-            {!ok && data?.error ? (
-              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
-                <div className="font-medium">Ops API Error</div>
-                <div className="mt-1 text-xs text-muted-foreground">{data.error}</div>
-              </div>
-            ) : null}
+            <div className="flex flex-col">
+              <label className="text-xs text-muted-foreground">Snapshot</label>
+              <input
+                className="h-9 w-[240px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
+                value={asOf}
+                onChange={(e) => setAsOf(e.target.value)}
+                placeholder="(optional) 2026-02-18T19:00:00-05:00"
+              />
+            </div>
+
+            <button
+              className="group h-9 rounded-xl border border-border bg-background px-4 text-sm hover:bg-muted"
+              onClick={load}
+              disabled={loading}
+            >
+              <RefreshCcw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
+            </button>
           </div>
-        </SectionCard>
 
-      {/* KPI Spotlight */}
+          <div className="text-sm text-muted-foreground">
+            Last Updated: <span className="font-semibold text-foreground">{asOfStr}</span>
+            <span className="mx-2">•</span>
+            <span className="font-semibold text-foreground">{locLabel}</span>
+          </div>
+
+          {!ok && data?.error ? (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
+              <div className="font-medium">Ops API Error</div>
+              <div className="mt-1 text-xs text-muted-foreground">{data.error}</div>
+            </div>
+          ) : null}
+        </div>
+      </SectionCard>
+
       {loading ? (
         <SkeletonTiles />
       ) : (
-        <SectionCard title="Ops spotlight" subtitle="Highest-signal daily KPIs (labor + inventory).">
+        <SectionCard
+          title="Operations Spotlight"
+          subtitle="Highest-signal daily KPIs across throughput, labor, and inventory pressure."
+        >
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             {spotlight.map((k) => (
-              <RestaurantKpiTile key={k.code} kpi={k} series={(series as any)[k.code]} />
+              <RestaurantKpiTile
+                key={k.code}
+                kpi={k}
+                series={(series as any)[kpiSeriesKey[k.code] ?? k.code]}
+              />
             ))}
           </div>
 
@@ -482,7 +488,11 @@ export default function OpsDashboardPage() {
               <div className="text-xs font-semibold text-muted-foreground/80">Additional KPIs</div>
               <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
                 {remaining.map((k) => (
-                  <RestaurantKpiTile key={k.code} kpi={k} series={(series as any)[k.code]} />
+                  <RestaurantKpiTile
+                    key={k.code}
+                    kpi={k}
+                    series={(series as any)[kpiSeriesKey[k.code] ?? k.code]}
+                  />
                 ))}
               </div>
             </div>
@@ -490,12 +500,10 @@ export default function OpsDashboardPage() {
         </SectionCard>
       )}
 
-      {/* Drivers */}
       {!loading ? (
         <OpsDriversPanel laborDrivers={laborDrivers} inventoryDrivers={invDrivers} loading={driversLoading} />
       ) : null}
 
-      {/* Alerts + Actions */}
       {!loading ? (
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
           <SectionCard
@@ -561,7 +569,6 @@ export default function OpsDashboardPage() {
         </div>
       ) : null}
 
-      {/* Trends */}
       {!loading ? (
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
           <LineChart
@@ -595,7 +602,6 @@ export default function OpsDashboardPage() {
         </div>
       ) : null}
 
-      {/* Drill-through */}
       {!loading ? (
         <SectionCard title="Drill-down" subtitle="Go deeper into the underlying operations modules.">
           <div className="flex flex-wrap gap-2">

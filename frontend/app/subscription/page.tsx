@@ -1,3 +1,4 @@
+//frontend/app/subscription/page.tsx
 import { SectionCard } from "@/components/valora/SectionCard";
 
 export default function SubscriptionPage() {

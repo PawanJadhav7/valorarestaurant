@@ -1,5 +1,6 @@
 // app/api/restaurant/inventory/drivers/route.ts
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,23 +68,17 @@ export type OpsDriver = {
   domain: "inventory";
   severity: Severity;
   title: string;
-
   why: string;
   recommendation: string;
-
   kpi_code?: string;
   metric?: { value?: number | null; delta?: number | null; unit?: Unit };
-
-  // ✅ standardized
   impact_pct: number;
-
-  // optional debug
   score?: number;
   meta?: Record<string, any>;
 };
 
 export type OpsAction = {
-  id: string; // ✅ UI expects id
+  id: string;
   priority: 1 | 2 | 3;
   title: string;
   rationale: string;
@@ -95,7 +90,7 @@ export type OpsAction = {
 
 function parseWindow(sp: URLSearchParams): "7d" | "30d" | "90d" | "ytd" {
   const w = (sp.get("window") ?? "30d").toLowerCase();
-  return (["7d", "30d", "90d", "ytd"].includes(w) ? w : "30d") as any;
+  return (["7d", "30d", "90d", "ytd"].includes(w) ? w : "30d") as "7d" | "30d" | "90d" | "ytd";
 }
 
 function parseAsOf(sp: URLSearchParams): string | null {
@@ -124,7 +119,6 @@ function clampPct(x: number) {
   return Math.max(0, Math.min(100, x));
 }
 
-// ✅ Normalize any scoring system into 0..100
 function toImpactPct(score: any): number {
   const n = Number(score);
   if (!Number.isFinite(n)) return 0;
@@ -139,7 +133,6 @@ function scoreFrom(sev: Severity, bump?: number | null) {
   return base + extra;
 }
 
-// --- Driver severity heuristics (tune later) ---
 function sevOnhandValue(v: number | null): Severity {
   if (v === null) return "good";
   if (v >= 250) return "risk";
@@ -175,8 +168,14 @@ export async function GET(req: Request) {
   if (locationId && locationId !== "all") sp.set("location_id", locationId);
 
   try {
-    // Pull from inventory API (source of truth)
-    const invRes = await fetch(`${origin}/api/restaurant/inventory?${sp.toString()}`, { cache: "no-store" });
+    const h = await headers();
+    const cookie = h.get("cookie") ?? "";
+
+    const invRes = await fetch(`${origin}/api/restaurant/inventory?${sp.toString()}`, {
+      cache: "no-store",
+      headers: { cookie },
+    });
+
     const invJson = (await safeJson(invRes, "Inventory API")) as InvResp;
 
     if (!invJson?.ok) throw new Error(invJson?.error ?? "Inventory API returned ok=false");
@@ -188,61 +187,84 @@ export async function GET(req: Request) {
     const catMix: InvCategoryMixRow[] = invJson?.drivers?.category_mix ?? [];
     const slowMovers: InvSlowMover[] = invJson?.drivers?.slow_movers ?? [];
 
+    const hasInventorySignal =
+      kpis.some((k) => k.value !== null) ||
+      topItems.length > 0 ||
+      catMix.length > 0 ||
+      slowMovers.length > 0;
+
+    if (!hasInventorySignal) {
+      return NextResponse.json(
+        {
+          ok: true,
+          as_of: invJson?.as_of ?? asOf ?? null,
+          window: windowCode,
+          location_id: locationId ?? null,
+          drivers: [],
+          actions: [],
+        },
+        { headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
     const drivers: OpsDriver[] = [];
 
-    // 1) KPI-driven driver: DIH
     {
       const k = by.get("INV_DIH");
       const v = toNum(k?.value);
-      const sev: Severity = v === null ? "good" : v >= 100 ? "risk" : v >= 75 ? "warn" : "good";
-      const score = scoreFrom(sev, v);
 
-      drivers.push({
-        id: "drv_inv_dih",
-        domain: "inventory",
-        severity: sev,
-        title: "Inventory days on hand (DIH)",
-        why: v === null ? "DIH is unavailable." : `DIH is ${v.toFixed(1)} days (target 60d).`,
-        recommendation:
-          sev === "risk"
-            ? "Freeze/reduce POs on slow movers, tighten pars, and shorten ordering cadence."
-            : sev === "warn"
-            ? "Trim next POs; validate pars vs demand and lead time."
-            : "Maintain cadence; keep DIH stable.",
-        kpi_code: "INV_DIH",
-        metric: { value: v, delta: toNum(k?.delta), unit: "days" },
-        score,
-        impact_pct: toImpactPct(score),
-      });
+      if (v !== null) {
+        const sev: Severity = v >= 100 ? "risk" : v >= 75 ? "warn" : "good";
+        const score = scoreFrom(sev, v);
+
+        drivers.push({
+          id: "drv_inv_dih",
+          domain: "inventory",
+          severity: sev,
+          title: "Inventory days on hand (DIH)",
+          why: `DIH is ${v.toFixed(1)} days (target 60d).`,
+          recommendation:
+            sev === "risk"
+              ? "Freeze/reduce POs on slow movers, tighten pars, and shorten ordering cadence."
+              : sev === "warn"
+              ? "Trim next POs; validate pars vs demand and lead time."
+              : "Maintain cadence; keep DIH stable.",
+          kpi_code: "INV_DIH",
+          metric: { value: v, delta: toNum(k?.delta), unit: "days" },
+          score,
+          impact_pct: toImpactPct(score),
+        });
+      }
     }
 
-    // 2) KPI-driven driver: Excess cash
     {
       const k = by.get("INV_EXCESS_CASH");
       const v = toNum(k?.value);
-      const sev: Severity = v === null ? "good" : v >= 8000 ? "risk" : v >= 3000 ? "warn" : "good";
-      const score = scoreFrom(sev, v);
 
-      drivers.push({
-        id: "drv_inv_cash",
-        domain: "inventory",
-        severity: sev,
-        title: "Cash trapped in inventory",
-        why: v === null ? "Excess cash metric is unavailable." : `Estimated excess cash is $${v.toFixed(0)}.`,
-        recommendation:
-          sev === "risk"
-            ? "Prioritize sell-through: promos, bundles, and vendor MOQ reductions."
-            : sev === "warn"
-            ? "Review purchases vs demand; reduce exposure on slow categories."
-            : "Keep inventory cash tight.",
-        kpi_code: "INV_EXCESS_CASH",
-        metric: { value: v, delta: toNum(k?.delta), unit: "usd" },
-        score,
-        impact_pct: toImpactPct(score),
-      });
+      if (v !== null) {
+        const sev: Severity = v >= 8000 ? "risk" : v >= 3000 ? "warn" : "good";
+        const score = scoreFrom(sev, v);
+
+        drivers.push({
+          id: "drv_inv_cash",
+          domain: "inventory",
+          severity: sev,
+          title: "Cash trapped in inventory",
+          why: `Estimated excess cash is $${v.toFixed(0)}.`,
+          recommendation:
+            sev === "risk"
+              ? "Prioritize sell-through: promos, bundles, and vendor MOQ reductions."
+              : sev === "warn"
+              ? "Review purchases vs demand; reduce exposure on slow categories."
+              : "Keep inventory cash tight.",
+          kpi_code: "INV_EXCESS_CASH",
+          metric: { value: v, delta: toNum(k?.delta), unit: "usd" },
+          score,
+          impact_pct: toImpactPct(score),
+        });
+      }
     }
 
-    // 3) Drivers from Top On-hand items
     if (topItems.length) {
       const top = topItems.slice(0, 3).map((r) => {
         const v = toNum((r as any).avg_on_hand_value);
@@ -270,7 +292,6 @@ export async function GET(req: Request) {
       drivers.push(...top);
     }
 
-    // 4) Category concentration
     if (catMix.length) {
       const biggest = [...catMix]
         .map((r) => ({ ...r, pct: toNum((r as any).pct_of_total) }))
@@ -300,13 +321,11 @@ export async function GET(req: Request) {
       }
     }
 
-    // 5) Slow movers
     if (slowMovers.length) {
       const worst = slowMovers[0];
       const sc = toNum((worst as any).slow_score);
       const sev = sevSlowScore(sc);
       const score = scoreFrom(sev, sc);
-
       const sell = toNum((worst as any).sell_through_pct);
 
       drivers.push({
@@ -314,7 +333,10 @@ export async function GET(req: Request) {
         domain: "inventory",
         severity: sev,
         title: `Slow mover: ${worst.item_name}`,
-        why: sc === null ? "Slow score unavailable." : `Slow score ${sc.toFixed(3)}; sell-through ${sell === null ? "—" : sell.toFixed(1)}%.`,
+        why:
+          sc === null
+            ? "Slow score unavailable."
+            : `Slow score ${sc.toFixed(3)}; sell-through ${sell === null ? "—" : sell.toFixed(1)}%.`,
         recommendation:
           sev === "risk"
             ? "Pause buys for 1–2 cycles, run promo/bundle, reduce par and reorder point."
@@ -327,7 +349,6 @@ export async function GET(req: Request) {
       });
     }
 
-    // ---- Auto Top 3 Actions from slow movers ----
     const actionsAuto: OpsAction[] = slowMovers.slice(0, 3).map((it, idx) => {
       const v = toNum((it as any).avg_on_hand_value);
       const sc = toNum((it as any).slow_score);
@@ -363,6 +384,9 @@ export async function GET(req: Request) {
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (e: any) {
-    return NextResponse.json({ ok: false, drivers: [], actions: [], error: e?.message ?? String(e) }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, drivers: [], actions: [], error: e?.message ?? String(e) },
+      { status: 500 }
+    );
   }
 }

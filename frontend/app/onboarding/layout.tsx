@@ -1,4 +1,4 @@
-//app/onboarding/layout.tsx
+// app/onboarding/layout.tsx
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
@@ -17,8 +17,8 @@ export default async function OnboardingLayout({ children }: { children: ReactNo
 
   const step = stepFor(user.onboarding_status);
 
-  // If already done, no onboarding screens
-  if (step === "done") redirect("/restaurant");
+  // If onboarding finished → go to billing first
+  if (step === "done") redirect("/billing");
 
   return <>{children}</>;
 }

@@ -1,3 +1,4 @@
+// frontend/app/onboarding/tenant/page.tsx
 import { Suspense } from "react";
 import OnboardingTenantClient from "./OnboardingTenantClient";
 

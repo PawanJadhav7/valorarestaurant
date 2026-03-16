@@ -211,32 +211,34 @@ function colorForLabel(label: string) {
 /** ---------- Charts (SectionCard style) ---------- */
 function LineChart({
   title,
-  labels,
-  values,
+  labels = [],
+  values = [],
   valueFmt,
-  height = 180,
   tone = "neutral",
-  severity,
 }: {
   title: string;
-  labels: string[];
-  values: (number | null)[];
+  labels?: string[];
+  values?: (number | null)[];
   valueFmt?: (n: number) => string;
-  height?: number;
   tone?: ChartTone;
-  severity?: Severity;
 }) {
   const w = 720;
-  const h = height;
+  const h = 180;
   const pad = 28;
 
-  const clean = values.map((v) => (typeof v === "number" && Number.isFinite(v) ? v : null));
+  const safeLabels = Array.isArray(labels) ? labels : [];
+  const safeValues = Array.isArray(values) ? values : [];
+
+  const clean = safeValues.map((v) =>
+    typeof v === "number" && Number.isFinite(v) ? v : null
+  );
+
   const nums = clean.filter((v): v is number => v !== null);
   const min = nums.length ? Math.min(...nums) : 0;
   const max = nums.length ? Math.max(...nums) : 1;
   const span = max - min || 1;
-  const xStep = labels.length > 1 ? (w - pad * 2) / (labels.length - 1) : 0;
-  
+
+  const xStep = safeLabels.length > 1 ? (w - pad * 2) / (safeLabels.length - 1) : 0;
 
   const pts = clean.map((v, i) => {
     const x = pad + i * xStep;
@@ -244,11 +246,9 @@ function LineChart({
     return { x, y, v };
   });
 
-  // Line path with gaps for nulls
   const dParts: string[] = [];
   let started = false;
-  for (let i = 0; i < pts.length; i++) {
-    const p = pts[i];
+  for (const p of pts) {
     if (p.y === null) {
       started = false;
       continue;
@@ -258,92 +258,68 @@ function LineChart({
   }
   const d = dParts.join(" ");
 
-  // Area fill path: reuse line but close to baseline
-  const areaParts: string[] = [];
-  started = false;
-  let firstX: number | null = null;
-  let lastX: number | null = null;
-
-  for (let i = 0; i < pts.length; i++) {
-    const p = pts[i];
-    if (p.y === null) {
-      if (started && firstX !== null && lastX !== null) {
-        areaParts.push(`L ${lastX.toFixed(2)} ${(h - pad).toFixed(2)}`);
-        areaParts.push(`L ${firstX.toFixed(2)} ${(h - pad).toFixed(2)} Z`);
-      }
-      started = false;
-      firstX = null;
-      lastX = null;
-      continue;
-    }
-
-    if (!started) {
-      areaParts.push(`M ${p.x.toFixed(2)} ${(h - pad).toFixed(2)}`);
-      areaParts.push(`L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`);
-      started = true;
-      firstX = p.x;
-      lastX = p.x;
-    } else {
-      areaParts.push(`L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`);
-      lastX = p.x;
-    }
-  }
-
-  if (started && firstX !== null && lastX !== null) {
-    areaParts.push(`L ${lastX.toFixed(2)} ${(h - pad).toFixed(2)}`);
-    areaParts.push(`L ${firstX.toFixed(2)} ${(h - pad).toFixed(2)} Z`);
-  }
-  const areaD = areaParts.join(" ");
-
-  // last non-null point
-  let lastPt: { x: number; y: number; v: number } | null = null;
+  let lastVal: number | null = null;
   for (let i = pts.length - 1; i >= 0; i--) {
-    const p = pts[i];
-    if (p.y !== null && p.v !== null) {
-      lastPt = { x: p.x, y: p.y, v: p.v };
+    if (pts[i].v !== null) {
+      lastVal = pts[i].v as number;
       break;
     }
   }
-  const lastVal = lastPt?.v ?? null;
 
-  const toneCls = toneClass(tone, severity);
+  const toneCls = toneClass(tone);
   const gradId = `grad-${title.replaceAll(" ", "-").toLowerCase()}`;
 
+  const hasData = safeLabels.length > 0 && nums.length > 0;
+
   return (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="flex items-end justify-between">
-        <div className="text-sm font-semibold text-foreground">{title}</div>
-        <div className="text-xs text-muted-foreground">{lastVal === null ? "—" : valueFmt ? valueFmt(lastVal) : lastVal.toFixed(2)}</div>
-      </div>
+    <SectionCard
+      title={title}
+      subtitle={null}
+      right={
+        <div className="text-xs text-muted-foreground">
+          {lastVal === null ? "—" : valueFmt ? valueFmt(lastVal) : lastVal.toFixed(2)}
+        </div>
+      }
+    >
+      {hasData ? (
+        <>
+          <svg viewBox={`0 0 ${w} ${h}`} className={`h-[180px] w-full ${toneCls}`}>
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="currentColor" stopOpacity="0.18" />
+                <stop offset="70%" stopColor="currentColor" stopOpacity="0.06" />
+                <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+              </linearGradient>
+            </defs>
 
-      <svg viewBox={`0 0 ${w} ${h}`} className={`mt-3 h-[180px] w-full ${toneCls}`}>
-        <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.20" />
-            <stop offset="70%" stopColor="currentColor" stopOpacity="0.06" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </linearGradient>
-        </defs>
+            <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="currentColor" opacity="0.10" />
+            <line x1={pad} y1={pad} x2={pad} y2={h - pad} stroke="currentColor" opacity="0.10" />
 
-        {/* axes */}
-        <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="currentColor" opacity="0.10" />
-        <line x1={pad} y1={pad} x2={pad} y2={h - pad} stroke="currentColor" opacity="0.10" />
+            {d ? (
+              <>
+                <path
+                  d={`${d} L ${(w - pad).toFixed(2)} ${(h - pad).toFixed(2)} L ${pad.toFixed(2)} ${(h - pad).toFixed(
+                    2
+                  )} Z`}
+                  fill={`url(#${gradId})`}
+                  opacity="0.9"
+                />
+                <path d={d} fill="none" stroke="currentColor" strokeWidth="2.2" opacity="0.92" />
+              </>
+            ) : null}
+          </svg>
 
-        {/* area fill */}
-        {areaD ? <path d={areaD} fill={`url(#${gradId})`} /> : null}
-
-        {/* line */}
-        {d ? <path d={d} fill="none" stroke="currentColor" strokeWidth="2.2" opacity="0.90" /> : null}
-
-        {/* last point */}
-        {lastPt ? <circle cx={lastPt.x} cy={lastPt.y} r="3.8" fill="currentColor" opacity="0.95" /> : null}
-      </svg>
-
-      <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-        <div>{labels.length ? labels[0] : "—"}</div>
-        <div>{labels.length ? labels[labels.length - 1] : "—"}</div>
-      </div>
-    </div>
+          <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+            <div>{safeLabels.length ? safeLabels[0] : "—"}</div>
+            <div>{safeLabels.length ? safeLabels[safeLabels.length - 1] : "—"}</div>
+          </div>
+        </>
+      ) : (
+        <div className="py-8 text-sm text-muted-foreground">
+          No data available for this chart yet.
+        </div>
+      )}
+    </SectionCard>
   );
 }
 
@@ -1168,29 +1144,38 @@ export function SalesClient() {
               bValues={idx100(series.orders)}
               valueFmt={fmtIdx}
             />
-            <LineChart title="Net Sales Trend" labels={series.day} values={series.revenue.map((x) => x)} valueFmt={fmtUsd0} tone="revenue" />
-            <LineChart title="Orders Trend" labels={series.day} values={series.orders.map((x) => x)} tone="orders" />
-            <LineChart title="AOV Trend" labels={series.day} values={series.aov} valueFmt={fmtUsd2} tone="aov" />
+            <LineChart
+              title="Net Sales Trend"
+              labels={series?.day ?? []}
+              values={series?.revenue ?? []}
+              valueFmt={fmtUsd0}
+              tone="revenue"
+            />
+            <LineChart
+                  title="Orders Trend"
+                  labels={series?.day ?? []}
+                  values={series?.orders ?? []}
+                  tone="orders"
+                />
+            <LineChart title="AOV Trend" labels={series?.day ?? []} values={series?.aov ?? []} valueFmt={fmtUsd2} tone="aov" />
 
             <Histogram title="AOV Distribution (Histogram)" buckets={aovBuckets} />
             
 
             <LineChart
               title="Gross Margin % Trend"
-              labels={series.day}
-              values={series.gross_margin_pct}
+              labels={series?.day ?? []}
+              values={series?.gross_margin_pct ?? []}
               valueFmt={fmtPct2}
               tone="margin"
-              severity={computeSeverity({ code: "SALES_GROSS_MARGIN", delta: gmDelta })}
             />
 
             <LineChart
               title="Discount Rate % Trend"
-              labels={series.day}
-              values={series.discount_rate_pct}
+              labels={series?.day ?? []}
+              values={series?.discount_rate_pct ?? []}
               valueFmt={fmtPct2}
               tone="discount"
-              severity={computeSeverity({ code: "SALES_DISCOUNT_RATE", delta: discDelta })}
             />
           </div>
 

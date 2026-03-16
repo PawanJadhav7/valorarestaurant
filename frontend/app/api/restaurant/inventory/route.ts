@@ -1,5 +1,7 @@
+//frontend/app/api/restaurant/inventory/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -79,6 +81,55 @@ export async function GET(req: Request) {
   const refreshedAt = new Date().toISOString();
 
   try {
+    const user = await getSessionUser();
+
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const tenantRes = await pool.query(
+      `
+      select tenant_id
+      from app.tenant_user
+      where user_id = $1::uuid
+      order by created_at asc
+      limit 1
+      `,
+      [user.user_id]
+    );
+
+    const tenantId = tenantRes.rows?.[0]?.tenant_id;
+
+    if (!tenantId) {
+      return NextResponse.json(
+        {
+          ok: true,
+          as_of: null,
+          refreshed_at: refreshedAt,
+          window: "30d",
+          location: { id: "all", name: "All Locations" },
+          kpis: [],
+          inventory: {
+            kpis: null,
+            alerts: [],
+            actions: [],
+            policy: {
+              target_dih_days: TARGET_DIH,
+              warn_dih_days: WARN_DIH,
+              risk_dih_days: RISK_DIH,
+            },
+          },
+          drivers: {
+            top_onhand_items: [],
+            category_mix: [],
+            slow_movers: [],
+          },
+          raw: { anchor_missing: true },
+        },
+        { headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
     const url = new URL(req.url);
     const asOfParam = parseAsOf(url.searchParams);
     const windowCode = parseWindow(url.searchParams);
@@ -87,10 +138,36 @@ export async function GET(req: Request) {
     let asOfTs: string | null = asOfParam;
 
     if (!asOfTs) {
-      const anchorRes = await pool.query(`
-        select max(day)::timestamptz as as_of_ts
-        from restaurant.fact_inventory_item_on_hand_daily
-      `);
+      const anchorSql = locationId
+        ? `
+          select max(f.day)::timestamptz as as_of_ts
+          from restaurant.fact_inventory_item_on_hand_daily f
+          where f.entity_id = $1::bigint
+            and exists (
+              select 1
+              from app.tenant_location tl
+              where tl.tenant_id = $2::uuid
+                and tl.location_id = f.entity_id
+                and tl.is_active = true
+            )
+        `
+        : `
+          select max(f.day)::timestamptz as as_of_ts
+          from restaurant.fact_inventory_item_on_hand_daily f
+          where exists (
+            select 1
+            from app.tenant_location tl
+            where tl.tenant_id = $1::uuid
+              and tl.location_id = f.entity_id
+              and tl.is_active = true
+          )
+        `;
+
+      const anchorRes = await pool.query(
+        anchorSql,
+        locationId ? [locationId, tenantId] : [tenantId]
+      );
+
       asOfTs = anchorRes.rows?.[0]?.as_of_ts ?? null;
     }
 
@@ -132,10 +209,6 @@ export async function GET(req: Request) {
     const asOfDate = new Date(asOfTs);
     const days = windowDays(windowCode, asOfDate);
 
-    // NOTE:
-    // fact_inventory_item_on_hand_daily has entity_id, not location_id.
-    // For MVP we treat selected location_id as an entity/location proxy.
-
     const currInvRes = await pool.query(
       `
       with params as (
@@ -149,6 +222,13 @@ export async function GET(req: Request) {
         from restaurant.fact_inventory_item_on_hand_daily f
         cross join params p
         where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
+          and exists (
+            select 1
+            from app.tenant_location tl
+            where tl.tenant_id = $4::uuid
+              and tl.location_id = f.entity_id
+              and tl.is_active = true
+          )
           and (p.p_entity is null or f.entity_id = p.p_entity)
       )
       select
@@ -156,7 +236,7 @@ export async function GET(req: Request) {
         count(*)::int as row_count
       from curr
       `,
-      [asOfTs, days, locationId]
+      [asOfTs, days, locationId, tenantId]
     );
 
     const prevInvRes = await pool.query(
@@ -187,6 +267,13 @@ export async function GET(req: Request) {
         from restaurant.fact_inventory_item_on_hand_daily f
         cross join prev_range p
         where f.day between p.prev_start and p.prev_end
+          and exists (
+            select 1
+            from app.tenant_location tl
+            where tl.tenant_id = $4::uuid
+              and tl.location_id = f.entity_id
+              and tl.is_active = true
+          )
           and (p.p_entity is null or f.entity_id = p.p_entity)
       )
       select
@@ -194,7 +281,7 @@ export async function GET(req: Request) {
         count(*)::int as row_count
       from prev
       `,
-      [asOfTs, days, locationId]
+      [asOfTs, days, locationId, tenantId]
     );
 
     const currOpsRes = await pool.query(
@@ -209,7 +296,8 @@ export async function GET(req: Request) {
         select *
         from restaurant.f_location_daily_features f
         cross join params p
-        where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
+        where f.tenant_id = $4::uuid
+          and f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
           and (p.p_location is null or f.location_id = p.p_location)
       )
       select
@@ -219,7 +307,7 @@ export async function GET(req: Request) {
         coalesce(avg(cogs), 0)::numeric as avg_daily_cogs
       from curr
       `,
-      [asOfTs, days, locationId]
+      [asOfTs, days, locationId, tenantId]
     );
 
     const prevOpsRes = await pool.query(
@@ -249,7 +337,8 @@ export async function GET(req: Request) {
         select *
         from restaurant.f_location_daily_features f
         cross join prev_range p
-        where f.day between p.prev_start and p.prev_end
+        where f.tenant_id = $4::uuid
+          and f.day between p.prev_start and p.prev_end
           and (p.p_location is null or f.location_id = p.p_location)
       )
       select
@@ -259,7 +348,7 @@ export async function GET(req: Request) {
         coalesce(avg(cogs), 0)::numeric as avg_daily_cogs
       from prev
       `,
-      [asOfTs, days, locationId]
+      [asOfTs, days, locationId, tenantId]
     );
 
     const topItemsRes = await pool.query(
@@ -275,6 +364,13 @@ export async function GET(req: Request) {
         from restaurant.fact_inventory_item_on_hand_daily f
         cross join params p
         where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
+          and exists (
+            select 1
+            from app.tenant_location tl
+            where tl.tenant_id = $4::uuid
+              and tl.location_id = f.entity_id
+              and tl.is_active = true
+          )
           and (p.p_entity is null or f.entity_id = p.p_entity)
       )
       select
@@ -289,7 +385,7 @@ export async function GET(req: Request) {
       order by avg_on_hand_value desc
       limit 10
       `,
-      [asOfTs, days, locationId]
+      [asOfTs, days, locationId, tenantId]
     );
 
     const catMixRes = await pool.query(
@@ -305,6 +401,13 @@ export async function GET(req: Request) {
         from restaurant.fact_inventory_item_on_hand_daily f
         cross join params p
         where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
+          and exists (
+            select 1
+            from app.tenant_location tl
+            where tl.tenant_id = $4::uuid
+              and tl.location_id = f.entity_id
+              and tl.is_active = true
+          )
           and (p.p_entity is null or f.entity_id = p.p_entity)
       ),
       by_cat as (
@@ -328,11 +431,12 @@ export async function GET(req: Request) {
       cross join tot t
       order by b.avg_on_hand_value desc
       `,
-      [asOfTs, days, locationId]
+      [asOfTs, days, locationId, tenantId]
     );
 
-    // MVP-safe placeholder: no movement table yet
     const slowMoversRows: any[] = [];
+
+    
 
     const currInv = currInvRes.rows?.[0] ?? {};
     const prevInv = prevInvRes.rows?.[0] ?? {};
@@ -447,6 +551,7 @@ export async function GET(req: Request) {
         hint: `Estimated cash trapped above target DIH (${TARGET_DIH}d).`,
       },
     ];
+    
 
     return NextResponse.json(
       {
@@ -458,9 +563,7 @@ export async function GET(req: Request) {
           id: locationId ?? "all",
           name: locationId ? `Location ${locationId}` : "All Locations",
         },
-
         kpis,
-
         inventory: {
           kpis: {
             avg_inventory_value: avgInventoryValue,
@@ -476,13 +579,11 @@ export async function GET(req: Request) {
             risk_dih_days: RISK_DIH,
           },
         },
-
         drivers: {
           top_onhand_items: topItemsRes.rows ?? [],
           category_mix: catMixRes.rows ?? [],
           slow_movers: slowMoversRows,
         },
-
         raw: {
           anchor_as_of_ts: asOfTs,
           inventory_kpis_row: true,

@@ -39,20 +39,8 @@ export type OpsDriver = {
   impact_score?: number;
   metric?: { value?: number | null; delta?: number | null; unit?: Unit | string };
 
-  // allow extra
   [key: string]: any;
 };
-
-function sevPill(sev: Severity) {
-  switch (sev) {
-    case "risk":
-      return "border-rose-500/30 bg-rose-500/10 text-rose-200";
-    case "warn":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-200";
-    default:
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
-  }
-}
 
 function sevDot(sev: Severity) {
   switch (sev) {
@@ -90,27 +78,19 @@ function clampPct(x: number) {
   return Math.max(0, Math.min(100, x));
 }
 
-// ✅ This is the normalizer you need (now actually used)
 function driverImpactPct(d: any): number {
-  // Prefer explicit contribution_pct if present (old schema)
   const contrib = Number(d?.contribution_pct);
   if (Number.isFinite(contrib)) return clampPct(contrib);
 
-  // Otherwise use score/impact (new schema)
   const raw = Number(d?.impact_score ?? d?.impact ?? d?.score);
   if (!Number.isFinite(raw)) return 0;
 
-  // If backend sends 0..1, convert to percent
   if (raw > 0 && raw <= 1) return Math.round(raw * 100);
-
-  // If backend sends 0..100, keep
   if (raw > 1 && raw <= 100) return Math.round(raw);
 
-  // If backend sends 100+ (your scoring), clamp
   return 100;
 }
 
-// Normalize value/delta/unit from either schema
 function driverMetric(d: OpsDriver): { current: number | null; delta: number | null; unit?: Unit } {
   const mUnit = (d.metric?.unit as Unit | undefined) ?? d.unit;
   const cur =
@@ -158,7 +138,6 @@ export function OpsDriversPanel({
       const ob = order[b.severity];
       if (oa !== ob) return oa - ob;
 
-      // ✅ Sort by normalized impact
       return driverImpactPct(b) - driverImpactPct(a);
     });
 
@@ -167,8 +146,8 @@ export function OpsDriversPanel({
 
   return (
     <SectionCard
-      title="Drivers"
-      subtitle="What’s pushing Ops up/down right now — ranked by impact. (MVP heuristic; will become model-based later.)"
+      title="Operational Drivers"
+      subtitle="What’s pushing operations up or down across labor, inventory, and kitchen efficiency."
     >
       {loading ? (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -249,7 +228,8 @@ export function OpsDriversPanel({
         </div>
       ) : (
         <div className="rounded-2xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
-          No drivers available yet. Once Labor/Inventory KPIs are present, we’ll rank the top contributors here.
+          Connect your POS to start seeing insights. Once labor and inventory data is available, Valora will rank the
+          top operational drivers here.
         </div>
       )}
     </SectionCard>

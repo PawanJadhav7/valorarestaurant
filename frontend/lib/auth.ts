@@ -1,4 +1,4 @@
-//lib/auth.ts
+// frontend/lib/auth.ts
 import { pool } from "@/lib/db";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
@@ -16,6 +16,8 @@ export type SessionUser = {
   contact: string | null;
   onboarding_status: string | null;
   client_name: string | null;
+  tenant_id: string | null;
+  has_tenant: boolean;
 };
 
 export function normalizeEmail(email: string) {
@@ -73,7 +75,10 @@ export function clearSessionCookieOnResponse(res: NextResponse) {
 
 export async function clearSessionCookie() {
   const c = await cookies();
-  c.set(SESSION_COOKIE, "", { path: "/", expires: new Date(0) });
+  c.set(SESSION_COOKIE, "", {
+    path: "/",
+    expires: new Date(0),
+  });
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
@@ -81,8 +86,8 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const sessionId = c.get(SESSION_COOKIE)?.value ?? "";
 
   if (!sessionId) return null;
- 
-  const s = await pool.query(
+
+  const sessionRes = await pool.query(
     `
     select user_id, expires_at
     from auth.user_session
@@ -92,14 +97,16 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     [sessionId]
   );
 
-
-  const sess = s.rows?.[0] ?? null;
+  const sess = sessionRes.rows?.[0] ?? null;
   if (!sess) return null;
 
   const expiresAt = sess.expires_at ? new Date(sess.expires_at) : null;
   if (!expiresAt || expiresAt.getTime() <= Date.now()) {
     try {
-      await pool.query(`delete from auth.user_session where session_id = $1::uuid`, [sessionId]);
+      await pool.query(
+        `delete from auth.user_session where session_id = $1::uuid`,
+        [sessionId]
+      );
     } catch {}
     await clearSessionCookie();
     return null;
@@ -107,26 +114,48 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   const userId = String(sess.user_id);
 
-  const r = await pool.query(
+  const userRes = await pool.query(
     `
     select
-      user_id,
-      email,
-      full_name,
-      first_name,
-      last_name,
-      contact,
-      onboarding_status
-    from auth.app_user
-    where user_id = $1::uuid
+      u.user_id,
+      u.email,
+      u.full_name,
+      u.first_name,
+      u.last_name,
+      u.contact,
+      u.onboarding_status,
+      tu.tenant_id,
+      t.tenant_name as client_name
+    from auth.app_user u
+    left join lateral (
+      select tenant_id
+      from app.tenant_user
+      where user_id = u.user_id
+      order by created_at desc
+      limit 1
+    ) tu on true
+    left join app.tenant t
+      on t.tenant_id = tu.tenant_id
+    where u.user_id = $1::uuid
     limit 1
     `,
     [userId]
   );
 
-  const row = r.rows?.[0] ?? null;
-  if (!row) return null;
-  
+  const row = userRes.rows?.[0] ?? null;
+  if (!row) {
+    try {
+      await pool.query(
+        `delete from auth.user_session where session_id = $1::uuid`,
+        [sessionId]
+      );
+    } catch {}
+    await clearSessionCookie();
+    return null;
+  }
+
+  const tenantId = row.tenant_id ? String(row.tenant_id) : null;
+
   return {
     user_id: String(row.user_id),
     email: String(row.email),
@@ -135,6 +164,8 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     last_name: row.last_name ?? null,
     contact: row.contact ?? null,
     onboarding_status: row.onboarding_status ?? null,
-    client_name: null,
+    client_name: row.client_name ?? null,
+    tenant_id: tenantId,
+    has_tenant: Boolean(tenantId),
   };
 }
