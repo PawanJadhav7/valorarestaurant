@@ -1,6 +1,7 @@
 //frontend/app/api/restaurant/cost-control/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,10 +114,54 @@ function sevWaste(v: number | null): Severity {
   return "good";
 }
 
+function toDateOnly(v: unknown): string {
+  const d = new Date(v as any);
+  if (Number.isNaN(d.getTime())) {
+    throw new Error(`Invalid asOfTs value: ${String(v)}`);
+  }
+  return d.toISOString().slice(0, 10);
+}
+
 export async function GET(req: Request) {
   const refreshedAt = new Date().toISOString();
 
   try {
+    const user = await getSessionUser();
+
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    const tenantRes = await pool.query(
+      `
+      select tenant_id
+      from app.tenant_user
+      where user_id = $1::uuid
+      order by created_at asc
+      limit 1
+      `,
+      [user.user_id]
+    );
+
+    const tenantId = tenantRes.rows?.[0]?.tenant_id;
+
+    if (!tenantId) {
+      return NextResponse.json(
+        {
+          ok: true,
+          as_of: null,
+          refreshed_at: refreshedAt,
+          window: "30d",
+          location: { id: "all", name: "All Locations" },
+          kpis: [],
+          series: {},
+          alerts: [],
+          actions: [],
+        },
+        { headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
     const url = new URL(req.url);
     const asOfParam = parseAsOf(url.searchParams);
     const windowCode = parseWindow(url.searchParams);
@@ -129,14 +174,20 @@ export async function GET(req: Request) {
         ? `
           SELECT MAX(day)::timestamptz AS as_of_ts
           FROM restaurant.f_location_daily_features
-          WHERE location_id = $1::bigint
+          WHERE tenant_id = $1::uuid
+            AND location_id = $2::bigint
         `
         : `
           SELECT MAX(day)::timestamptz AS as_of_ts
           FROM restaurant.f_location_daily_features
+          WHERE tenant_id = $1::uuid
         `;
 
-      const anchorRes = await pool.query(anchorSql, locationId ? [locationId] : []);
+      const anchorRes = await pool.query(
+        anchorSql,
+        locationId ? [tenantId, locationId] : [tenantId]
+      );
+
       asOfTs = anchorRes.rows?.[0]?.as_of_ts ?? null;
     }
 
@@ -161,98 +212,89 @@ export async function GET(req: Request) {
       );
     }
 
-   
+    const sql = `
+      WITH params AS (
+        SELECT
+          $1::date AS as_of_day,
+          $2::int AS n_days,
+          $3::bigint AS p_location
+      ),
+      curr AS (
+        SELECT f.*
+        FROM restaurant.f_location_daily_features f
+        CROSS JOIN params p
+        WHERE f.tenant_id = $4::uuid
+          AND f.day BETWEEN (p.as_of_day - (p.n_days - 1)) AND p.as_of_day
+          AND (p.p_location IS NULL OR f.location_id = p.p_location)
+      ),
+      prev AS (
+        SELECT f.*
+        FROM restaurant.f_location_daily_features f
+        CROSS JOIN params p
+        WHERE f.tenant_id = $4::uuid
+          AND f.day BETWEEN (p.as_of_day - ((p.n_days * 2) - 1)) AND (p.as_of_day - p.n_days)
+          AND (p.p_location IS NULL OR f.location_id = p.p_location)
+      )
+      SELECT
+        'curr' AS bucket,
+        day,
+        tenant_id,
+        location_id,
+        location_name,
+        revenue,
+        cogs,
+        labor,
+        orders,
+        customers,
+        food_cost_pct,
+        labor_cost_pct,
+        prime_cost,
+        prime_cost_pct,
+        waste_pct,
+        waste_amount,
+        stockout_count,
+        discount_pct,
+        void_pct,
+        refund_pct
+      FROM curr
 
-const sql = `
-  WITH params AS (
-    SELECT
-      $1::date AS as_of_day,
-      $2::int AS n_days,
-      $3::bigint AS p_location
-  ),
-  curr AS (
-    SELECT f.*
-    FROM restaurant.f_location_daily_features f
-    CROSS JOIN params p
-    WHERE f.day BETWEEN (p.as_of_day - (p.n_days - 1)) AND p.as_of_day
-      AND (p.p_location IS NULL OR f.location_id = p.p_location)
-  ),
-  prev AS (
-    SELECT f.*
-    FROM restaurant.f_location_daily_features f
-    CROSS JOIN params p
-    WHERE f.day BETWEEN (p.as_of_day - ((p.n_days * 2) - 1)) AND (p.as_of_day - p.n_days)
-      AND (p.p_location IS NULL OR f.location_id = p.p_location)
-  )
-  SELECT
-    'curr' AS bucket,
-    day,
-    tenant_id,
-    location_id,
-    location_name,
-    revenue,
-    cogs,
-    labor,
-    orders,
-    customers,
-    food_cost_pct,
-    labor_cost_pct,
-    prime_cost,
-    prime_cost_pct,
-    waste_pct,
-    waste_amount,
-    stockout_count,
-    discount_pct,
-    void_pct,
-    refund_pct
-  FROM curr
+      UNION ALL
 
-  UNION ALL
+      SELECT
+        'prev' AS bucket,
+        day,
+        tenant_id,
+        location_id,
+        location_name,
+        revenue,
+        cogs,
+        labor,
+        orders,
+        customers,
+        food_cost_pct,
+        labor_cost_pct,
+        prime_cost,
+        prime_cost_pct,
+        waste_pct,
+        waste_amount,
+        stockout_count,
+        discount_pct,
+        void_pct,
+        refund_pct
+      FROM prev
 
-  SELECT
-    'prev' AS bucket,
-    day,
-    tenant_id,
-    location_id,
-    location_name,
-    revenue,
-    cogs,
-    labor,
-    orders,
-    customers,
-    food_cost_pct,
-    labor_cost_pct,
-    prime_cost,
-    prime_cost_pct,
-    waste_pct,
-    waste_amount,
-    stockout_count,
-    discount_pct,
-    void_pct,
-    refund_pct
-  FROM prev
+      ORDER BY bucket, day;
+    `;
 
-  ORDER BY bucket, day;
-`;
+    const asOfDateStr = toDateOnly(asOfTs);
+    const asOfDay = new Date(`${asOfDateStr}T00:00:00.000Z`);
+    const days = windowDays(windowCode, asOfDay);
 
-function toDateOnly(v: unknown): string {
-  const d = new Date(v as any);
-  if (Number.isNaN(d.getTime())) {
-    throw new Error(`Invalid asOfTs value: ${String(v)}`);
-  }
-  return d.toISOString().slice(0, 10);
-}
+    const res = await pool.query(sql, [asOfDateStr, days, locationId, tenantId]);
 
-const asOfDateStr = toDateOnly(asOfTs);
-const asOfDay = new Date(`${asOfDateStr}T00:00:00.000Z`);
-const days = windowDays(windowCode, asOfDay);
-
-const res = await pool.query(sql, [asOfDateStr, days, locationId]);
-
-const rows = res.rows ?? [];
-
-const currRows = rows.filter((r) => r.bucket === "curr");
-const prevRows = rows.filter((r) => r.bucket === "prev");
+    const rows = res.rows ?? [];
+    const currRows = rows.filter((r) => r.bucket === "curr");
+    const prevRows = rows.filter((r) => r.bucket === "prev");
 
     const locName =
       locationId === null

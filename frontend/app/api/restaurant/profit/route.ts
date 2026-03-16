@@ -1,6 +1,8 @@
 //frontend/app/api/restaurant/profit/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
+import { withTenant } from "@/lib/tenant-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -120,6 +122,34 @@ function sevBreakEven(v: number | null): Severity {
 }
 
 export async function GET(req: Request) {
+  const user = await getSessionUser();
+
+  if (!user) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const tenantRes = await pool.query(
+    `
+    select tenant_id
+    from app.tenant_user
+    where user_id = $1::uuid
+    order by created_at asc
+    limit 1
+    `,
+    [user.user_id]
+  );
+
+  const tenantId = tenantRes.rows?.[0]?.tenant_id;
+
+  if (!tenantId) {
+    return NextResponse.json({
+      ok: true,
+      kpis: [],
+      series: {},
+      alerts: [],
+      actions: [],
+    });
+  }
   const refreshedAt = new Date().toISOString();
 
   try {
@@ -135,14 +165,20 @@ export async function GET(req: Request) {
         ? `
           SELECT MAX(day)::timestamptz AS as_of_ts
           FROM restaurant.f_location_daily_features
-          WHERE location_id = $1::bigint
+          WHERE tenant_id = $1::uuid
+            AND location_id = $2::bigint
         `
         : `
           SELECT MAX(day)::timestamptz AS as_of_ts
           FROM restaurant.f_location_daily_features
+          WHERE tenant_id = $1::uuid
         `;
 
-      const anchorRes = await pool.query(anchorSql, locationId ? [locationId] : []);
+      const anchorRes = await pool.query(
+        anchorSql,
+        locationId ? [tenantId, locationId] : [tenantId]
+      );
+
       asOfTs = anchorRes.rows?.[0]?.as_of_ts ?? null;
     }
 
@@ -183,6 +219,7 @@ export async function GET(req: Request) {
         FROM restaurant.f_location_daily_features f
         CROSS JOIN params p
         WHERE f.day BETWEEN (p.as_of_day - (p.n_days - 1)) AND p.as_of_day
+          AND f.tenant_id = $4::uuid
           AND (p.p_location IS NULL OR f.location_id = p.p_location)
       ),
       prev_raw AS (
@@ -190,6 +227,7 @@ export async function GET(req: Request) {
         FROM restaurant.f_location_daily_features f
         CROSS JOIN params p
         WHERE f.day BETWEEN (p.as_of_day - ((p.n_days * 2) - 1)) AND (p.as_of_day - p.n_days)
+          AND f.tenant_id = $4::uuid
           AND (p.p_location IS NULL OR f.location_id = p.p_location)
       ),
       curr AS (
@@ -248,7 +286,7 @@ export async function GET(req: Request) {
       ORDER BY bucket, day;
     `;
 
-    const res = await pool.query(sql, [asOfDateStr, days, locationId]);
+    const res = await pool.query(sql, [asOfDateStr, days, locationId, tenantId]);
     const rows = res.rows ?? [];
 
     const currRows = rows.filter((r) => r.bucket === "curr");

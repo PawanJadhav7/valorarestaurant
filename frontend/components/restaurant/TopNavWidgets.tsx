@@ -1,4 +1,4 @@
-//components/restaurant/TopNavWidgets.tsx
+//frontend/components/restaurant/TopNavWidgets.tsx
 "use client";
 
 import * as React from "react";

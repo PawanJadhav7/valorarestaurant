@@ -1,3 +1,4 @@
+// frontend/app/api/auth/onboarding/tenant/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
@@ -46,8 +47,12 @@ function cleanLocations(arr: any): LocationInput[] {
 
 export async function GET() {
   const user = await getSessionUser();
+
   if (!user) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: "Unauthorized" },
+      { status: 401 }
+    );
   }
 
   try {
@@ -77,8 +82,12 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const user = await getSessionUser();
+
   if (!user) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: "Unauthorized" },
+      { status: 401 }
+    );
   }
 
   const body = await req.json().catch(() => null);
@@ -87,7 +96,10 @@ export async function POST(req: Request) {
   const locations = cleanLocations(body?.locations);
 
   if (!tenant_name) {
-    return NextResponse.json({ ok: false, error: "tenant_name is required" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "tenant_name is required" },
+      { status: 400 }
+    );
   }
 
   if (locations.length === 0) {
@@ -104,6 +116,7 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
     if (!loc.currency_code) {
       return NextResponse.json(
         { ok: false, error: `currency_code is required for "${loc.location_name}"` },
@@ -130,7 +143,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       tenant_id: existingTenantId,
-      redirect: "/restaurant",
+      redirect: "/billing",
     });
   }
 
@@ -150,7 +163,9 @@ export async function POST(req: Request) {
     );
 
     const tenant_id = String(tenantRes.rows?.[0]?.tenant_id ?? "");
-    if (!tenant_id) throw new Error("Failed to create tenant");
+    if (!tenant_id) {
+      throw new Error("Failed to create tenant");
+    }
 
     // 2) Link user as owner
     await client.query(
@@ -166,11 +181,12 @@ export async function POST(req: Request) {
     const createdLocationIds: number[] = [];
 
     for (const loc of locations) {
-      const baseCode = loc.location_name
-        .toUpperCase()
-        .replace(/[^A-Z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "")
-        .slice(0, 40) || "LOCATION";
+      const baseCode =
+        loc.location_name
+          .toUpperCase()
+          .replace(/[^A-Z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "")
+          .slice(0, 40) || "LOCATION";
 
       const uniqueCode = `${baseCode}_${tenant_id.slice(0, 8).toUpperCase()}`;
 
@@ -211,6 +227,7 @@ export async function POST(req: Request) {
       );
 
       const locationId = Number(locRes.rows?.[0]?.location_id);
+
       if (!Number.isFinite(locationId)) {
         throw new Error(`Failed to create location: ${loc.location_name}`);
       }
@@ -263,10 +280,11 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       tenant_id,
-      redirect: "/restaurant",
+      redirect: "/billing",
     });
   } catch (e: any) {
     await client.query("rollback");
+
     return NextResponse.json(
       { ok: false, error: e?.message ?? "Tenant onboarding failed" },
       { status: 500 }

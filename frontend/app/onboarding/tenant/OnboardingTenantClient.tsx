@@ -1,9 +1,9 @@
-//app/onboarding/tenant/OnboardingTenantClient.tsx
 "use client";
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { SectionCard } from "@/components/valora/SectionCard";
+import { setFlag, setVaSession } from "@/lib/va-session";
 
 type LocationDraft = {
   location_name: string;
@@ -34,7 +34,9 @@ export default function OnboardingTenantClient() {
   const router = useRouter();
 
   const [tenantName, setTenantName] = React.useState("");
-  const [manualLocations, setManualLocations] = React.useState<LocationDraft[]>([blankLocation()]);
+  const [manualLocations, setManualLocations] = React.useState<LocationDraft[]>([
+    blankLocation(),
+  ]);
   const [busy, setBusy] = React.useState(false);
   const [loadingCtx, setLoadingCtx] = React.useState(true);
   const [err, setErr] = React.useState<string | null>(null);
@@ -43,14 +45,22 @@ export default function OnboardingTenantClient() {
     (async () => {
       setLoadingCtx(true);
       setErr(null);
+
       try {
         const r = await fetch("/api/auth/onboarding/tenant", { cache: "no-store" });
         const j = await safeJson(r);
 
-        if (!j.ok) throw new Error(j.error ?? "Failed to load tenant onboarding context");
+        if (!j.ok) {
+          throw new Error(j.error ?? "Failed to load tenant onboarding context");
+        }
 
+        // If tenant already exists, persist session now
         if (j.has_tenant && j.tenant_id) {
-          router.push("/restaurant");
+          setFlag("va_authed", true);
+          setVaSession({ tenant_id: j.tenant_id });
+          setFlag("va_onboarded", true);
+
+          router.push("/billing");
           router.refresh();
           return;
         }
@@ -146,7 +156,15 @@ export default function OnboardingTenantClient() {
       const j = await safeJson(r);
       if (!j.ok) throw new Error(j.error ?? "Tenant creation failed");
 
-      router.push(j.redirect ?? "/restaurant");
+      // IMPORTANT: persist session after tenant is created
+      // Expect backend to return tenant_id
+      if (j.tenant_id) {
+        setFlag("va_authed", true);
+        setVaSession({ tenant_id: j.tenant_id });
+        setFlag("va_onboarded", true);
+      }
+
+      router.push(j.redirect ?? "/billing");
       router.refresh();
     } catch (e: any) {
       setErr(e?.message ?? String(e));
@@ -159,7 +177,7 @@ export default function OnboardingTenantClient() {
     <div className="mx-auto max-w-[1100px] px-4 py-10">
       <SectionCard
         title="Set up your business"
-        subtitle="Create your tenant, add your branch locations, and continue to the dashboard."
+        subtitle="Create your tenant, add your branch locations, and continue to billing."
       >
         {err ? (
           <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm">
@@ -172,7 +190,6 @@ export default function OnboardingTenantClient() {
         ) : (
           <form onSubmit={submit}>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              {/* LEFT: Create Tenant */}
               <div className="lg:col-span-1">
                 <div className="rounded-3xl border border-border bg-background/30 p-4">
                   <div className="mb-2 text-sm font-semibold">Create Tenant</div>
@@ -189,7 +206,6 @@ export default function OnboardingTenantClient() {
                 </div>
               </div>
 
-              {/* MIDDLE: Locations */}
               <div className="lg:col-span-1">
                 <div className="rounded-3xl border border-border bg-background/30 p-4">
                   <div className="mb-2 text-sm font-semibold">Branch Locations</div>
@@ -201,7 +217,9 @@ export default function OnboardingTenantClient() {
                     {manualLocations.map((v, i) => (
                       <div key={i} className="rounded-2xl border border-border/60 p-3">
                         <div className="mb-2 flex items-center justify-between">
-                          <div className="text-xs font-medium opacity-70">Location {i + 1}</div>
+                          <div className="text-xs font-medium opacity-70">
+                            Location {i + 1}
+                          </div>
                           <button
                             type="button"
                             onClick={() => removeManualLocationRow(i)}
@@ -236,7 +254,9 @@ export default function OnboardingTenantClient() {
                               placeholder="Country code (e.g., US)"
                               value={v.country_code}
                               onChange={(e) =>
-                                updateManualLocation(i, { country_code: e.target.value.toUpperCase() })
+                                updateManualLocation(i, {
+                                  country_code: e.target.value.toUpperCase(),
+                                })
                               }
                               maxLength={2}
                             />
@@ -246,7 +266,9 @@ export default function OnboardingTenantClient() {
                               placeholder="Currency code (e.g., USD)"
                               value={v.currency_code}
                               onChange={(e) =>
-                                updateManualLocation(i, { currency_code: e.target.value.toUpperCase() })
+                                updateManualLocation(i, {
+                                  currency_code: e.target.value.toUpperCase(),
+                                })
                               }
                               maxLength={3}
                             />
@@ -268,12 +290,12 @@ export default function OnboardingTenantClient() {
                 </div>
               </div>
 
-              {/* RIGHT: POS Integration */}
               <div className="lg:col-span-1">
                 <div className="rounded-3xl border border-border bg-background/30 p-4">
                   <div className="mb-2 text-sm font-semibold">Connect POS</div>
                   <div className="mb-3 text-xs opacity-70">
-                    Coming soon — automatically import locations, menus, sales, labor, and inventory.
+                    Coming soon — automatically import locations, menus, sales, labor,
+                    and inventory.
                   </div>
 
                   <div className="flex flex-wrap gap-2">
@@ -296,7 +318,8 @@ export default function OnboardingTenantClient() {
                   </button>
 
                   <div className="mt-2 text-[11px] opacity-60">
-                    Phase 2: POS connection will auto-fetch stores/branches and prefill locations.
+                    Phase 2: POS connection will auto-fetch stores/branches and prefill
+                    locations.
                   </div>
                 </div>
               </div>
@@ -308,7 +331,7 @@ export default function OnboardingTenantClient() {
                 disabled={busy}
                 className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-foreground px-5 text-sm font-semibold text-background hover:opacity-90 disabled:opacity-60"
               >
-                {busy ? "Creating…" : "Finish setup → Go to Dashboard"}
+                {busy ? "Creating…" : "Finish setup → Continue to Trial"}
               </button>
             </div>
           </form>

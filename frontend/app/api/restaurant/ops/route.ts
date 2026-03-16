@@ -1,6 +1,8 @@
-//frontend/app/api/restaurant/inventory/drivers/route.ts
+//frontend/app/api/restaurant/ops/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
+
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,6 +82,54 @@ function windowDays(windowCode: "7d" | "30d" | "90d" | "ytd", asOfDate: Date): n
 export async function GET(req: Request) {
   const refreshedAt = new Date().toISOString();
 
+    const user = await getSessionUser();
+
+  if (!user) {
+    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  const tenantRes = await pool.query(
+    `
+    select tenant_id
+    from app.tenant_user
+    where user_id = $1::uuid
+    order by created_at asc
+    limit 1
+    `,
+    [user.user_id]
+  );
+
+  const tenantId = tenantRes.rows?.[0]?.tenant_id;
+
+  if (!tenantId) {
+    return NextResponse.json(
+      {
+        ok: true,
+        as_of: null,
+        refreshed_at: refreshedAt,
+        window: "30d",
+        location: { id: "all", name: "All Locations" },
+        kpis: [],
+        series: {
+          day: [],
+          ORDERS: [],
+          CUSTOMERS: [],
+          AOV: [],
+          REVENUE_PER_CUSTOMER: [],
+          REVENUE: [],
+          LABOR_PCT: [],
+          OVERTIME_PCT: [],
+          DIOH: [],
+          WASTE_PCT: [],
+        },
+        location_summary: [],
+        alerts: [],
+        actions: [],
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   try {
     const url = new URL(req.url);
     const windowCode = parseWindow(url.searchParams);
@@ -87,10 +137,24 @@ export async function GET(req: Request) {
 
     let asOf = parseAsOf(url.searchParams);
     if (!asOf) {
-      const r = await pool.query(`
-        select max(day)::timestamptz as as_of_ts
-        from restaurant.f_location_daily_features
-      `);
+      const anchorSql = locationId
+        ? `
+          select max(day)::timestamptz as as_of_ts
+          from restaurant.f_location_daily_features
+          where tenant_id = $1::uuid
+            and location_id = $2::bigint
+        `
+        : `
+          select max(day)::timestamptz as as_of_ts
+          from restaurant.f_location_daily_features
+          where tenant_id = $1::uuid
+        `;
+
+      const r = await pool.query(
+        anchorSql,
+        locationId ? [tenantId, locationId] : [tenantId]
+      );
+
       const ts = r.rows?.[0]?.as_of_ts;
       asOf = ts ? new Date(ts).toISOString() : null;
     }
@@ -134,7 +198,8 @@ export async function GET(req: Request) {
         select f.*
         from restaurant.f_location_daily_features f
         cross join params p
-        where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
+        where f.tenant_id = $4::uuid
+          and f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
           and (p.p_location is null or f.location_id = p.p_location)
       )
       select
@@ -152,7 +217,7 @@ export async function GET(req: Request) {
         coalesce(sum(labor), 0)::numeric as labor_cost
       from curr
       `,
-      [asOf, days, locationId]
+      [asOf, days, locationId, tenantId]
     );
 
     const prevRes = await pool.query(
@@ -182,7 +247,8 @@ export async function GET(req: Request) {
         select f.*
         from restaurant.f_location_daily_features f
         cross join prev_range p
-        where f.day between p.prev_start and p.prev_end
+        where f.tenant_id = $4::uuid
+          and f.day between p.prev_start and p.prev_end
           and (p.p_location is null or f.location_id = p.p_location)
       )
       select
@@ -200,7 +266,7 @@ export async function GET(req: Request) {
         coalesce(sum(labor), 0)::numeric as labor_cost
       from prev
       `,
-      [asOf, days, locationId]
+      [asOf, days, locationId, tenantId]
     );
 
     const curr = currRes.rows?.[0] ?? {};
@@ -412,7 +478,8 @@ export async function GET(req: Request) {
         select f.*
         from restaurant.f_location_daily_features f
         cross join params p
-        where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
+        where f.tenant_id = $4::uuid
+          and f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
           and (p.p_location is null or f.location_id = p.p_location)
       )
       select
@@ -434,7 +501,7 @@ export async function GET(req: Request) {
       group by day
       order by day
       `,
-      [asOf, days, locationId]
+      [asOf, days, locationId, tenantId]
     );
 
     const rows = seriesRes.rows ?? [];
@@ -451,7 +518,8 @@ export async function GET(req: Request) {
         select f.*
         from restaurant.f_location_daily_features f
         cross join params p
-        where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
+        where f.tenant_id = $4::uuid
+          and f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
           and (p.p_location is null or f.location_id = p.p_location)
       )
       select
@@ -472,7 +540,7 @@ export async function GET(req: Request) {
       group by dl.location_id, dl.location_name
       order by revenue desc
       `,
-      [asOf, days, locationId]
+      [asOf, days, locationId, tenantId]
     );
 
     const alerts: any[] = [
@@ -607,3 +675,4 @@ export async function GET(req: Request) {
     );
   }
 }
+
