@@ -20,7 +20,7 @@ function BillingSuccessContent() {
     }, 1000);
 
     const redirectTimer = window.setTimeout(() => {
-      router.replace("/post-login");
+      router.replace("/post-login?from=billing");
       router.refresh();
     }, 3000);
 
@@ -73,7 +73,7 @@ function BillingSuccessContent() {
               <div className="pt-2">
                 <button
                   onClick={() => {
-                    router.replace("/post-login");
+                    router.replace("/post-login?from=billing");
                     router.refresh();
                   }}
                   className="h-10 rounded-xl bg-foreground px-4 text-sm font-semibold text-background hover:opacity-90"
