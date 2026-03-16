@@ -29,6 +29,50 @@ function TabButton({
   );
 }
 
+function ContactCard({
+  label,
+  title,
+  subtitle,
+  href,
+  icon,
+}: {
+  label: string;
+  title: string;
+  subtitle: string;
+  href?: string;
+  icon: React.ReactNode;
+}) {
+  const content = (
+    <div className="group rounded-2xl border border-border bg-muted/40 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/10 hover:shadow-lg">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {label}
+          </div>
+          <div className="mt-2 text-sm font-medium text-foreground transition-colors group-hover:text-sky-400">
+            {title}
+          </div>
+          <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>
+        </div>
+
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-background/60 text-foreground/80 shadow-sm">
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" className="block">
+        {content}
+      </a>
+    );
+  }
+
+  return content;
+}
+
 export default function HomePage() {
   const [tab, setTab] = React.useState<"platform" | "contact" | "faq">("platform");
 
@@ -37,10 +81,14 @@ export default function HomePage() {
       <div className="space-y-6">
         <SectionCard title={null} subtitle={null}>
           <section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-white/5 px-6 py-8 shadow-2xl backdrop-blur-2xl md:px-10 md:py-12">
-            <div className="pointer-events-none absolute inset-0">
-              <div className="absolute -left-16 top-0 h-56 w-56 rounded-full bg-cyan-400/20 blur-3xl" />
-              <div className="absolute right-0 top-10 h-64 w-64 rounded-full bg-fuchsia-500/20 blur-3xl" />
-              <div className="absolute bottom-0 left-1/3 h-56 w-56 rounded-full bg-emerald-400/10 blur-3xl" />
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+
+              <div className="absolute -left-24 top-0 h-72 w-72 rounded-full bg-sky-400/20 blur-3xl animate-pulse" />
+
+              <div className="absolute right-0 top-10 h-80 w-80 rounded-full bg-indigo-500/20 blur-3xl animate-pulse" />
+
+              <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-emerald-400/10 blur-3xl animate-pulse" />
+
             </div>
 
             <div className="relative">
@@ -228,35 +276,36 @@ export default function HomePage() {
 
                   {tab === "contact" ? (
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                      <div className="rounded-2xl border border-border bg-muted/40 p-5 shadow-sm">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Email</div>
-                        <div className="mt-2 text-sm font-medium text-foreground">support@valora.ai</div>
-                        <div className="mt-1 text-sm text-muted-foreground">
-                          General product and onboarding support
-                        </div>
-                      </div>
+                      <ContactCard
+                        label="Email"
+                        title="support@valora.ai"
+                        subtitle="General product and onboarding support"
+                        href="mailto:support@valora.ai"
+                        icon={<span className="text-base">✉</span>}
+                      />
 
-                      <div className="rounded-2xl border border-border bg-muted/40 p-5 shadow-sm">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">LinkedIn</div>
-                        <div className="mt-2 text-sm font-medium text-foreground">Valora AI</div>
-                        <div className="mt-1 text-sm text-muted-foreground">
-                          Company updates and product visibility
-                        </div>
-                      </div>
+                      <ContactCard
+                        label="LinkedIn"
+                        title="Valora AI"
+                        subtitle="Company updates and product visibility"
+                        href="https://www.linkedin.com/company/valoraai-inc"
+                        icon={<span className="text-base">in</span>}
+                      />
 
-                      <div className="rounded-2xl border border-border bg-muted/40 p-5 shadow-sm">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">X / Twitter</div>
-                        <div className="mt-2 text-sm font-medium text-foreground">@ValoraAI</div>
-                        <div className="mt-1 text-sm text-muted-foreground">
-                          Announcements, launch updates, and insights
-                        </div>
-                      </div>
+                      <ContactCard
+                        label="X / Twitter"
+                        title="@ValoraAIInc"
+                        subtitle="Announcements, launch updates, and insights"
+                        href="https://x.com/ValoraAIInc"
+                        icon={<span className="text-base">𝕏</span>}
+                      />
 
-                      <div className="rounded-2xl border border-border bg-muted/40 p-5 shadow-sm">
-                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Phone</div>
-                        <div className="mt-2 text-sm font-medium text-foreground">+1 (000) 000-0000</div>
-                        <div className="mt-1 text-sm text-muted-foreground">Boston, MA · remote-first</div>
-                      </div>
+                      <ContactCard
+                        label="Phone"
+                        title="+1 (000) 000-0000"
+                        subtitle="Boston, MA · remote-first"
+                        icon={<span className="text-base">☎</span>}
+                      />
                     </div>
                   ) : null}
 
