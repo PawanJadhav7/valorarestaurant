@@ -112,6 +112,12 @@ def handle_checkout_completed(event: dict, db) -> None:
 
     session_id = session.get("id")
     tenant_id = session.get("client_reference_id") or session.get("metadata", {}).get("tenant_id")
+    print("DEBUG tenant_id:", tenant_id)
+    if not tenant_id:
+        print("❌ tenant_id missing in session")
+        return {"status": "ignored"}
+    
+
     stripe_customer_id = session.get("customer")
     stripe_subscription_id = session.get("subscription")
     payment_status = (session.get("payment_status") or "").lower()
@@ -148,6 +154,7 @@ def handle_checkout_completed(event: dict, db) -> None:
         except Exception:
             # keep original payload values if retrieve fails
             pass
+        print("DEBUG after retrieve:", tenant_id, stripe_customer_id, stripe_subscription_id, mode, payment_status)
 
     if not tenant_id:
         return
