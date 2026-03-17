@@ -20,4 +20,5 @@ app.include_router(dashboard_router)
 
 @app.get("/")
 def root():
+    print("This is a github test")
     return {"status": "Valora AI backend running"}
