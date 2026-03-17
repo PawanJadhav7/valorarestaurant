@@ -21,7 +21,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://valorarestaurant.vercel.app",
-        "http://localhost:8000/api/stripe/webhook"
+       
     ],
     allow_credentials=True,
     allow_methods=["*"],
