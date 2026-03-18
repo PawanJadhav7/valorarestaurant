@@ -10,7 +10,9 @@ from app.db import get_db
 router = APIRouter(prefix="/api/stripe", tags=["Stripe Checkout"])
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:3000")
+
+APP_BASE_URL = os.getenv("FRONTEND_URL") or os.getenv("APP_BASE_URL") or "http://localhost:3000"
+
 
 
 class CreateCheckoutSessionRequest(BaseModel):
