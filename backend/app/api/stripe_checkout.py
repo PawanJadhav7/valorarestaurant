@@ -181,6 +181,7 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
             session_params["customer_email"] = billing_email
         print("SESSION PARAMS:", session_params)
         session = stripe.checkout.Session.create(**session_params)
+        print("STRIPE ACCOUNT:", stripe.Account.retrieve()["id"])
 
         db.execute(
             text("""
