@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/stripe", tags=["Stripe Checkout"])
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
-APP_BASE_URL = os.getenv("FRONTEND_URL") or os.getenv("APP_BASE_URL") or "http://localhost:3000"
+APP_BASE_URL = os.getenv("FRONTEND_URL") or os.getenv("NEXT_PUBLIC_VALORA_API_BASE_URL") or os.getenv("APP_BASE_URL")
 
 
 
@@ -179,6 +179,7 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
             session_params["customer"] = stripe_customer_id
         elif billing_email:
             session_params["customer_email"] = billing_email
+        print("STRIPE ACCOUNT:", stripe.Account.retrieve()["id"])
         print("SESSION PARAMS:", session_params)
         session = stripe.checkout.Session.create(**session_params)
         print("STRIPE ACCOUNT:", stripe.Account.retrieve()["id"])
