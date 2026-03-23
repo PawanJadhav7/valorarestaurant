@@ -18,6 +18,8 @@ export type SessionUser = {
   client_name: string | null;
   tenant_id: string | null;
   has_tenant: boolean;
+  active_tenant_id: string | null;
+  role: "owner" | "manager" | "viewer" | null;
 };
 
 export function normalizeEmail(email: string) {
@@ -115,32 +117,35 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const userId = String(sess.user_id);
 
   const userRes = await pool.query(
-    `
-    select
-      u.user_id,
-      u.email,
-      u.full_name,
-      u.first_name,
-      u.last_name,
-      u.contact,
-      u.onboarding_status,
-      tu.tenant_id,
-      t.tenant_name as client_name
-    from auth.app_user u
-    left join lateral (
-      select tenant_id
-      from app.tenant_user
-      where user_id = u.user_id
-      order by created_at desc
-      limit 1
-    ) tu on true
-    left join app.tenant t
-      on t.tenant_id = tu.tenant_id
-    where u.user_id = $1::uuid
+  `
+  select
+    u.user_id,
+    u.email,
+    u.full_name,
+    u.first_name,
+    u.last_name,
+    u.contact,
+    u.onboarding_status,
+    coalesce(uc.tenant_id, tu.tenant_id) as tenant_id,
+    t.tenant_name as client_name,
+    tu.role as role
+  from auth.app_user u
+  left join lateral (
+    select tenant_id, role
+    from app.tenant_user
+    where user_id = u.user_id
+    order by created_at desc
     limit 1
-    `,
-    [userId]
-  );
+  ) tu on true
+  left join app.user_context uc
+    on uc.user_id = u.user_id
+  left join app.tenant t
+    on t.tenant_id = coalesce(uc.tenant_id, tu.tenant_id)
+  where u.user_id = $1::uuid
+  limit 1
+  `,
+  [userId]
+);
 
   const row = userRes.rows?.[0] ?? null;
   if (!row) {
@@ -167,5 +172,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     client_name: row.client_name ?? null,
     tenant_id: tenantId,
     has_tenant: Boolean(tenantId),
+    active_tenant_id: row.tenant_id ?? null,
+    role: row.role ?? null,
   };
 }

@@ -94,48 +94,50 @@ export default function BillingPage() {
   }, [router]);
 
   async function subscribe(planCode: string) {
-    if (!tenantId) {
-      setError("Missing tenant workspace. Complete tenant setup first.");
-      return;
-    }
+  if (planCode === "enterprise") {
+    window.location.href = "mailto:sales@valora.ai";
+    return;
+  }
 
-    if (planCode === "enterprise") {
-      window.location.href = "mailto:sales@valora.ai";
-      return;
-    }
+  setLoadingPlan(planCode);
+  setError(null);
 
-    setLoadingPlan(planCode);
-    setError(null);
+  try {
+    const res = await fetch("/api/billing/activate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        plan_code: planCode,
+        billing_interval: "monthly",
+        quantity: 1,
+      }),
+    });
+
+    const raw = await res.text();
+    let j: any = null;
 
     try {
-      const res = await fetch("http://localhost:8000/api/stripe/checkout-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-tenant-id": tenantId,
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          tenant_id: tenantId,
-          plan_code: planCode,
-          billing_interval: "monthly",
-          quantity: 1,
-        }),
-      });
-
-      const j = await res.json();
-
-      if (!j.checkout_url) {
-        throw new Error(j.detail || "Subscription failed");
-      }
-
-      window.location.href = j.checkout_url;
-    } catch (e: any) {
-      console.error("Stripe checkout error:", e);
-      setError(e?.message ?? "Stripe checkout failed");
-      setLoadingPlan(null);
+      j = JSON.parse(raw);
+    } catch {
+      j = { ok: false, error: raw };
     }
+
+    console.log("BILLING ACTIVATE RESPONSE:", j);
+
+    if (!j?.ok || !j?.checkout_url) {
+      throw new Error(j?.error || j?.detail || raw || "Subscription failed");
+    }
+
+    window.location.href = j.checkout_url;
+  } catch (e: any) {
+    console.error("Stripe checkout error:", e);
+    setError(e?.message ?? "Stripe checkout failed");
+    setLoadingPlan(null);
   }
+}
 
   const plans = [
     {

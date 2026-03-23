@@ -8,6 +8,16 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { TopNavWidgets } from "@/components/restaurant/TopNavWidgets";
 import Image from "next/image";
 
+type AuthStatusResp = {
+  ok: boolean;
+  tenant_id?: string | null;
+  has_tenant?: boolean;
+  subscription_active: boolean;
+  onboarding_done: boolean;
+  onboarding_status?: string | null;
+  next_step?: "signin" | "tenant" | "billing" | "onboarding" | "dashboard";
+};
+
 type MeResp =
   | {
       ok: true;
@@ -46,6 +56,7 @@ export function TopNav() {
   const [loading, setLoading] = React.useState(false);
   const [hasSession, setHasSession] = React.useState(false);
   const [name, setName] = React.useState<string | null>(null);
+  const [canAccessDashboard, setCanAccessDashboard] = React.useState(false);
 
   const withDemo = React.useCallback(
     (path: string) => (demo ? `${path}${path.includes("?") ? "&" : "?"}demo=${demo}` : path),
@@ -87,6 +98,33 @@ export function TopNav() {
     }
   }, []);
 
+  const loadStatus = React.useCallback(async () => {
+  try {
+    const r = await fetch("/api/auth/status", {
+      method: "GET",
+      cache: "no-store",
+      credentials: "include",
+      headers: { "Cache-Control": "no-store" },
+    });
+
+    if (!r.ok) {
+      setCanAccessDashboard(false);
+      return;
+    }
+
+    const j = (await safeJson(r)) as AuthStatusResp;
+
+    if (!j?.ok) {
+      setCanAccessDashboard(false);
+      return;
+    }
+
+    setCanAccessDashboard(Boolean(j.subscription_active && j.has_tenant));
+  } catch {
+    setCanAccessDashboard(false);
+  }
+}, []);
+
   React.useEffect(() => {
     try {
       const sp = new URLSearchParams(window.location.search);
@@ -96,7 +134,8 @@ export function TopNav() {
     }
 
     loadMe();
-  }, [pathname, loadMe]);
+    loadStatus();
+  }, [pathname, loadMe, loadStatus]);
 
   const onLogout = React.useCallback(async () => {
     try {
@@ -163,7 +202,7 @@ export function TopNav() {
                   <div className="hidden sm:block text-sm text-muted-foreground">Checking…</div>
                 ) : null}
 
-                {!onRestaurant ? (
+                {!onRestaurant && canAccessDashboard ? (
                   <Link
                     href={onDashboard}
                     className="glass inline-flex items-center justify-center px-4 py-2 text-sm font-medium"

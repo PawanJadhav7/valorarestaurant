@@ -19,9 +19,9 @@ type Status = {
 
 const NEXT_STEP_ROUTE: Record<NextStep, string> = {
   signin: "/signin",
-  tenant: "/onboarding/tenant",
-  billing: "/billing",
-  onboarding: "/onboarding",
+  tenant: "/onboarding",
+  billing: "/onboarding",
+  onboarding: "/restaurant",
   dashboard: "/restaurant",
 };
 

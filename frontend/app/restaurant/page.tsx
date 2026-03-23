@@ -3,13 +3,15 @@
 
 import * as React from "react";
 import Link from "next/link";
-
+import TenantSwitcher from "@/components/tenant/TenantSwitcher";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionCard } from "@/components/valora/SectionCard";
 import {
   RestaurantKpiTile,
   type Kpi as RestaurantKpi,
 } from "@/components/restaurant/KpiTile";
+
+
 
 type LocationOpt = { id: string; label: string };
 
@@ -29,6 +31,31 @@ type OverviewApi = {
 type LatestDateApi = {
   tenant_id?: string;
   latest_date?: string | null;
+};
+
+type AiInsightRow = {
+  location_insight_id: number;
+  as_of_date: string;
+  tenant_id: string;
+  location_id: number;
+  insight_type: string;
+  audience_type: string;
+  headline: string;
+  summary_text: string;
+  recommendation_text?: string | null;
+  top_risk_type?: string | null;
+  top_action_code?: string | null;
+  opportunity_type?: string | null;
+  confidence_score?: number | null;
+  priority_rank?: number | null;
+};
+
+type AiLocationInsightsApi = {
+  tenant_id: string;
+  as_of_date: string;
+  audience_type: string;
+  insight_type?: string | null;
+  items: AiInsightRow[];
 };
 
 type ControlTowerRow = {
@@ -85,8 +112,57 @@ type AlertsApi = {
   items?: AlertRow[];
 };
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_VALORA_API_BASE_URL || "http://127.0.0.1:8000";
+type DailyKpiSummary = {
+  tenant_id: string;
+  location_id: number;
+  business_date: string;
+  provider: string | null;
+  order_count: number;
+  gross_sales: number;
+  discount_amount: number;
+  net_sales: number;
+  tax_amount: number;
+  tip_amount: number;
+  service_charge_amount: number;
+  customer_count: number;
+  avg_order_value: number;
+  avg_customer_spend: number;
+  discount_pct: number;
+};
+
+type DailyPaymentMixRow = {
+  payment_method: string;
+  amount: number;
+  pct: number;
+};
+
+type DailyTopItemRow = {
+  item_name: string;
+  qty_sold: number;
+  revenue: number;
+};
+
+type DailyKpiApi = {
+  summary: DailyKpiSummary;
+  payment_mix: DailyPaymentMixRow[];
+  top_items: DailyTopItemRow[];
+};
+
+type LiveInsightRow = {
+  type: string;
+  title: string;
+  message: string;
+  priority: number;
+};
+
+type LiveInsightsApi = {
+  tenant_id: string;
+  location_id: number;
+  business_date: string;
+  provider: string | null;
+  insights: LiveInsightRow[];
+};
+
 
 function formatCurrency(value: unknown) {
   return `$${Number(value ?? 0).toLocaleString()}`;
@@ -183,10 +259,18 @@ export default function RestaurantOverviewPage() {
   const [data, setData] = React.useState<OverviewApi | null>(null);
   const [controlTower, setControlTower] = React.useState<ControlTowerRow[]>([]);
   const [alerts, setAlerts] = React.useState<AlertRow[]>([]);
+  const [aiInsights, setAiInsights] = React.useState<AiInsightRow[]>([]);
   const [locations, setLocations] = React.useState<LocationOpt[]>([]);
   const [locationId, setLocationId] = React.useState<string>("all");
   const [insightDate, setInsightDate] = React.useState<string | null>(null);
-
+  const [dailyKpi, setDailyKpi] = React.useState<DailyKpiApi | null>(null);
+  const [liveInsights, setLiveInsights] = React.useState<LiveInsightRow[]>([]);
+  const today = new Date().toISOString().slice(0, 10);
+  const [kpiDate, setKpiDate] = React.useState<string>(today);
+  const [liveInsightDate, setLiveInsightDate] = React.useState<string>(today);
+  const [sessionUser, setSessionUser] = React.useState<any>(null);
+  const [userId, setUserId] = React.useState<string>("");
+  const [role, setRole] = React.useState<string | null>(null);
   const activeTenantId = data?.tenant_id;
 
   const insightDateLabel = insightDate
@@ -257,86 +341,166 @@ export default function RestaurantOverviewPage() {
   );
 
   const fetchLatestInsightDate = React.useCallback(
-  async (signal?: AbortSignal) => {
-    const res = await fetch(`/api/dashboard/latest-date`, {
-      cache: "no-store",
-      signal,
-    });
+    async (signal?: AbortSignal) => {
+      const res = await fetch(`/api/ai/latest-date`, {
+        cache: "no-store",
+        signal,
+      });
 
-    if (!res.ok) {
-      throw new Error(`Latest date HTTP ${res.status}`);
-    }
+      if (!res.ok) {
+        throw new Error(`Latest AI date HTTP ${res.status}`);
+      }
 
-    const json = (await res.json()) as LatestDateApi;
-    setInsightDate(json?.latest_date ?? null);
-  },
-  []
-);
+      const json = (await res.json()) as LatestDateApi;
+      setInsightDate(json?.latest_date ?? null);
+    },
+    []
+  );
 
   const fetchControlTower = React.useCallback(
-  async (signal?: AbortSignal) => {
-    if (!insightDate) return;
+    async (signal?: AbortSignal) => {
+      if (!insightDate) return;
 
-    const qs = new URLSearchParams({
-      day: insightDate,
-      limit: "100",
-    });
+      const qs = new URLSearchParams({
+        day: insightDate,
+        limit: "100",
+      });
 
-    const res = await fetch(`/api/dashboard/control-tower?${qs.toString()}`, {
-      cache: "no-store",
-      signal,
-    });
+      const res = await fetch(`/api/dashboard/control-tower?${qs.toString()}`, {
+        cache: "no-store",
+        signal,
+      });
 
-    if (!res.ok) throw new Error(`Control Tower HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`Control Tower HTTP ${res.status}`);
 
-    const json = (await res.json()) as ControlTowerApi;
-    const rows = json?.items ?? [];
+      const json = (await res.json()) as ControlTowerApi;
+      const rows = json?.items ?? [];
 
-    setControlTower(
-      locationId === "all"
-        ? rows
-        : rows.filter((row) => String(row.location_id) === String(locationId))
-    );
-  },
-  [insightDate, locationId]
-);
+      setControlTower(
+        locationId === "all"
+          ? rows
+          : rows.filter((row) => String(row.location_id) === String(locationId))
+      );
+    },
+    [insightDate, locationId]
+  );
+
+  const fetchAiInsights = React.useCallback(
+    async (signal?: AbortSignal) => {
+      if (!insightDate) return;
+
+      const qs = new URLSearchParams({
+        day: insightDate,
+        audience_type: "operator",
+      });
+
+      const res = await fetch(`/api/ai/location-insights?${qs.toString()}`, {
+        cache: "no-store",
+        signal,
+      });
+
+      if (!res.ok) throw new Error(`AI Insights HTTP ${res.status}`);
+
+      const json = (await res.json()) as AiLocationInsightsApi;
+      const rows = json?.items ?? [];
+
+      setAiInsights(
+        locationId === "all"
+          ? rows
+          : rows.filter((row) => String(row.location_id) === String(locationId))
+      );
+    },
+    [insightDate, locationId]
+  );
 
   const fetchAlerts = React.useCallback(
+    async (signal?: AbortSignal) => {
+      if (!insightDate) return;
+
+      const qs = new URLSearchParams({
+        day: insightDate,
+        limit: "20",
+      });
+
+      const res = await fetch(`/api/dashboard/alerts?${qs.toString()}`, {
+        cache: "no-store",
+        signal,
+      });
+
+      if (!res.ok) throw new Error(`Alerts HTTP ${res.status}`);
+
+      const json = (await res.json()) as AlertsApi;
+      const rows = json?.items ?? [];
+
+      setAlerts(
+        locationId === "all"
+          ? rows
+          : rows.filter((row) => String(row.location_id) === String(locationId))
+      );
+    },
+    [insightDate, locationId]
+  );
+
+  const fetchDailyKpi = React.useCallback(
   async (signal?: AbortSignal) => {
-    if (!insightDate) return;
-
     const qs = new URLSearchParams({
-      day: insightDate,
-      limit: "20",
-    });
+    location_id: locationId === "all" ? "101" : locationId,
+    business_date: kpiDate,
+  });
 
-    const res = await fetch(`/api/dashboard/alerts?${qs.toString()}`, {
+    const res = await fetch(`/api/kpi/daily?${qs.toString()}`, {
       cache: "no-store",
       signal,
     });
 
-    if (!res.ok) throw new Error(`Alerts HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`Daily KPI HTTP ${res.status}`);
 
-    const json = (await res.json()) as AlertsApi;
-    const rows = json?.items ?? [];
-
-    setAlerts(
-      locationId === "all"
-        ? rows
-        : rows.filter((row) => String(row.location_id) === String(locationId))
-    );
+    const json = (await res.json()) as DailyKpiApi;
+    setDailyKpi(json);
   },
-  [insightDate, locationId]
-);
+  [locationId, kpiDate]
+  );
 
-  const insights = controlTower
-    .filter((row) => row.headline || row.summary_text)
-    .map((row) => ({
-      location_id: row.location_id,
-      location_name: row.location_name,
-      headline: row.headline ?? "AI insight",
-      summary_text: row.summary_text ?? "No summary available.",
-    }));
+  const fetchLiveInsights = React.useCallback(
+  async (signal?: AbortSignal) => {
+    const qs = new URLSearchParams({
+      location_id: locationId === "all" ? "101" : locationId,
+      business_date: liveInsightDate,
+    });
+
+    const res = await fetch(`/api/insights/daily?${qs.toString()}`, {
+      cache: "no-store",
+      signal,
+    });
+
+    if (!res.ok) throw new Error(`Live Insights HTTP ${res.status}`);
+
+    const json = (await res.json()) as LiveInsightsApi;
+    setLiveInsights(json?.insights ?? []);
+  },
+  [locationId, liveInsightDate]
+  );
+
+  const insights = aiInsights.map((row) => ({
+    location_id: row.location_id,
+    location_name:
+      locations.find((l) => l.id === String(row.location_id))?.label ??
+      `Location ${row.location_id}`,
+    headline: row.headline ?? "AI insight",
+    summary_text: row.summary_text ?? "No summary available.",
+    recommendation_text: row.recommendation_text ?? null,
+  }));
+
+  React.useEffect(() => {
+  fetch("/api/auth/me")
+  .then(res => res.json())
+  .then(j => {
+    if (j.ok) {
+      setUserId(j.user.user_id);
+      setRole(j.user.role);
+      }
+    });
+  }, []);
 
   React.useEffect(() => {
     const ac = new AbortController();
@@ -366,20 +530,20 @@ export default function RestaurantOverviewPage() {
   }, [fetchOverview]);
 
   React.useEffect(() => {
-  const ac = new AbortController();
+    const ac = new AbortController();
 
-  (async () => {
-    try {
-      await fetchLatestInsightDate(ac.signal);
-    } catch (e: any) {
-      if (e?.name !== "AbortError") {
-        setErr(e?.message ?? "Failed to load latest AI snapshot date");
+    (async () => {
+      try {
+        await fetchLatestInsightDate(ac.signal);
+      } catch (e: any) {
+        if (e?.name !== "AbortError") {
+          setErr(e?.message ?? "Failed to load latest AI snapshot date");
+        }
       }
-    }
-  })();
+    })();
 
-  return () => ac.abort();
-}, [fetchLatestInsightDate]);
+    return () => ac.abort();
+  }, [fetchLatestInsightDate]);
 
   React.useEffect(() => {
     if (!activeTenantId || !insightDate) return;
@@ -388,7 +552,11 @@ export default function RestaurantOverviewPage() {
 
     (async () => {
       try {
-        await Promise.all([fetchControlTower(ac.signal), fetchAlerts(ac.signal)]);
+        await Promise.all([
+          fetchControlTower(ac.signal),
+          fetchAlerts(ac.signal),
+          fetchAiInsights(ac.signal),
+        ]);
       } catch (e: any) {
         if (e?.name !== "AbortError") {
           setErr(e?.message ?? "Failed to load AI dashboard data");
@@ -397,7 +565,45 @@ export default function RestaurantOverviewPage() {
     })();
 
     return () => ac.abort();
-  }, [activeTenantId, insightDate, fetchControlTower, fetchAlerts]);
+  }, [
+    activeTenantId,
+    insightDate,
+    fetchControlTower,
+    fetchAlerts,
+    fetchAiInsights,
+  ]);
+
+  React.useEffect(() => {
+  const ac = new AbortController();
+
+  (async () => {
+    try {
+      await fetchDailyKpi(ac.signal);
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        setErr(e?.message ?? "Failed to load daily KPI snapshot");
+      }
+    }
+  })();
+
+  return () => ac.abort();
+  }, [fetchDailyKpi]);
+
+  React.useEffect(() => {
+  const ac = new AbortController();
+
+  (async () => {
+    try {
+      await fetchLiveInsights(ac.signal);
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        setErr(e?.message ?? "Failed to load live insights");
+      }
+    }
+  })();
+
+  return () => ac.abort();
+}, [fetchLiveInsights]);
 
   if (loading) return <Skeleton />;
 
@@ -430,6 +636,10 @@ export default function RestaurantOverviewPage() {
 
   const kpis = data?.kpis ?? [];
   const series = data?.series ?? {};
+
+  const dailySummary = dailyKpi?.summary ?? null;
+  const dailyPaymentMix = dailyKpi?.payment_mix ?? [];
+  const dailyTopItems = dailyKpi?.top_items ?? [];
 
   const byCode = new Map(kpis.map((k) => [k.code, k]));
   const pick = (codes: string[]) =>
@@ -487,6 +697,10 @@ export default function RestaurantOverviewPage() {
       title="Restaurant KPIs"
       subtitle="Executive view for Profit, Growth, Cash discipline, and AI operating insights."
     >
+      {/* ADD HERE */}
+      <div className="flex justify-end mb-3">
+        <TenantSwitcher userId={userId} />
+      </div>
       <div className="relative pt-2">
         <div className="absolute right-0 top-0">
           <div className="flex items-center gap-2">
@@ -579,9 +793,103 @@ export default function RestaurantOverviewPage() {
     );
   }
 
+  
+  
+
   return (
     <div className="space-y-4">
       {HeaderCard}
+
+      <SectionCard
+    title="Live POS KPI Snapshot"
+    subtitle={`Direct daily KPI snapshot from POS-ingested orders for ${kpiDate}.`}
+>
+      {!dailyKpi && (
+        <div className="text-sm text-muted-foreground mb-3">
+          Loading KPI snapshot...
+        </div>
+      )}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <div className="text-sm text-muted-foreground">Net Sales</div>
+          <div className="mt-2 text-2xl font-semibold">
+            {dailySummary ? formatCurrency(dailySummary.net_sales) : "—"}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="text-sm text-muted-foreground">Orders</div>
+        <div className="mt-2 text-2xl font-semibold">
+          {dailySummary ? Number(dailySummary.order_count).toLocaleString() : "—"}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="text-sm text-muted-foreground">Avg Order Value</div>
+        <div className="mt-2 text-2xl font-semibold">
+          {dailySummary ? formatCurrency(dailySummary.avg_order_value) : "—"}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="text-sm text-muted-foreground">Discount %</div>
+        <div className="mt-2 text-2xl font-semibold">
+          {dailySummary ? Number(dailySummary.discount_pct).toFixed(1) + "%" : "—"}
+        </div>
+      </div>
+    </div>
+
+    <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="text-sm font-semibold text-foreground">Payment Mix</div>
+        <div className="mt-3 space-y-2">
+          {dailyPaymentMix.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No payment data.</div>
+          ) : (
+            dailyPaymentMix.map((row) => (
+              <div
+                key={row.payment_method}
+                className="flex items-center justify-between rounded-xl border border-border px-3 py-2"
+              >
+                <div className="text-sm font-medium">
+                  {humanizeCode(row.payment_method)}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  {formatCurrency(row.amount)} · {Number(row.pct).toFixed(1)}%
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="text-sm font-semibold text-foreground">Top Items</div>
+        <div className="mt-3 space-y-2">
+          {dailyTopItems.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No item data.</div>
+          ) : (
+            dailyTopItems.map((row) => (
+              <div
+                key={row.item_name}
+                className="flex items-center justify-between rounded-xl border border-border px-3 py-2"
+              >
+                <div>
+                  <div className="text-sm font-medium">{row.item_name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Qty sold: {row.qty_sold}
+                  </div>
+                </div>
+                <div className="text-sm font-medium">
+                  {formatCurrency(row.revenue)}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+      </SectionCard>
 
       <SectionCard
         title="Revenue & demand"
@@ -668,6 +976,36 @@ export default function RestaurantOverviewPage() {
             <div className="text-sm text-muted-foreground">Healthy Locations</div>
             <div className="mt-2 text-2xl font-semibold">{healthyCount}</div>
           </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Live AI Insights (Real-time)"
+        subtitle={`KPI-driven decision insights for ${liveInsightDate}`}
+      >
+        <div className="space-y-3 text-sm">
+          {liveInsights.length === 0 ? (
+            <div className="text-muted-foreground">
+              No live insights available for this date.
+            </div>
+          ) : (
+            liveInsights.map((i, idx) => (
+              <div
+                key={idx}
+                className="rounded-xl border border-border bg-card p-3"
+              >
+                <div className="font-medium">{i.title}</div>
+
+                <div className="mt-1 text-muted-foreground">
+                  {i.message}
+                </div>
+
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Type: {i.type} · Priority: {i.priority}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </SectionCard>
 
@@ -833,6 +1171,13 @@ export default function RestaurantOverviewPage() {
                 <div className="mt-1 text-muted-foreground">
                   {i.summary_text}
                 </div>
+
+                {i.recommendation_text ? (
+                  <div className="mt-2 text-sm text-foreground">
+                    <span className="font-medium">Recommended action:</span>{" "}
+                    {i.recommendation_text}
+                  </div>
+                ) : null}
               </div>
             ))
           )}

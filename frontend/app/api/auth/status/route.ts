@@ -34,9 +34,10 @@ export async function GET() {
     const has_tenant = Boolean(tenantId);
 
     let subscription_active = false;
+
+    // ✅ FIX: ONLY mark completed when fully done
     let onboarding_done =
       user.onboarding_status === "completed" ||
-      user.onboarding_status === "tenant_done" ||
       user.onboarding_status === "complete";
 
     if (has_tenant) {
@@ -53,12 +54,9 @@ export async function GET() {
         );
 
         const status = String(sub.rows?.[0]?.subscription_status ?? "").toLowerCase();
-        subscription_active = ["active", "trial", "trialing"].includes(status);
 
-        // subscription_active =
-        //   status === "active" ||
-        //   status === "trial" ||
-        //   status === "trialing";
+        // ✅ Keep this strict and correct
+        subscription_active = ["active", "trial", "trialing"].includes(status);
 
       } catch (subErr) {
         console.error("auth status subscription lookup error", subErr);
@@ -73,6 +71,7 @@ export async function GET() {
     } else if (!subscription_active) {
       next_step = "billing";
     } else if (!onboarding_done) {
+      // ✅ This ensures user goes to POS after subscription
       next_step = "onboarding";
     }
 

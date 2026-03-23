@@ -3,20 +3,46 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { pool } from "@/lib/db";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const BACKEND_API_BASE =
+  process.env.VALORA_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_VALORA_API_BASE_URL ||
+  "http://127.0.0.1:8000";
+
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
 
     if (!user) {
-      return NextResponse.json({ ok: false, error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json(
+        { ok: false, error: "Not authenticated" },
+        { status: 401 }
+      );
     }
 
     const body = await req.json().catch(() => ({}));
-    const planCode = String(body?.plan_code ?? "growth").trim().toLowerCase();
+
+    const rawPlanCode = String(body?.plan_code ?? "growth_monthly")
+      .trim()
+      .toLowerCase();
+
+    const billingInterval = String(body?.billing_interval ?? "monthly")
+      .trim()
+      .toLowerCase();
+
+    const quantity = Number(body?.quantity ?? 1);
+
+    // ✅ FIX: extract base plan correctly
+    const [basePlanRaw] = rawPlanCode.split("_");
 
     const allowedPlans = new Set(["starter", "growth", "enterprise"]);
-    const finalPlan = allowedPlans.has(planCode) ? planCode : "growth";
+    const basePlan = allowedPlans.has(basePlanRaw) ? basePlanRaw : "growth";
 
+    const finalPlanCode = `${basePlan}_${billingInterval}`;
+
+    // ✅ get tenant
     const tenantRes = await pool.query(
       `
       select tenant_id
@@ -29,50 +55,65 @@ export async function POST(req: Request) {
     );
 
     const tenant = tenantRes.rows?.[0];
-    if (!tenant) {
-      return NextResponse.json({ ok: false, error: "Tenant not found" }, { status: 404 });
+
+    if (!tenant?.tenant_id) {
+      return NextResponse.json(
+        { ok: false, error: "Tenant not found" },
+        { status: 404 }
+      );
     }
 
-    await pool.query(
-      `
-      insert into app.tenant_subscription (
-        tenant_id,
-        plan_code,
-        subscription_status,
-        billing_provider,
-        billing_email,
-        trial_ends_at,
-        created_at,
-        updated_at
-      )
-      values (
-        $1::uuid,
-        $2::text,
-        'trial',
-        'manual',
-        $3::text,
-        now() + interval '7 days',
-        now(),
-        now()
-      )
-      on conflict (tenant_id)
-      do update set
-        plan_code = excluded.plan_code,
-        subscription_status = 'trial',
-        billing_provider = excluded.billing_provider,
-        billing_email = excluded.billing_email,
-        trial_ends_at = now() + interval '7 days',
-        updated_at = now()
-      `,
-      [tenant.tenant_id, finalPlan, user.email]
+    // ✅ call backend
+    const backendRes = await fetch(
+      `${BACKEND_API_BASE}/api/stripe/checkout-session`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-tenant-id": String(tenant.tenant_id),
+        },
+        body: JSON.stringify({
+          tenant_id: String(tenant.tenant_id),
+          plan_code: finalPlanCode,
+          billing_interval: billingInterval,
+          quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+        }),
+        cache: "no-store",
+      }
     );
+
+    const raw = await backendRes.text();
+    let backendJson: any = null;
+
+    try {
+      backendJson = JSON.parse(raw);
+    } catch {
+      backendJson = null;
+    }
+
+    if (!backendRes.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            backendJson?.detail ||
+            backendJson?.error ||
+            raw ||
+            "Failed to create Stripe checkout session",
+        },
+        { status: backendRes.status }
+      );
+    }
 
     return NextResponse.json({
       ok: true,
-      plan_code: finalPlan,
-      subscription_status: "trial",
+      checkout_url: backendJson?.checkout_url ?? null,
+      checkout_session_id: backendJson?.checkout_session_id ?? null,
+      tenant_id: String(tenant.tenant_id),
+      plan_code: finalPlanCode,
     });
   } catch (e: any) {
+    console.error("BILLING ACTIVATE ERROR:", e);
     return NextResponse.json(
       { ok: false, error: e?.message ?? "Billing activation failed" },
       { status: 500 }

@@ -1,3 +1,4 @@
+//frontent/app/api/restaurant/overview/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
@@ -199,48 +200,42 @@ export async function GET(req: Request) {
   try {
     await client.query("begin");
 
-    const tenantRes = await client.query(
-      `
-      select tenant_id
-      from app.tenant_user
-      where user_id = $1::uuid
-      order by created_at asc
-      limit 1
-      `,
-      [user.user_id]
-    );
+    // Use active tenant from session (TenantSwitcher)
+    const tenantId =
+    user.active_tenant_id ?? user.tenant_id;
 
-    const tenantId: string | null = tenantRes.rows?.[0]?.tenant_id ?? null;
     if (!tenantId) {
-      return await bail(403, { ok: false, error: "User not linked to a tenant yet" });
+      return await bail(403, { ok: false, error: "No active tenant" });
     }
 
-    await client.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
+    // ✅ set tenant context
+    await client.query(
+      `select set_config('app.tenant_id', $1, true)`,
+      [tenantId]
+    );
 
     const allowedRes = await client.query(
       `
-      with tenant_allowed as (
-        select tl.location_id::bigint as location_id
-        from app.tenant_location tl
-        where tl.tenant_id = $1::uuid
-          and tl.is_active = true
-      ),
-      user_allowed as (
-        select ul.location_id::bigint as location_id
-        from app.user_location ul
-        where ul.tenant_id = $1::uuid
-          and ul.user_id = $2::uuid
-          and ul.is_active = true
-      ),
-      effective as (
-        select location_id from user_allowed
-        union all
-        select ta.location_id
-        from tenant_allowed ta
-        where not exists (select 1 from user_allowed)
-      )
-      select distinct location_id
-      from effective
+      select distinct ul.location_id::bigint as location_id
+      from app.user_location ul
+      where ul.tenant_id = $1::uuid
+        and ul.user_id = $2::uuid
+        and ul.is_active = true
+
+      union
+
+      select distinct tl.location_id::bigint as location_id
+      from app.tenant_location tl
+      where tl.tenant_id = $1::uuid
+        and tl.is_active = true
+        and not exists (
+          select 1
+          from app.user_location ul2
+          where ul2.tenant_id = $1::uuid
+            and ul2.user_id = $2::uuid
+            and ul2.is_active = true
+        )
+
       order by 1
       `,
       [tenantId, user.user_id]
@@ -249,6 +244,11 @@ export async function GET(req: Request) {
     const allowedIds = allowedRes.rows
       .map((r) => Number(r.location_id))
       .filter(Number.isFinite);
+    
+    await client.query(
+      `select set_config('app.allowed_locations', $1, true)`,
+      [allowedIds.join(",")]
+    );
 
     if (allowedIds.length === 0) {
       await client.query("commit");
@@ -289,21 +289,22 @@ export async function GET(req: Request) {
       });
     }
 
+    await client.query(
+      `select set_config('app.allowed_locations', $1, true)`,
+      [allowedIds.join(",")]
+    );
+
     if (locationId !== null && !allowedIds.includes(locationId)) {
       return await bail(403, { ok: false, error: "Forbidden location" });
     }
 
     const kpiRes = await client.query(
       `
-      with allowed as (
-        select unnest($1::bigint[]) as location_id
-      )
       select *
       from analytics.get_executive_kpis_by_location(now())
-      where location_id in (select location_id from allowed)
-        and ($2::bigint is null or location_id = $2::bigint)
+      where ($1::bigint is null or location_id = $1::bigint)
       `,
-      [allowedIds, locationId]
+      [locationId]
     );
 
     const rows = kpiRes.rows ?? [];

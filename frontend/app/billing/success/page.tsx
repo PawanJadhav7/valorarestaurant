@@ -1,4 +1,3 @@
-// frontend/app/billing/success/page.tsx
 "use client";
 
 import * as React from "react";
@@ -7,26 +6,81 @@ import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SectionCard } from "@/components/valora/SectionCard";
 
+type AuthStatusResp = {
+  ok: boolean;
+  subscription_active: boolean;
+  onboarding_done: boolean;
+  next_step?: "signin" | "tenant" | "billing" | "onboarding" | "dashboard";
+};
+
 function BillingSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session_id");
 
-  const [countdown, setCountdown] = React.useState(3);
+  const [countdown, setCountdown] = React.useState(5);
+  const [checking, setChecking] = React.useState(true);
+  const [syncError, setSyncError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    const countdownTimer = window.setInterval(() => {
-      setCountdown((prev) => (prev > 1 ? prev - 1 : 1));
-    }, 1000);
+    let alive = true;
+    let pollTimer: number | null = null;
+    let remaining = 10;
 
-    const redirectTimer = window.setTimeout(() => {
-      router.replace("/post-login?from=billing");
-      router.refresh();
-    }, 3000);
+    async function checkStatus() {
+      try {
+        const res = await fetch("/api/auth/status", {
+          cache: "no-store",
+          credentials: "include",
+          headers: { "Cache-Control": "no-store" },
+        });
+
+        const j = (await res.json().catch(() => null)) as AuthStatusResp | null;
+        if (!alive) return;
+
+        if (j?.ok && j.subscription_active) {
+          setChecking(false);
+
+          // ✅ IMPORTANT: push to onboarding POS step cleanly
+          router.replace("/onboarding?step=pos");
+          return;
+        }
+
+        remaining -= 1;
+        setCountdown(Math.max(remaining, 1));
+
+        if (remaining <= 0) {
+          setChecking(false);
+          setSyncError(
+            "Subscription is still syncing. You can proceed manually."
+          );
+          return;
+        }
+
+        pollTimer = window.setTimeout(checkStatus, 1000);
+      } catch {
+        if (!alive) return;
+
+        remaining -= 1;
+        setCountdown(Math.max(remaining, 1));
+
+        if (remaining <= 0) {
+          setChecking(false);
+          setSyncError(
+            "Subscription sync delayed. You can proceed manually."
+          );
+          return;
+        }
+
+        pollTimer = window.setTimeout(checkStatus, 1000);
+      }
+    }
+
+    checkStatus();
 
     return () => {
-      window.clearInterval(countdownTimer);
-      window.clearTimeout(redirectTimer);
+      alive = false;
+      if (pollTimer) window.clearTimeout(pollTimer);
     };
   }, [router]);
 
@@ -67,18 +121,19 @@ function BillingSuccessContent() {
               )}
 
               <div className="text-sm text-muted-foreground">
-                Redirecting to your workspace in {countdown}...
+                {checking
+                  ? `Finalizing your workspace access in ${countdown}...`
+                  : syncError ?? "Workspace ready."}
               </div>
 
               <div className="pt-2">
                 <button
                   onClick={() => {
-                    router.replace("/post-login?from=billing");
-                    router.refresh();
+                    router.replace("/onboarding?step=pos");
                   }}
                   className="h-10 rounded-xl bg-foreground px-4 text-sm font-semibold text-background hover:opacity-90"
                 >
-                  Continue to workspace
+                  Continue setup (POS)
                 </button>
               </div>
             </div>
