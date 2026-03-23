@@ -14,7 +14,6 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 APP_BASE_URL = os.getenv("FRONTEND_URL") or os.getenv("NEXT_PUBLIC_VALORA_API_BASE_URL") or os.getenv("APP_BASE_URL")
 
 
-
 class CreateCheckoutSessionRequest(BaseModel):
     tenant_id: str
     plan_code: str
@@ -25,8 +24,9 @@ class CreateCheckoutSessionRequest(BaseModel):
 @router.post("/checkout-session")
 def create_checkout_session(payload: CreateCheckoutSessionRequest):
     db = next(get_db())
-
     try:
+        base_plan, interval = payload.plan_code.split("_")
+
         plan = db.execute(
             text("""
                 SELECT
@@ -42,10 +42,7 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
                   AND is_active = true
                 LIMIT 1
             """),
-            {
-                "plan_code": payload.plan_code,
-                "billing_interval": payload.billing_interval,
-            },
+            {"plan_code": base_plan, "billing_interval": interval},
         ).mappings().first()
 
         if not plan:
@@ -55,10 +52,7 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
         stripe_product_id = plan["stripe_product_id"]
 
         if not stripe_price_id or str(stripe_price_id).startswith("price_placeholder_"):
-            raise HTTPException(
-                status_code=400,
-                detail="Plan is not connected to a real Stripe price yet"
-            )
+            raise HTTPException(status_code=400, detail="Plan is not connected to a real Stripe price yet")
 
         tenant = db.execute(
             text("""
@@ -94,70 +88,68 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
             {"tenant_id": payload.tenant_id},
         ).mappings().first()
 
-        billing_email = None
+        billing_email = tenant["email"]
         stripe_customer_id = None
 
         if existing_sub:
-            billing_email = existing_sub["billing_email"]
+            billing_email = existing_sub["billing_email"] or tenant["email"]
             stripe_customer_id = existing_sub["stripe_customer_id"]
-        else:
-            billing_email = tenant["email"]
 
-            db.execute(
-                text("""
-                    INSERT INTO app.tenant_subscription (
-                        tenant_id,
-                        billing_provider,
-                        billing_email,
-                        plan_code,
-                        stripe_price_id,
-                        stripe_product_id,
-                        stripe_status,
-                        subscription_status,
-                        quantity,
-                        created_at,
-                        updated_at
-                    )
-                    VALUES (
-                        CAST(:tenant_id AS uuid),
-                        'stripe',
-                        :billing_email,
-                        :plan_code,
-                        :stripe_price_id,
-                        :stripe_product_id,
-                        'incomplete',
-                        'past_due',
-                        :quantity,
-                        now(),
-                        now()
-                    )
-                    ON CONFLICT (tenant_id) DO UPDATE SET
-                        billing_email = COALESCE(EXCLUDED.billing_email, app.tenant_subscription.billing_email),
-                        plan_code = EXCLUDED.plan_code,
-                        stripe_price_id = EXCLUDED.stripe_price_id,
-                        stripe_product_id = EXCLUDED.stripe_product_id,
-                        quantity = EXCLUDED.quantity,
-                        updated_at = now()
-                """),
-                {
-                    "tenant_id": payload.tenant_id,
-                    "billing_email": billing_email,
-                    "plan_code": payload.plan_code,
-                    "stripe_price_id": stripe_price_id,
-                    "stripe_product_id": stripe_product_id,
-                    "quantity": payload.quantity,
-                },
-            )
-            db.commit()
+        # Upsert subscription record with plan_code & billing_interval
+        db.execute(
+            text("""
+                INSERT INTO app.tenant_subscription (
+                    tenant_id,
+                    billing_provider,
+                    billing_email,
+                    plan_code,
+                    billing_interval,
+                    stripe_price_id,
+                    stripe_product_id,
+                    stripe_status,
+                    subscription_status,
+                    quantity,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    CAST(:tenant_id AS uuid),
+                    'stripe',
+                    :billing_email,
+                    :plan_code,
+                    :billing_interval,
+                    :stripe_price_id,
+                    :stripe_product_id,
+                    'incomplete',
+                    'trial',
+                    :quantity,
+                    now(),
+                    now()
+                )
+                ON CONFLICT (tenant_id) DO UPDATE SET
+                    billing_email = COALESCE(EXCLUDED.billing_email, app.tenant_subscription.billing_email),
+                    plan_code = EXCLUDED.plan_code,
+                    billing_interval = EXCLUDED.billing_interval,
+                    stripe_price_id = EXCLUDED.stripe_price_id,
+                    stripe_product_id = EXCLUDED.stripe_product_id,
+                    quantity = EXCLUDED.quantity,
+                    updated_at = now()
+            """),
+            {
+                "tenant_id": payload.tenant_id,
+                "billing_email": billing_email,
+                "plan_code": payload.plan_code,
+                "billing_interval": payload.billing_interval,
+                "stripe_price_id": stripe_price_id,
+                "stripe_product_id": stripe_product_id,
+                "quantity": payload.quantity,
+            },
+        )
+        db.commit()
 
         session_params = {
             "mode": "subscription",
-            "line_items": [
-                {
-                    "price": stripe_price_id,
-                    "quantity": payload.quantity,
-                }
-            ],
+            "line_items": [{"price": stripe_price_id, "quantity": payload.quantity}],
             "client_reference_id": payload.tenant_id,
             "success_url": f"{APP_BASE_URL}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
             "cancel_url": f"{APP_BASE_URL}/billing?checkout=cancel",
@@ -177,18 +169,18 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
 
         if stripe_customer_id:
             session_params["customer"] = stripe_customer_id
-        elif billing_email:
+        else:
             session_params["customer_email"] = billing_email
-        print("STRIPE ACCOUNT:", stripe.Account.retrieve()["id"])
-        print("SESSION PARAMS:", session_params)
-        session = stripe.checkout.Session.create(**session_params)
-        print("STRIPE ACCOUNT:", stripe.Account.retrieve()["id"])
 
+        session = stripe.checkout.Session.create(**session_params)
+
+        # Update subscription with checkout session info
         db.execute(
             text("""
                 UPDATE app.tenant_subscription
                 SET
                     plan_code = :plan_code,
+                    billing_interval = :billing_interval,
                     stripe_price_id = :stripe_price_id,
                     stripe_product_id = :stripe_product_id,
                     quantity = :quantity,
@@ -198,6 +190,7 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
             {
                 "tenant_id": payload.tenant_id,
                 "plan_code": payload.plan_code,
+                "billing_interval": payload.billing_interval,
                 "stripe_price_id": stripe_price_id,
                 "stripe_product_id": stripe_product_id,
                 "quantity": payload.quantity,
@@ -205,10 +198,7 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
         )
         db.commit()
 
-        return {
-            "checkout_session_id": session.id,
-            "checkout_url": session.url,
-        }
+        return {"checkout_session_id": session.id, "checkout_url": session.url}
 
     except stripe.error.StripeError as e:
         db.rollback()
