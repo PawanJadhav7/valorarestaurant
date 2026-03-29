@@ -4,7 +4,7 @@ import os
 import time
 from typing import Any, Optional
 
-import google.generativeai as genai
+from google import genai
 
 
 _GEMINI_CONFIGURED = False

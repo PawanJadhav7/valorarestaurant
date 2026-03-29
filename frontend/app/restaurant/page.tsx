@@ -3,7 +3,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-
+import { useRouter, useSearchParams } from "next/navigation";
+import { getLocationDisplayName } from "@/lib/location-label";
 import { Card, CardContent } from "@/components/ui/card";
 import { SectionCard } from "@/components/valora/SectionCard";
 import {
@@ -11,7 +12,13 @@ import {
   type Kpi as RestaurantKpi,
 } from "@/components/restaurant/KpiTile";
 
-type LocationOpt = { id: string; label: string };
+type LocationOpt = {
+  id: string;
+  location_id: string;
+  location_code?: string;
+  location_name?: string;
+  name?: string;
+};
 
 type OverviewApi = {
   ok: boolean;
@@ -69,6 +76,7 @@ type ControlTowerRow = {
 
 type ControlTowerApi = {
   items?: ControlTowerRow[];
+  alerts?: ControlTowerRow[]; // Added alerts property
 };
 
 type AlertRow = {
@@ -82,7 +90,7 @@ type AlertRow = {
 };
 
 type AlertsApi = {
-  items?: AlertRow[];
+  alerts?: AlertRow[];
 };
 
 const API_BASE =
@@ -111,48 +119,48 @@ function humanizeCode(value?: string | null) {
 function riskBadgeClasses(value?: string | null) {
   switch (value) {
     case "healthy":
-      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-green-500/10 text-green-700 border-green-500/20";
+      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-green-500/10 text-foreground border-green-500/20";
     case "stockout_risk":
-      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-amber-500/10 text-amber-700 border-amber-500/20";
+      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-amber-500/10 text-foreground border-amber-500/20";
     case "waste_spike":
-      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-red-500/10 text-red-700 border-red-500/20";
+      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-red-500/10 text-foreground border-red-500/20";
     case "inventory_stress":
-      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-blue-500/10 text-blue-700 border-blue-500/20";
+      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-blue-500/10 text-foreground border-blue-500/20";
     case "labor_productivity_drop":
-      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-purple-500/10 text-purple-700 border-purple-500/20";
+      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-purple-500/10 text-foreground border-purple-500/20";
     default:
-      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground";
+      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-muted text-foreground";
   }
 }
 
 function actionBadgeClasses(value?: string | null) {
   switch (value) {
     case "maintain_current_operating_discipline":
-      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-green-500/10 text-green-700 border-green-500/20";
+      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-green-500/10 text-foreground border-green-500/20";
     case "prevent_stockouts":
-      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-amber-500/10 text-amber-700 border-amber-500/20";
+      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-amber-500/10 text-foreground border-amber-500/20";
     case "reduce_kitchen_waste":
-      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-red-500/10 text-red-700 border-red-500/20";
+      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-red-500/10 text-foreground border-red-500/20";
     case "rebalance_inventory":
-      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-blue-500/10 text-blue-700 border-blue-500/20";
+      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-blue-500/10 text-foreground border-blue-500/20";
     case "optimize_staffing":
-      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-purple-500/10 text-purple-700 border-purple-500/20";
+      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-purple-500/10 text-foreground border-purple-500/20";
     default:
-      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground";
+      return "inline-flex rounded-full border px-2.5 py-1 text-xs font-medium bg-muted text-foreground";
   }
 }
 
 function severityBadgeClasses(value?: string | null) {
   switch (value) {
     case "critical":
-      return "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium bg-red-500/10 text-red-700 border-red-500/20";
+      return "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium bg-red-500/10 text-foreground border-red-500/20";
     case "high":
     case "warn":
-      return "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium bg-amber-500/10 text-amber-700 border-amber-500/20";
+      return "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium bg-amber-500/10 text-foreground border-amber-500/20";
     case "watch":
-      return "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium bg-blue-500/10 text-blue-700 border-blue-500/20";
+      return "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium bg-blue-500/10 text-foreground border-blue-500/20";
     default:
-      return "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium bg-green-500/10 text-green-700 border-green-500/20";
+      return "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium bg-green-500/10 text-foreground border-green-500/20";
   }
 }
 
@@ -176,7 +184,30 @@ function Skeleton() {
   );
 }
 
+function MetricCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 transition hover:bg-background/40">
+      <div className="text-sm text-muted-foreground">{label}</div>
+      <div className="mt-2 text-2xl font-semibold text-foreground">
+        {value}
+      </div>
+    </div>
+  );
+}
+
 export default function RestaurantOverviewPage() {
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const urlLocationId = searchParams.get("location_id");
+  const urlDay = searchParams.get("day");
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState<string | null>(null);
 
@@ -184,7 +215,9 @@ export default function RestaurantOverviewPage() {
   const [controlTower, setControlTower] = React.useState<ControlTowerRow[]>([]);
   const [alerts, setAlerts] = React.useState<AlertRow[]>([]);
   const [locations, setLocations] = React.useState<LocationOpt[]>([]);
-  const [locationId, setLocationId] = React.useState<string>("all");
+  const [locationId, setLocationId] = React.useState<string>(
+    urlLocationId && urlLocationId.trim() ? urlLocationId : "all"
+  );
   const [insightDate, setInsightDate] = React.useState<string | null>(null);
 
   const activeTenantId = data?.tenant_id;
@@ -192,6 +225,28 @@ export default function RestaurantOverviewPage() {
   const insightDateLabel = insightDate
     ? new Date(insightDate).toLocaleDateString()
     : "—";
+
+  const updateLocationInUrl = React.useCallback(
+    (nextLocationId: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      if (nextLocationId && nextLocationId !== "all") {
+        params.set("location_id", nextLocationId);
+      } else {
+        params.delete("location_id");
+      }
+
+      if (insightDate) {
+        params.set("day", insightDate);
+      } else if (urlDay) {
+        params.set("day", urlDay);
+      }
+
+      const qs = params.toString();
+      router.replace(qs ? `/restaurant?${qs}` : "/restaurant", { scroll: false });
+    },
+    [router, searchParams, insightDate, urlDay]
+  );
 
   const fetchLocations = React.useCallback(async (signal?: AbortSignal) => {
     try {
@@ -205,13 +260,14 @@ export default function RestaurantOverviewPage() {
       const raw = (j?.locations ?? []) as any[];
 
       const mapped: LocationOpt[] = raw
-        .map((x) => {
-          const id = String(x.location_id ?? x.id ?? "");
-          const code = String(x.location_code ?? x.code ?? "");
-          const name = String(x.name ?? x.location_name ?? "");
-          const label = code ? `${code} — ${name || "Location"}` : name || "Location";
-          return { id, label };
-        })
+        .map((x) => ({
+          id: String(x.location_id ?? x.id ?? ""),
+          location_id: String(x.location_id ?? x.id ?? ""),
+          location_code: String(x.location_code ?? x.code ?? ""),
+          location_name:
+            x.location_name != null ? String(x.location_name) : undefined,
+          name: x.name != null ? String(x.name) : undefined,
+        }))
         .filter((x) => x.id);
 
       const seen = new Set<string>();
@@ -257,77 +313,81 @@ export default function RestaurantOverviewPage() {
   );
 
   const fetchLatestInsightDate = React.useCallback(
-  async (signal?: AbortSignal) => {
-    const res = await fetch(`/api/dashboard/latest-date`, {
-      cache: "no-store",
-      signal,
-    });
+    async (signal?: AbortSignal) => {
+      const res = await fetch(`/api/dashboard/latest-date`, {
+        cache: "no-store",
+        signal,
+      });
 
-    if (!res.ok) {
-      throw new Error(`Latest date HTTP ${res.status}`);
-    }
+      if (!res.ok) {
+        throw new Error(`Latest date HTTP ${res.status}`);
+      }
 
-    const json = (await res.json()) as LatestDateApi;
-    setInsightDate(json?.latest_date ?? null);
-  },
-  []
-);
+      const json = (await res.json()) as LatestDateApi;
+      setInsightDate(json?.latest_date ?? null);
+    },
+    []
+  );
 
   const fetchControlTower = React.useCallback(
-  async (signal?: AbortSignal) => {
-    if (!insightDate) return;
+    async (signal?: AbortSignal) => {
+      if (!insightDate) return;
 
-    const qs = new URLSearchParams({
-      day: insightDate,
-      limit: "100",
-    });
+      const normalizedDay = String(insightDate).slice(0, 10);
 
-    const res = await fetch(`/api/dashboard/control-tower?${qs.toString()}`, {
-      cache: "no-store",
-      signal,
-    });
+      const qs = new URLSearchParams({
+        day: normalizedDay,
+        limit: "100",
+      });
 
-    if (!res.ok) throw new Error(`Control Tower HTTP ${res.status}`);
+      const res = await fetch(`/api/dashboard/control-tower?${qs.toString()}`, {
+        cache: "no-store",
+        signal,
+      });
 
-    const json = (await res.json()) as ControlTowerApi;
-    const rows = json?.items ?? [];
+      if (!res.ok) throw new Error(`Control Tower HTTP ${res.status}`);
 
-    setControlTower(
-      locationId === "all"
-        ? rows
-        : rows.filter((row) => String(row.location_id) === String(locationId))
-    );
-  },
-  [insightDate, locationId]
-);
+      const json = (await res.json()) as ControlTowerApi;
+      const rows = json?.alerts ?? [];
+
+      setControlTower(
+        locationId === "all"
+          ? rows
+          : rows.filter((row) => String(row.location_id) === String(locationId))
+      );
+    },
+    [insightDate, locationId]
+  );
 
   const fetchAlerts = React.useCallback(
-  async (signal?: AbortSignal) => {
-    if (!insightDate) return;
+    async (signal?: AbortSignal) => {
+      if (!insightDate) return;
 
-    const qs = new URLSearchParams({
-      day: insightDate,
-      limit: "20",
-    });
+      const normalizedDay = String(insightDate).slice(0, 10);
 
-    const res = await fetch(`/api/dashboard/alerts?${qs.toString()}`, {
-      cache: "no-store",
-      signal,
-    });
+      const qs = new URLSearchParams({
+        day: normalizedDay,
+        limit: "20",
+      });
 
-    if (!res.ok) throw new Error(`Alerts HTTP ${res.status}`);
+      const res = await fetch(`/api/dashboard/alerts?${qs.toString()}`, {
+        cache: "no-store",
+        signal,
+      });
 
-    const json = (await res.json()) as AlertsApi;
-    const rows = json?.items ?? [];
+      if (!res.ok) throw new Error(`Alerts HTTP ${res.status}`);
 
-    setAlerts(
-      locationId === "all"
-        ? rows
-        : rows.filter((row) => String(row.location_id) === String(locationId))
-    );
-  },
-  [insightDate, locationId]
-);
+      const json = (await res.json()) as AlertsApi;
+      const rows = json?.alerts ?? [];
+
+      setAlerts(
+        locationId === "all"
+          ? rows
+          : rows.filter((row) => String(row.location_id) === String(locationId))
+      );
+    },
+    [insightDate, locationId]
+  );
 
   const insights = controlTower
     .filter((row) => row.headline || row.summary_text)
@@ -366,20 +426,37 @@ export default function RestaurantOverviewPage() {
   }, [fetchOverview]);
 
   React.useEffect(() => {
-  const ac = new AbortController();
+    const ac = new AbortController();
 
-  (async () => {
-    try {
-      await fetchLatestInsightDate(ac.signal);
-    } catch (e: any) {
-      if (e?.name !== "AbortError") {
-        setErr(e?.message ?? "Failed to load latest AI snapshot date");
+    (async () => {
+      try {
+        await fetchLatestInsightDate(ac.signal);
+      } catch (e: any) {
+        if (e?.name !== "AbortError") {
+          setErr(e?.message ?? "Failed to load latest AI snapshot date");
+        }
       }
-    }
-  })();
+    })();
 
-  return () => ac.abort();
-}, [fetchLatestInsightDate]);
+    return () => ac.abort();
+  }, [fetchLatestInsightDate]);
+
+  React.useEffect(() => {
+    if (!insightDate) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (locationId && locationId !== "all") {
+      params.set("location_id", locationId);
+    } else {
+      params.delete("location_id");
+    }
+
+    params.set("day", insightDate);
+
+    const qs = params.toString();
+    router.replace(qs ? `/restaurant?${qs}` : "/restaurant", { scroll: false });
+  }, [insightDate, locationId, router, searchParams]);
 
   React.useEffect(() => {
     if (!activeTenantId || !insightDate) return;
@@ -398,6 +475,13 @@ export default function RestaurantOverviewPage() {
 
     return () => ac.abort();
   }, [activeTenantId, insightDate, fetchControlTower, fetchAlerts]);
+
+  React.useEffect(() => {
+    const nextLocationId =
+      urlLocationId && urlLocationId.trim() ? urlLocationId : "all";
+
+    setLocationId((prev) => (prev === nextLocationId ? prev : nextLocationId));
+  }, [urlLocationId]);
 
   if (loading) return <Skeleton />;
 
@@ -420,18 +504,34 @@ export default function RestaurantOverviewPage() {
     );
   }
 
-  const asOfStr = data?.as_of ? new Date(data.as_of).toLocaleString() : "—";
+  const asOfStr = data?.as_of
+    ? new Date(data.as_of).toLocaleDateString()
+    : "—";
   const locationLabel =
     locationId === "all"
       ? "All Locations"
-      : locations.find((l) => l.id === locationId)?.label ??
-        data?.location?.name ??
-        "Location";
+      : getLocationDisplayName(
+        locations.find((l) => l.id === locationId) ?? {
+          location_name: data?.location?.name,
+          location_id: locationId,
+        }
+      );
 
   const kpis = data?.kpis ?? [];
   const series = data?.series ?? {};
 
   const byCode = new Map(kpis.map((k) => [k.code, k]));
+  if (!byCode.has("FREE_CASH_FLOW")) {
+    byCode.set("FREE_CASH_FLOW", {
+      code: "FREE_CASH_FLOW",
+      label: "Free Cash Flow",
+      value: null,
+      unit: "usd",
+      delta: null,
+      severity: undefined,
+      hint: "Cash available after operating costs and financing obligations",
+    });
+  }
   const pick = (codes: string[]) =>
     codes.map((c) => byCode.get(c)).filter(Boolean) as RestaurantKpi[];
 
@@ -462,6 +562,7 @@ export default function RestaurantOverviewPage() {
     "EBIT",
     "INTEREST_EXPENSE",
     "INTEREST_COVERAGE_RATIO",
+    "FREE_CASH_FLOW",
   ]);
 
   const totalRevenue = controlTower.reduce(
@@ -483,40 +584,30 @@ export default function RestaurantOverviewPage() {
   ).length;
 
   const HeaderCard = (
-    <SectionCard
-      title="Restaurant KPIs"
-      subtitle="Executive view for Profit, Growth, Cash discipline, and AI operating insights."
-    >
-      <div className="relative pt-2">
-        <div className="absolute right-0 top-0">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-muted-foreground">Location</label>
-            <select
-              value={locationId}
-              onChange={(e) => setLocationId(e.target.value)}
-              className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-            >
-              <option value="all">All Locations</option>
-              {locations.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+    <SectionCard title="Business Overview">
+      <div className="flex items-center gap-4 pt-2">
 
-        <div className="space-y-2 pr-[220px]">
-          <div className="text-sm text-muted-foreground">
-            As of: <span className="font-medium text-foreground">{asOfStr}</span>
-          </div>
-          <div className="text-sm text-muted-foreground">
-            AI snapshot:{" "}
-            <span className="font-medium text-foreground">{insightDateLabel}</span>
-          </div>
-          <div className="text-sm font-semibold text-foreground">
-            {locationLabel}
-          </div>
+        {/* Location dropdown */}
+        <select
+          value={locationId}
+          onChange={(e) => {
+            const nextLocationId = e.target.value;
+            setLocationId(nextLocationId);
+            updateLocationInUrl(nextLocationId);
+          }}
+          className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
+        >
+          <option value="all">All Locations</option>
+          {locations.map((l) => (
+            <option key={l.id} value={l.id}>
+              {getLocationDisplayName(l)}
+            </option>
+          ))}
+        </select>
+
+        {/* As-of date */}
+        <div className="text-sm font-medium text-foreground">
+          As of: {asOfStr}
         </div>
       </div>
     </SectionCard>
@@ -583,31 +674,33 @@ export default function RestaurantOverviewPage() {
     <div className="space-y-4">
       {HeaderCard}
 
-      <SectionCard
-        title="Revenue & demand"
-        subtitle="Top-line performance and pricing power."
-      >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {revenueDemand.map((k) => (
-            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
-          ))}
-        </div>
-      </SectionCard>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <SectionCard
+          title="Sales Performance"
+          subtitle="Revenue, orders, and demand trends"
+        >
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {revenueDemand.map((k) => (
+              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Cost & Efficiency"
+          subtitle="Food, labor, and operating cost control"
+        >
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {unitEconomics.map((k) => (
+              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+            ))}
+          </div>
+        </SectionCard>
+      </div>
 
       <SectionCard
-        title="Unit economics"
-        subtitle="Core restaurant efficiency (margin + prime cost)."
-      >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {unitEconomics.map((k) => (
-            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
-          ))}
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        title="Profitability"
-        subtitle="Revenue conversion into operating profit and break-even resilience."
+        title="Profit Performance"
+        subtitle="Profit generation and break-even strength"
       >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {profitability.map((k) => (
@@ -616,228 +709,273 @@ export default function RestaurantOverviewPage() {
         </div>
       </SectionCard>
 
-      <SectionCard
-        title="Working capital"
-        subtitle="Inventory and cash efficiency over time."
-      >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {workingCapital.map((k) => (
-            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
-          ))}
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        title="Financial stability"
-        subtitle="Debt servicing and financial resilience."
-      >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {stability.map((k) => (
-            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
-          ))}
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        title="Control tower summary"
-        subtitle={`Daily AI operating view for all selected locations. Insights available through ${insightDateLabel}`}
-      >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="text-sm text-muted-foreground">Total Revenue</div>
-            <div className="mt-2 text-2xl font-semibold">
-              {formatCurrency(totalRevenue)}
-            </div>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <SectionCard
+          title="Cash & Inventory"
+          subtitle="Inventory movement and cash efficiency"
+        >
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {workingCapital.map((k) => (
+              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+            ))}
           </div>
+        </SectionCard>
 
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="text-sm text-muted-foreground">
-              Total Profit Opportunity
-            </div>
-            <div className="mt-2 text-2xl font-semibold">
-              {formatCurrency(totalOpportunity)}
-            </div>
+        <SectionCard
+          title="Financial Health"
+          subtitle="Debt coverage and financial stability"
+        >
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {stability.map((k) => (
+              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+            ))}
           </div>
+        </SectionCard>
+      </div>
 
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="text-sm text-muted-foreground">Locations At Risk</div>
-            <div className="mt-2 text-2xl font-semibold">{atRiskCount}</div>
-          </div>
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1fr]">
 
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="text-sm text-muted-foreground">Healthy Locations</div>
-            <div className="mt-2 text-2xl font-semibold">{healthyCount}</div>
-          </div>
-        </div>
-      </SectionCard>
+          {/* ALERTS */}
+          <SectionCard
+            title="Attention Required"
+            subtitle={`Highest-priority issues needing action`}
+          >
+            {alerts.length === 0 ? (
+              <div className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+                No alerts for selected location
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {alerts
+                  .slice()
+                  .sort(
+                    (a, b) =>
+                      Number(b.impact_estimate ?? 0) - Number(a.impact_estimate ?? 0)
+                  )
+                  .slice(0, 5)
+                  .map((a, i) => {
 
-      <SectionCard
-        title="AI Control Tower"
-        subtitle={`Location-level risks, recommended actions, and profit opportunities. Insights available through ${insightDateLabel}`}
-      >
-        <div className="overflow-x-auto rounded-2xl border border-border bg-card">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-muted-foreground">
-              <tr>
-                <th className="p-3 text-left">Location</th>
-                <th className="p-3 text-left">Region</th>
-                <th className="p-3 text-left">Revenue</th>
-                <th className="p-3 text-left">Gross Margin</th>
-                <th className="p-3 text-left">Top Risk</th>
-                <th className="p-3 text-left">Severity</th>
-                <th className="p-3 text-left">Recommended Action</th>
-                <th className="p-3 text-left">Profit Opportunity</th>
-                <th className="p-3 text-left">Insight</th>
-              </tr>
-            </thead>
+                    const href = `/restaurant/insights/alerts?source=overview&location_id=${encodeURIComponent(
+                      String(a.location_id)
+                    )}&risk_type=${encodeURIComponent(a.risk_type)}&day=${encodeURIComponent(
+                      insightDate ?? ""
+                    )}`;
 
-            <tbody>
-              {controlTower.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="p-4 text-muted-foreground">
-                    No location intelligence available for this selection.
-                  </td>
-                </tr>
-              ) : (
-                controlTower.map((row) => (
-                  <tr
-                    key={`${row.tenant_id}-${row.location_id}`}
-                    className="border-t border-border"
-                  >
-                    <td className="p-3 font-medium">
-                      <Link
-                        href={`/restaurant/location/${row.location_id}`}
-                        className="hover:underline"
+                    return (
+                      <div
+                        key={`${a.location_id}-${a.risk_type}-${i}`}
+                        onClick={() => window.location.assign(href)}
+                        className="cursor-pointer rounded-2xl border border-border bg-card p-4 transition hover:bg-background/40"
                       >
-                        {row.location_name}
-                      </Link>
-                    </td>
-                    <td className="p-3">{row.region ?? "-"}</td>
-                    <td className="p-3">{formatCurrency(row.revenue)}</td>
-                    <td className="p-3">
-                      {row.gross_margin != null
-                        ? formatPercent(row.gross_margin)
-                        : "-"}
-                    </td>
-                    <td className="p-3">
-                      <span className={riskBadgeClasses(row.top_risk_type)}>
-                        {humanizeCode(row.top_risk_type ?? "healthy")}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <span className={severityBadgeClasses(row.top_risk_band)}>
-                        {humanizeCode(row.top_risk_band ?? "info")}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <span className={actionBadgeClasses(row.top_action_code)}>
-                        {humanizeCode(
-                          row.top_action_code ??
-                            "maintain_current_operating_discipline"
-                        )}
-                      </span>
-                    </td>
-                    <td className="p-3 font-medium">
-                      {formatCurrency0(row.estimated_profit_uplift)}
-                    </td>
-                    <td className="p-3 text-muted-foreground">
-                      {row.headline ??
-                        "Location operating within healthy range"}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
+                        <div className="flex flex-col gap-3 xl:flex-row xl:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-semibold text-foreground">
+                                {a.location_name}
+                              </div>
+                              <span className={riskBadgeClasses(a.risk_type)}>
+                                {humanizeCode(a.risk_type)}
+                              </span>
+                            </div>
 
-      <SectionCard
-        title="Alert Center"
-        subtitle={`High-priority issues requiring operator attention. Insights available through ${insightDateLabel}`}
-      >
-        <div className="overflow-x-auto rounded-2xl border border-border bg-card">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-muted-foreground">
-              <tr>
-                <th className="p-3 text-left">Location</th>
-                <th className="p-3 text-left">Risk</th>
-                <th className="p-3 text-left">Impact</th>
-                <th className="p-3 text-left">Insight</th>
-              </tr>
-            </thead>
+                            <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">
+                              {a.headline ??
+                                `Investigate ${humanizeCode(a.risk_type).toLowerCase()}`}
+                            </div>
+                          </div>
 
-            <tbody>
-              {alerts.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="p-4 text-muted-foreground">
-                    No active alerts detected.
-                  </td>
-                </tr>
-              ) : (
-                alerts.map((a, i) => (
-                  <tr
-                    key={`${a.location_id}-${a.risk_type}-${i}`}
-                    className="border-t border-border"
+                          <div className="flex items-center gap-3">
+                            <div className="rounded-xl border border-border/50 bg-background/20 px-3 py-2 text-right">
+                              <div className="text-[11px] text-muted-foreground">Impact</div>
+                              <div className="text-sm font-semibold">
+                                {formatCurrency0(a.impact_estimate)}
+                              </div>
+                            </div>
+
+                            <Link
+                              href={href}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50"
+                            >
+                              View details
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                <div className="flex justify-end">
+                  <Link
+                    href={`/restaurant/insights/alerts?source=overview${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""
+                      }&day=${encodeURIComponent(insightDate ?? "")}`}
+                    className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50"
                   >
-                    <td className="p-3 font-medium">
-                      <Link
-                        href={`/restaurant/location/${a.location_id}`}
-                        className="hover:underline"
-                      >
-                        {a.location_name}
-                      </Link>
-                    </td>
-
-                    <td className="p-3">
-                      <span className={riskBadgeClasses(a.risk_type)}>
-                        {humanizeCode(a.risk_type)}
-                      </span>
-                    </td>
-
-                    <td className="p-3 font-medium">
-                      {formatCurrency0(a.impact_estimate)}
-                    </td>
-
-                    <td className="p-3 text-muted-foreground">
-                      {a.headline ??
-                        `Investigate ${humanizeCode(a.risk_type).toLowerCase()} at this location.`}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        title="AI Daily Insights"
-        subtitle={`Automatically generated operating insights. Insights available through ${insightDateLabel}`}
-      >
-        <div className="space-y-3 text-sm">
-          {insights.length === 0 ? (
-            <div className="text-muted-foreground">
-              No insights generated for the latest AI snapshot.
-            </div>
-          ) : (
-            insights.map((i) => (
-              <div
-                key={i.location_id}
-                className="rounded-xl border border-border bg-card p-3"
-              >
-                <div className="font-medium">
-                  {i.headline} — {i.location_name}
-                </div>
-
-                <div className="mt-1 text-muted-foreground">
-                  {i.summary_text}
+                    View all alerts
+                  </Link>
                 </div>
               </div>
-            ))
-          )}
+            )}
+          </SectionCard>
+
+          {/* AI INSIGHTS */}
+          <SectionCard
+            title="AI Recommendations"
+            subtitle={`Top actions to improve performance`}
+          >
+            {insights.length === 0 ? (
+              <div className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+                No recommendations available
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {insights.slice(0, 3).map((i) => {
+                  const href = `/restaurant/insights/ai-insights?source=overview&location_id=${encodeURIComponent(
+                    String(i.location_id)
+                  )}&day=${encodeURIComponent(insightDate ?? "")}`;
+
+                  return (
+                    <div
+                      key={i.location_id}
+                      onClick={() => window.location.assign(href)}
+                      className="cursor-pointer rounded-2xl border border-border bg-card p-4 transition hover:bg-background/40"
+                    >
+                      <div className="flex flex-col gap-3 xl:flex-row xl:justify-between">
+                        <div>
+                          <div className="text-sm font-semibold text-foreground">
+                            {i.headline}
+                          </div>
+
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {i.location_name}
+                          </div>
+
+                          <div className="mt-2 line-clamp-3 text-sm text-muted-foreground">
+                            {i.summary_text}
+                          </div>
+                        </div>
+
+                        <Link
+                          href={href}
+                          onClick={(e) => e.stopPropagation()}
+                          className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50"
+                        >
+                          View insight
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div className="flex justify-end">
+                  <Link
+                    href={`/restaurant/insights/ai-insights?source=overview${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""
+                      }&day=${encodeURIComponent(insightDate ?? "")}`}
+                    className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50"
+                  >
+                    View all insights
+                  </Link>
+                </div>
+              </div>
+            )}
+          </SectionCard>
         </div>
-      </SectionCard>
+
+        {/* CONTROL TOWER */}
+        <SectionCard
+          title="Control Tower"
+          subtitle="Portfolio-level risks, actions, and opportunities"
+        >
+          <div className="space-y-5">
+
+            {/* METRICS */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Total Revenue" value={formatCurrency(totalRevenue)} />
+              <MetricCard label="Profit Opportunity" value={formatCurrency(totalOpportunity)} />
+              <MetricCard label="At Risk" value={atRiskCount} />
+              <MetricCard label="Healthy" value={healthyCount} />
+            </div>
+
+            {/* TABLE */}
+            <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-muted-foreground">
+                  <tr>
+                    <th className="p-3 text-left">Location</th>
+                    <th className="p-3 text-left">Rev</th>
+                    <th className="p-3 text-left">Risk</th>
+                    <th className="p-3 text-left">Severity</th>
+                    <th className="p-3 text-left">Action</th>
+                    <th className="p-3 text-left">Upside</th>
+                    <th className="p-3 text-left">Insight</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {controlTower
+                    .slice()
+                    .sort(
+                      (a, b) =>
+                        Number(b.estimated_profit_uplift ?? 0) -
+                        Number(a.estimated_profit_uplift ?? 0)
+                    )
+                    .slice(0, 5)
+                    .map((row) => {
+                      const href = `/restaurant/insights/ai-insights?source=overview&location_id=${encodeURIComponent(
+                        String(row.location_id)
+                      )}&day=${encodeURIComponent(insightDate ?? "")}`;
+
+                      return (
+                        <tr
+                          key={row.location_id}
+                          onClick={() => window.location.assign(href)}
+                          className="cursor-pointer border-t border-border transition hover:bg-background/30 odd:bg-background/20"
+                        >
+                          <td className="p-3 font-medium">{row.location_name}</td>
+                          <td className="p-3">{formatCurrency(row.revenue)}</td>
+                          <td className="p-3">
+                            <span className={riskBadgeClasses(row.top_risk_type)}>
+                              {humanizeCode(row.top_risk_type)}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={severityBadgeClasses(row.top_risk_band)}>
+                              {humanizeCode(row.top_risk_band)}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className={actionBadgeClasses(row.top_action_code)}>
+                              {humanizeCode(row.top_action_code)}
+                            </span>
+                          </td>
+                          <td className="p-3 font-medium">
+                            {formatCurrency0(row.estimated_profit_uplift)}
+                          </td>
+                          <td className="p-3">
+                            <div className="line-clamp-2 max-w-[320px] text-muted-foreground">
+                              {row.headline}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end">
+              <Link
+                href={`/restaurant/insights/ai-insights?source=overview${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""
+                  }&day=${encodeURIComponent(insightDate ?? "")}`}
+                className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50"
+              >
+                View full analysis
+              </Link>
+            </div>
+          </div>
+        </SectionCard>
+      </div>
     </div>
   );
 }
