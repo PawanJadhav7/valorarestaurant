@@ -7,25 +7,25 @@ from typing import Any, Optional
 from google import genai
 
 
-_GEMINI_CONFIGURED = False
+_GEMINI_CLIENT: Optional[genai.Client] = None
 
 
 class LLMProviderError(Exception):
     """Raised when an LLM provider request fails."""
 
 
-def _configure_gemini() -> None:
-    global _GEMINI_CONFIGURED
+def _get_gemini_client() -> genai.Client:
+    global _GEMINI_CLIENT
 
-    if _GEMINI_CONFIGURED:
-        return
+    if _GEMINI_CLIENT is not None:
+        return _GEMINI_CLIENT
 
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set")
 
-    genai.configure(api_key=api_key)
-    _GEMINI_CONFIGURED = True
+    _GEMINI_CLIENT = genai.Client(api_key=api_key)
+    return _GEMINI_CLIENT
 
 
 def _sleep_with_backoff(attempt: int, base_delay_seconds: float = 0.75) -> None:
@@ -113,17 +113,14 @@ def _generate_with_gemini(
     model_name: str,
     temperature: float,
 ) -> dict[str, Any]:
-    _configure_gemini()
-
-    model = genai.GenerativeModel(
-        model_name=model_name,
-        generation_config={
-            "temperature": temperature,
-        },
-    )
+    client = _get_gemini_client()
 
     started = time.perf_counter()
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model=model_name,
+        contents=prompt,
+        config={"temperature": temperature},
+    )
     latency_ms = int((time.perf_counter() - started) * 1000)
 
     text_value = _extract_gemini_text(response)
