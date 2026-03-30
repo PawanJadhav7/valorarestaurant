@@ -1,112 +1,183 @@
-# backend/app/api/onboarding_pos.py
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from sqlalchemy import text
 from app.db import get_db
 import logging
+
 from app.services.pos_ingestion_service import POSIngestionService
+from app.services.restaurant_metrics_service import RestaurantMetricsService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/onboarding", tags=["Onboarding"])
 
 
-class POSOnboardingPayload(BaseModel):
-    user_id: str
-    provider: str
-    mode: str  # "oauth" or "manual"
-
-
 @router.post("/pos")
-def save_pos(payload: POSOnboardingPayload):
+async def onboarding_pos(
+    request: Request,
+    file: UploadFile = File(None),  # only used for CSV
+):
     db = next(get_db())
-    try:
-        provider = payload.provider.strip().lower()
-        mode = payload.mode.strip().lower()
 
-        if provider not in {"toast", "square", "clover", "csv"}:
+    try:
+        form = await request.form()
+
+        user_id = str(form.get("user_id") or "").strip()
+        provider = str(form.get("provider") or "").strip().lower()
+        mode = str(form.get("mode") or "").strip().lower()
+
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id required")
+
+        if provider not in {"csv", "square", "toast", "clover"}:
             raise HTTPException(status_code=400, detail="Invalid POS provider")
 
-        if mode not in {"oauth", "manual"}:
-            raise HTTPException(status_code=400, detail="Invalid connection mode")
+        if mode not in {"manual", "oauth"}:
+            raise HTTPException(status_code=400, detail="Invalid POS mode")
 
-        # Fetch tenant for this user
         owner_row = db.execute(
-            text("""
+            text(
+                """
                 SELECT tenant_id
                 FROM app.tenant_user
                 WHERE user_id = CAST(:user_id AS uuid)
                   AND role = 'owner'
                 ORDER BY created_at DESC
                 LIMIT 1
-            """),
-            {"user_id": payload.user_id},
+                """
+            ),
+            {"user_id": user_id},
         ).mappings().first()
 
         if not owner_row:
-            raise HTTPException(status_code=404, detail="No tenant found for this user")
+            raise HTTPException(status_code=404, detail="Tenant not found")
 
         tenant_id = str(owner_row["tenant_id"])
 
-        # Update onboarding status to POS done
-        db.execute(
-            text("""
-                UPDATE auth.app_user
-                SET onboarding_status = 'pos_done'
-                WHERE user_id = CAST(:user_id AS uuid)
-            """),
-            {"user_id": payload.user_id},
-        )
-        db.commit()
+        sub = db.execute(
+            text(
+                """
+                SELECT subscription_status
+                FROM app.tenant_subscription
+                WHERE tenant_id = CAST(:tenant_id AS uuid)
+                LIMIT 1
+                """
+            ),
+            {"tenant_id": tenant_id},
+        ).mappings().first()
 
-        # Handle Clover OAuth flow
-        if provider == "clover" and mode == "oauth":
-            oauth_url = POSIngestionService(tenant_id, provider, mode).get_clover_oauth_url(tenant_id)
-            return {"ok": True, "tenant_id": tenant_id, "oauth_url": oauth_url}
+        if not sub or sub["subscription_status"] not in ("trial", "active"):
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "SUBSCRIPTION_REQUIRED",
+                    "message": "Please activate your plan to continue onboarding.",
+                    "action": "redirect_to_subscription",
+                },
+            )
 
-        # For manual or CSV mode, just trigger ingestion
         pos_service = POSIngestionService(tenant_id, provider, mode)
-        ingestion_result = pos_service.start_ingestion()
-        logger.info(f"POS ingestion result: {ingestion_result}")
+
+        # ============================================================
+        # -------- CSV FLOW -------- #
+        # ============================================================
+        if provider == "csv":
+            if not file:
+                raise HTTPException(status_code=400, detail="CSV file required")
+
+            result = await pos_service.process_csv(file)
+
+            metrics_result = RestaurantMetricsService(tenant_id).refresh()
+
+            db.execute(
+                text(
+                    """
+                    UPDATE app.tenant
+                    SET data_ready = true
+                    WHERE tenant_id = CAST(:tenant_id AS uuid)
+                    """
+                ),
+                {"tenant_id": tenant_id},
+            )
+
+            db.execute(
+                text(
+                    """
+                    UPDATE auth.app_user
+                    SET onboarding_status = 'complete'
+                    WHERE user_id = CAST(:user_id AS uuid)
+                    """
+                ),
+                {"user_id": user_id},
+            )
+
+            db.commit()
+
+            return {
+                "ok": True,
+                "flow": "csv",
+                "rows_processed": result.get("rows", 0),
+                "feature_rows": metrics_result.get("feature_rows", 0),
+                "kpi_rows": metrics_result.get("kpi_rows", 0),
+                "tenant_id": tenant_id,
+                "redirect": "/restaurant",
+            }
+
+        # ============================================================
+        # -------- CLOVER FLOW -------- #
+        # ============================================================
+        if provider == "clover":
+            if mode != "oauth":
+                raise HTTPException(status_code=400, detail="Clover requires OAuth mode")
+
+            oauth_url = pos_service.get_clover_oauth_url(tenant_id)
+
+            return {
+                "ok": True,
+                "flow": "clover_oauth",
+                "tenant_id": tenant_id,
+                "oauth_url": oauth_url,
+            }
+
+        # ============================================================
+        # -------- TOAST FLOW -------- #
+        # ============================================================
+        if provider == "toast":
+            return {
+                "ok": False,
+                "flow": "toast",
+                "message": "Toast integration coming soon",
+            }
+
+        # ============================================================
+        # -------- SQUARE FLOW -------- #
+        # ============================================================
+        if provider == "square":
+            if mode != "oauth":
+                raise HTTPException(status_code=400, detail="Square requires OAuth mode")
+
+            oauth_url = pos_service.get_square_oauth_url(tenant_id)
+
+            return {
+                "ok": True,
+                "flow": "square_oauth",
+                "tenant_id": tenant_id,
+                "oauth_url": oauth_url,
+            }
 
         return {
-            "ok": True,
-            "tenant_id": tenant_id,
-            "provider": provider,
-            "mode": mode,
-            "ingestion_triggered": True
+            "ok": False,
+            "flow": "unknown",
+            "message": f"Provider '{provider}' not supported yet",
         }
+
+    except HTTPException:
+        db.rollback()
+        raise
 
     except Exception as e:
         db.rollback()
+        logger.exception("POS onboarding error")
         raise HTTPException(status_code=500, detail=str(e))
+
     finally:
         db.close()
-
-
-# ------------------ Clover OAuth callback endpoint ------------------ #
-@router.get("/pos/clover/callback")
-def clover_callback(request: Request):
-    code = request.query_params.get("code")
-    state = request.query_params.get("state")  # tenant_id
-
-    if not code or not state:
-        raise HTTPException(status_code=400, detail="Missing code or state in callback")
-
-    try:
-        pos_service = POSIngestionService(state, "clover", "oauth")
-        token_data = pos_service.exchange_code_for_token(code)
-        access_token = token_data.get("access_token")
-
-        # Fetch initial data
-        data = pos_service.fetch_initial_data(access_token)
-        logger.info(f"Clover initial data fetched for tenant {state}: {len(data.get('elements', []))} items")
-
-        # TODO: save token_data and fetched data to your DB
-
-        return {"ok": True, "message": "Clover connected and initial data fetched", "tenant_id": state}
-
-    except Exception as e:
-        logger.error(f"Clover OAuth callback failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))

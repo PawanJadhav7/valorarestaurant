@@ -1,17 +1,22 @@
-# backend/app/api/stripe_checkout.py
 import os
 import stripe
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
-
+from dotenv import load_dotenv
+load_dotenv()
 from app.db import get_db
 
 router = APIRouter(prefix="/api/stripe", tags=["Stripe Checkout"])
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
-APP_BASE_URL = os.getenv("FRONTEND_URL") or os.getenv("NEXT_PUBLIC_VALORA_API_BASE_URL") or os.getenv("APP_BASE_URL")
+APP_BASE_URL = (
+    os.getenv("APP_BASE_URL")
+    or os.getenv("FRONTEND_URL")
+    or os.getenv("NEXT_PUBLIC_VALORA_API_BASE_URL")
+)
+
 
 
 class CreateCheckoutSessionRequest(BaseModel):
@@ -21,14 +26,32 @@ class CreateCheckoutSessionRequest(BaseModel):
     quantity: int = 1
 
 
+
 @router.post("/checkout-session")
 def create_checkout_session(payload: CreateCheckoutSessionRequest):
+
     db = next(get_db())
     try:
-        base_plan, interval = payload.plan_code.split("_")
+        print("🔥 HIT STRIPE CHECKOUT API")
+        print("FRONTEND_URL:", os.getenv("FRONTEND_URL"))
+        print("APP_BASE_URL env:", os.getenv("APP_BASE_URL"))
+        print("Resolved APP_BASE_URL:", APP_BASE_URL)
+        if not APP_BASE_URL:
+            raise HTTPException(status_code=500, detail="APP_BASE_URL / FRONTEND_URL is not configured")
+
+        plan_code = str(payload.plan_code).strip().lower()
+        billing_interval = str(payload.billing_interval).strip().lower()
+        quantity = max(1, int(payload.quantity or 1))
+
+        if plan_code not in {"starter", "growth", "enterprise"}:
+            raise HTTPException(status_code=400, detail="Invalid plan_code")
+
+        if billing_interval not in {"monthly", "annual"}:
+            raise HTTPException(status_code=400, detail="Invalid billing_interval")
 
         plan = db.execute(
-            text("""
+            text(
+                """
                 SELECT
                     plan_code,
                     billing_interval,
@@ -41,8 +64,9 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
                   AND billing_interval = :billing_interval
                   AND is_active = true
                 LIMIT 1
-            """),
-            {"plan_code": base_plan, "billing_interval": interval},
+                """
+            ),
+            {"plan_code": plan_code, "billing_interval": billing_interval},
         ).mappings().first()
 
         if not plan:
@@ -52,10 +76,14 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
         stripe_product_id = plan["stripe_product_id"]
 
         if not stripe_price_id or str(stripe_price_id).startswith("price_placeholder_"):
-            raise HTTPException(status_code=400, detail="Plan is not connected to a real Stripe price yet")
+            raise HTTPException(
+                status_code=400,
+                detail="Plan is not connected to a real Stripe price yet",
+            )
 
         tenant = db.execute(
-            text("""
+            text(
+                """
                 SELECT t.tenant_id, t.tenant_name, u.email
                 FROM app.tenant t
                 LEFT JOIN app.tenant_user tu
@@ -65,7 +93,8 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
                  AND tu.role = 'owner'
                 WHERE t.tenant_id = CAST(:tenant_id AS uuid)
                 LIMIT 1
-            """),
+                """
+            ),
             {"tenant_id": payload.tenant_id},
         ).mappings().first()
 
@@ -73,7 +102,8 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
             raise HTTPException(status_code=404, detail="Tenant not found")
 
         existing_sub = db.execute(
-            text("""
+            text(
+                """
                 SELECT
                     tenant_id,
                     stripe_customer_id,
@@ -84,7 +114,8 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
                 FROM app.tenant_subscription
                 WHERE tenant_id = CAST(:tenant_id AS uuid)
                 LIMIT 1
-            """),
+                """
+            ),
             {"tenant_id": payload.tenant_id},
         ).mappings().first()
 
@@ -95,9 +126,9 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
             billing_email = existing_sub["billing_email"] or tenant["email"]
             stripe_customer_id = existing_sub["stripe_customer_id"]
 
-        # Upsert subscription record with plan_code & billing_interval
         db.execute(
-            text("""
+            text(
+                """
                 INSERT INTO app.tenant_subscription (
                     tenant_id,
                     billing_provider,
@@ -120,50 +151,55 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
                     :billing_interval,
                     :stripe_price_id,
                     :stripe_product_id,
-                    'incomplete',
+                    'checkout_created',
                     'trial',
                     :quantity,
                     now(),
                     now()
                 )
                 ON CONFLICT (tenant_id) DO UPDATE SET
+                    billing_provider = 'stripe',
                     billing_email = COALESCE(EXCLUDED.billing_email, app.tenant_subscription.billing_email),
                     plan_code = EXCLUDED.plan_code,
                     billing_interval = EXCLUDED.billing_interval,
                     stripe_price_id = EXCLUDED.stripe_price_id,
                     stripe_product_id = EXCLUDED.stripe_product_id,
+                    stripe_status = 'checkout_created',
+                    subscription_status = 'trial',
                     quantity = EXCLUDED.quantity,
                     updated_at = now()
-            """),
+                """
+            ),
             {
                 "tenant_id": payload.tenant_id,
                 "billing_email": billing_email,
-                "plan_code": payload.plan_code,
-                "billing_interval": payload.billing_interval,
+                "plan_code": plan_code,
+                "billing_interval": billing_interval,
                 "stripe_price_id": stripe_price_id,
                 "stripe_product_id": stripe_product_id,
-                "quantity": payload.quantity,
+                "quantity": quantity,
             },
         )
         db.commit()
 
         session_params = {
             "mode": "subscription",
-            "line_items": [{"price": stripe_price_id, "quantity": payload.quantity}],
+            "line_items": [{"price": stripe_price_id, "quantity": quantity}],
             "client_reference_id": payload.tenant_id,
-            "success_url": f"{APP_BASE_URL}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
-            "cancel_url": f"{APP_BASE_URL}/billing?checkout=cancel",
+            "success_url": f"{APP_BASE_URL}/subscription/success?session_id={{CHECKOUT_SESSION_ID}}",
+            "cancel_url": f"{APP_BASE_URL}/subscription?checkout=cancel",
             "metadata": {
                 "tenant_id": payload.tenant_id,
-                "plan_code": payload.plan_code,
-                "billing_interval": payload.billing_interval,
+                "plan_code": plan_code,
+                "billing_interval": billing_interval,
             },
             "subscription_data": {
+                "trial_period_days": 14,
                 "metadata": {
                     "tenant_id": payload.tenant_id,
-                    "plan_code": payload.plan_code,
-                    "billing_interval": payload.billing_interval,
-                }
+                    "plan_code": plan_code,
+                    "billing_interval": billing_interval,
+                },
             },
         }
 
@@ -174,9 +210,9 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
 
         session = stripe.checkout.Session.create(**session_params)
 
-        # Update subscription with checkout session info
         db.execute(
-            text("""
+            text(
+                """
                 UPDATE app.tenant_subscription
                 SET
                     plan_code = :plan_code,
@@ -186,19 +222,24 @@ def create_checkout_session(payload: CreateCheckoutSessionRequest):
                     quantity = :quantity,
                     updated_at = now()
                 WHERE tenant_id = CAST(:tenant_id AS uuid)
-            """),
+                """
+            ),
             {
                 "tenant_id": payload.tenant_id,
-                "plan_code": payload.plan_code,
-                "billing_interval": payload.billing_interval,
+                "plan_code": plan_code,
+                "billing_interval": billing_interval,
                 "stripe_price_id": stripe_price_id,
                 "stripe_product_id": stripe_product_id,
-                "quantity": payload.quantity,
+                "quantity": quantity,
             },
         )
         db.commit()
 
-        return {"checkout_session_id": session.id, "checkout_url": session.url}
+        return {
+            "ok": True,
+            "checkout_session_id": session.id,
+            "checkout_url": session.url,
+        }
 
     except stripe.error.StripeError as e:
         db.rollback()

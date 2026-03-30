@@ -1,4 +1,6 @@
 # backend/app/api/pos.py
+
+# RETIRE
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy import text
