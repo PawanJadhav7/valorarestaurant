@@ -1,4 +1,4 @@
-// app/restaurant/layout.tsx
+//frontend/app/restaurant/layout.tsx
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -29,16 +29,16 @@ export default async function RestaurantLayout({ children }: { children: ReactNo
   const subscription = await getUserTenantSubscription(user.user_id);
   const subscribed = isSubscriptionActive(subscription?.subscription_status);
 
-  if (!subscribed) redirect("/billing");
+  if (!subscribed) redirect("/subscription");
 
   const trialDaysLeft = daysLeft((subscription as any)?.trial_ends_at ?? null);
   const isTrial = subscription?.subscription_status === "trial";
   const showTrialBanner = isTrial && trialDaysLeft !== null;
 
   const bannerTone =
-    trialDaysLeft !== null && trialDaysLeft <= 3
-      ? "border-amber-500/30 bg-amber-500/10 text-amber-100"
-      : "border-sky-500/30 bg-sky-500/10 text-sky-100";
+  trialDaysLeft !== null && trialDaysLeft <= 3
+    ? "border-amber-400/40 bg-amber-500/10"
+    : "border-sky-500/30 bg-sky-500/10";
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6">
@@ -46,15 +46,15 @@ export default async function RestaurantLayout({ children }: { children: ReactNo
         <div
           className={`mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm ${bannerTone}`}
         >
-          <div className="font-medium">
+          <div className="font-medium text-foreground">
             {trialDaysLeft! > 0
               ? `Your Valora trial ends in ${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"}.`
               : "Your Valora trial has ended."}
           </div>
 
           <Link
-            href="/billing"
-            className="rounded-xl border border-white/15 bg-background/30 px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-background/50"
+            href="/subscription"
+            className="rounded-xl border border-border/60 bg-background/30 px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-background/50"
           >
             Upgrade now
           </Link>

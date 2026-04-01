@@ -11,6 +11,7 @@ import {
   RestaurantKpiTile,
   type Kpi as RestaurantKpi,
 } from "@/components/restaurant/KpiTile";
+import { RefreshCcw } from "lucide-react";
 
 type LocationOpt = {
   id: string;
@@ -483,13 +484,42 @@ export default function RestaurantOverviewPage() {
     setLocationId((prev) => (prev === nextLocationId ? prev : nextLocationId));
   }, [urlLocationId]);
 
+  const refreshOverview = React.useCallback(async () => {
+    const ac = new AbortController();
+
+    try {
+      setLoading(true);
+      setErr(null);
+
+      await Promise.all([
+        fetchOverview(ac.signal),
+        fetchLatestInsightDate(ac.signal),
+      ]);
+      await Promise.all([
+        fetchControlTower(ac.signal),
+        fetchAlerts(ac.signal),
+      ]);
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        setErr(e?.message ?? "Failed to refresh business overview");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    fetchOverview,
+    fetchLatestInsightDate,
+    fetchControlTower,
+    fetchAlerts,
+  ]);
+
   if (loading) return <Skeleton />;
 
   if (err) {
     return (
       <div className="rounded-2xl border border-border bg-card p-4">
         <div className="text-sm font-semibold text-foreground">
-          Restaurant Overview
+          Business Overview
         </div>
         <div className="mt-2 text-sm text-danger">{err}</div>
         <div className="mt-3">
@@ -583,31 +613,65 @@ export default function RestaurantOverviewPage() {
     (row) => row.top_risk_type === "healthy"
   ).length;
 
+
+  
+
   const HeaderCard = (
-    <SectionCard title="Business Overview">
-      <div className="flex items-center gap-4 pt-2">
+    <SectionCard
+      title="Business Overview"
+      subtitle="Portfolio-level performance across revenue, cost, cash flow, and operating health."
+    >
+      <div className="pt-2">
+        <div className="flex flex-wrap items-center gap-4">
+          <select
+            value={locationId}
+            onChange={(e) => {
+              const nextLocationId = e.target.value;
+              setLocationId(nextLocationId);
+              updateLocationInUrl(nextLocationId);
+            }}
+            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
+          >
+            <option value="all">All Locations</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {getLocationDisplayName(l)}
+              </option>
+            ))}
+          </select>
 
-        {/* Location dropdown */}
-        <select
-          value={locationId}
-          onChange={(e) => {
-            const nextLocationId = e.target.value;
-            setLocationId(nextLocationId);
-            updateLocationInUrl(nextLocationId);
-          }}
-          className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-        >
-          <option value="all">All Locations</option>
-          {locations.map((l) => (
-            <option key={l.id} value={l.id}>
-              {getLocationDisplayName(l)}
-            </option>
-          ))}
-        </select>
+          <select
+            value="30d"
+            onChange={() => { }}
+            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
+          >
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="90d">Last 90 Days</option>
+            <option value="ytd">Year to Date</option>
+          </select>
 
-        {/* As-of date */}
-        <div className="text-sm font-medium text-foreground">
-          As of: {asOfStr}
+          <input
+            type="date"
+            value={insightDate ? String(insightDate).slice(0, 10) : ""}
+            onChange={() => { }}
+            onKeyDown={(e) => e.preventDefault()}
+            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
+          />
+
+          <button
+            onClick={refreshOverview}
+            disabled={loading}
+            className="group flex h-10 items-center justify-center rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 disabled:opacity-50"
+            aria-label="Refresh business overview"
+          >
+            <RefreshCcw
+              className={`h-4 w-4 ${loading
+                  ? "animate-spin"
+                  : "transition-transform duration-300 group-hover:rotate-180"
+                }`}
+            />
+          </button>
         </div>
       </div>
     </SectionCard>

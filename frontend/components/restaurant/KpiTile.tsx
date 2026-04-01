@@ -1,4 +1,3 @@
-// components/restaurant/KpiTile.tsx
 "use client";
 
 import * as React from "react";
@@ -39,19 +38,21 @@ function fmtPct2(n: number) {
 }
 
 function fmtNumber(n: number) {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(n);
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 2,
+  }).format(n);
 }
 
 function badgeStyles(sev: TileTone) {
   switch (sev) {
     case "risk":
-      return "border-red-500/30 bg-red-500/10 text-red-200";
+      return "border-red-500/30 bg-red-500/10 !text-foreground";
     case "warn":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+      return "border-amber-500/30 bg-amber-500/10 !text-foreground";
     case "good":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+      return "border-emerald-500/30 bg-emerald-500/10 !text-foreground";
     default:
-      return "border-white/15 bg-white/5 text-muted-foreground";
+      return "border-white/15 bg-white/5 !text-foreground";
   }
 }
 
@@ -71,17 +72,23 @@ function cardStyles(sev: TileTone) {
 function badgeLabel(sev: TileTone) {
   switch (sev) {
     case "risk":
-      return "risk";
+      return "Risk";
     case "warn":
-      return "warn";
+      return "Watch";
     case "good":
-      return "good";
+      return "Good";
     default:
-      return "no data";
+      return "No data";
   }
 }
 
-function sparkTone(sev: TileTone) {
+function sparkTone(sev: TileTone, delta?: number | null) {
+  const dir = deltaDirection(delta);
+
+  function sparkTone() {
+    return "text-muted-foreground/60";
+  }
+
   switch (sev) {
     case "risk":
       return "text-rose-400";
@@ -94,7 +101,13 @@ function sparkTone(sev: TileTone) {
   }
 }
 
-function Sparkline({ values, height = 22 }: { values?: (number | null)[]; height?: number }) {
+function Sparkline({
+  values,
+  height = 24,
+}: {
+  values?: (number | null)[];
+  height?: number;
+}) {
   const w = 120;
   const h = height;
   const pad = 2;
@@ -111,7 +124,8 @@ function Sparkline({ values, height = 22 }: { values?: (number | null)[]; height
 
   const pts = clean.map((v, i) => {
     const x = pad + i * xStep;
-    const y = v === null ? null : pad + (h - pad * 2) * (1 - (v - min) / span);
+    const y =
+      v === null ? null : pad + (h - pad * 2) * (1 - (v - min) / span);
     return { x, y };
   });
 
@@ -124,8 +138,10 @@ function Sparkline({ values, height = 22 }: { values?: (number | null)[]; height
     .join(" ");
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-[22px] w-[120px] opacity-80">
-      {d ? <path d={d} fill="none" stroke="currentColor" strokeWidth="2" /> : null}
+    <svg viewBox={`0 0 ${w} ${h}`} className="h-6 w-[120px] opacity-85">
+      {d ? (
+        <path d={d} fill="none" stroke="currentColor" strokeWidth="2" />
+      ) : null}
     </svg>
   );
 }
@@ -158,6 +174,13 @@ function formatDelta(kpi: Kpi): string {
   return `${sign}${d.toFixed(2)} pp`;
 }
 
+function deltaDirection(delta?: number | null): "up" | "down" | "flat" | "none" {
+  if (delta === null || delta === undefined || !Number.isFinite(delta)) return "none";
+  if (delta > 0) return "up";
+  if (delta < 0) return "down";
+  return "flat";
+}
+
 export function RestaurantKpiTile({
   kpi,
   series,
@@ -170,35 +193,50 @@ export function RestaurantKpiTile({
 
   const value = formatValue(kpi);
   const deltaText = formatDelta(kpi);
+  const dir = deltaDirection(kpi.delta);
+
+  const deltaArrow =
+    dir === "up" ? "↑" : dir === "down" ? "↓" : dir === "flat" ? "→" : "—";
   const spark = (series ?? []).map((x) =>
     Number.isFinite(Number(x)) ? Number(x) : null
   );
 
   return (
-    <div className={`rounded-2xl border p-4 ${cardStyles(tone)}`}>
+    <div
+      className={[
+        "rounded-2xl border p-4 shadow-sm transition",
+        "hover:bg-background/40",
+        cardStyles(tone),
+      ].join(" ")}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-xs text-muted-foreground">{kpi.label}</div>
-          <div className="mt-2 text-2xl font-semibold text-foreground">{value}</div>
+          <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            {kpi.label}
+          </div>
+          <div className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+            {value}
+          </div>
         </div>
 
-        <div className={`shrink-0 rounded-xl border px-2 py-1 text-[11px] ${badgeStyles(tone)}`}>
+        <div
+          className={`shrink-0 rounded-xl border px-2.5 py-1 text-[11px] font-medium ${badgeStyles(
+            tone
+          )}`}
+        >
           {badgeLabel(tone)}
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground line-clamp-2">
-          {kpi.hint ?? ""}
+      <div className="mt-3 flex items-center justify-end">
+        <div className="rounded-lg bg-background/40 px-2.5 py-1 text-xs font-medium text-foreground">
+          <span className="mr-1 opacity-70">{deltaArrow}</span>
+          {deltaText}
         </div>
-        <div className="text-xs font-medium text-foreground">{deltaText}</div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between">
-        <div className="text-[11px] text-muted-foreground">
-          {noData ? "no trend" : "trend"}
-        </div>
-        <div className={sparkTone(tone)}>
+      <div className="mt-4 flex items-center justify-end gap-3 border-t border-border/40 pt-3">
+        <div className={sparkTone(tone, kpi.delta)}>
           <Sparkline values={spark} />
         </div>
       </div>

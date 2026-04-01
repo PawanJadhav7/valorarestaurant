@@ -1,9 +1,15 @@
+//frontend/app/restaurant/cost-control/page.tsx
 "use client";
 
 import * as React from "react";
-import { SectionCard } from "@/components/valora/SectionCard";
-import { RestaurantKpiTile, type Kpi as RestaurantKpi } from "@/components/restaurant/KpiTile";
 import { RefreshCcw } from "lucide-react";
+import { SectionCard } from "@/components/valora/SectionCard";
+import { PageScaffold } from "@/components/restaurant/PageScaffold";
+import { ValoraIntelligence } from "@/components/restaurant/ValoraIntelligence";
+import {
+  RestaurantKpiTile,
+  type Kpi as RestaurantKpi,
+} from "@/components/restaurant/KpiTile";
 
 type Unit = "usd" | "pct" | "days" | "ratio" | "count";
 type Severity = "good" | "warn" | "risk";
@@ -18,7 +24,11 @@ type ApiKpi = {
   hint?: string;
 };
 
-type LocationRow = { location_id: string; location_code: string; name: string };
+type LocationRow = {
+  location_id: string;
+  location_code: string;
+  name: string;
+};
 
 type ApiAlert = {
   id: string;
@@ -50,26 +60,18 @@ type CostControlResponse = {
 
 type ChartTone = "food" | "labor" | "prime" | "waste" | "discount";
 
-function formatAsOf(s: string | null | undefined) {
-  if (!s) return "—";
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("en-US", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function SkeletonTiles({ n = 5 }: { n?: number }) {
+function SkeletonGroup({ title }: { title: string }) {
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-      {Array.from({ length: n }).map((_, i) => (
-        <div key={i} className="h-32 animate-pulse rounded-2xl border border-border bg-muted/30" />
-      ))}
-    </div>
+    <SectionCard title={title}>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-32 animate-pulse rounded-2xl border border-border bg-muted/30"
+          />
+        ))}
+      </div>
+    </SectionCard>
   );
 }
 
@@ -124,7 +126,9 @@ function LineChart({
   const h = 180;
   const pad = 28;
 
-  const clean = values.map((v) => (typeof v === "number" && Number.isFinite(v) ? v : null));
+  const clean = values.map((v) =>
+    typeof v === "number" && Number.isFinite(v) ? v : null
+  );
   const nums = clean.filter((v): v is number => v !== null);
   const min = nums.length ? Math.min(...nums) : 0;
   const max = nums.length ? Math.max(...nums) : 1;
@@ -134,7 +138,8 @@ function LineChart({
 
   const pts = clean.map((v, i) => {
     const x = pad + i * xStep;
-    const y = v === null ? null : pad + (h - pad * 2) * (1 - (v - min) / span);
+    const y =
+      v === null ? null : pad + (h - pad * 2) * (1 - (v - min) / span);
     return { x, y, v };
   });
 
@@ -159,7 +164,7 @@ function LineChart({
   }
 
   const toneCls = toneClass(tone);
-  const gradId = `grad-${title.replaceAll(" ", "-").toLowerCase()}`;
+  const gradId = `cost-grad-${title.replaceAll(" ", "-").toLowerCase()}`;
 
   return (
     <SectionCard
@@ -167,7 +172,11 @@ function LineChart({
       subtitle={null}
       right={
         <div className="text-xs text-muted-foreground">
-          {lastVal === null ? "—" : valueFmt ? valueFmt(lastVal) : lastVal.toFixed(2)}
+          {lastVal === null
+            ? "—"
+            : valueFmt
+              ? valueFmt(lastVal)
+              : lastVal.toFixed(2)}
         </div>
       }
     >
@@ -180,19 +189,39 @@ function LineChart({
           </linearGradient>
         </defs>
 
-        <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="currentColor" opacity="0.10" />
-        <line x1={pad} y1={pad} x2={pad} y2={h - pad} stroke="currentColor" opacity="0.10" />
+        <line
+          x1={pad}
+          y1={h - pad}
+          x2={w - pad}
+          y2={h - pad}
+          stroke="currentColor"
+          opacity="0.10"
+        />
+        <line
+          x1={pad}
+          y1={pad}
+          x2={pad}
+          y2={h - pad}
+          stroke="currentColor"
+          opacity="0.10"
+        />
 
         {d ? (
           <>
             <path
-              d={`${d} L ${(w - pad).toFixed(2)} ${(h - pad).toFixed(2)} L ${pad.toFixed(2)} ${(h - pad).toFixed(
+              d={`${d} L ${(w - pad).toFixed(2)} ${(h - pad).toFixed(
                 2
-              )} Z`}
+              )} L ${pad.toFixed(2)} ${(h - pad).toFixed(2)} Z`}
               fill={`url(#${gradId})`}
               opacity="0.9"
             />
-            <path d={d} fill="none" stroke="currentColor" strokeWidth="2.2" opacity="0.92" />
+            <path
+              d={d}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              opacity="0.92"
+            />
           </>
         ) : null}
       </svg>
@@ -205,8 +234,21 @@ function LineChart({
   );
 }
 
+function severityCardClass(severity: Severity) {
+  switch (severity) {
+    case "risk":
+      return "border-red-500/30 bg-red-500/10";
+    case "warn":
+      return "border-amber-500/30 bg-amber-500/10";
+    default:
+      return "border-emerald-500/30 bg-emerald-500/10";
+  }
+}
+
 export default function CostControlPage() {
-  const [windowCode, setWindowCode] = React.useState<"7d" | "30d" | "90d" | "ytd">("30d");
+  const [windowCode, setWindowCode] = React.useState<
+    "7d" | "30d" | "90d" | "ytd"
+  >("30d");
   const [locationId, setLocationId] = React.useState<string>("all");
   const [asOf, setAsOf] = React.useState<string>("");
 
@@ -217,7 +259,9 @@ export default function CostControlPage() {
   React.useEffect(() => {
     (async () => {
       try {
-        const r = await fetch("/api/restaurant/locations", { cache: "no-store" });
+        const r = await fetch("/api/restaurant/locations", {
+          cache: "no-store",
+        });
         const j = await r.json();
         const raw = (j.locations ?? []) as any[];
 
@@ -248,14 +292,6 @@ export default function CostControlPage() {
     return out;
   }, [locations]);
 
-  const locLabel =
-    locationId === "all"
-      ? "All Locations"
-      : (() => {
-          const l = locations.find((x) => x.location_id === locationId);
-          return l ? `${l.location_code} — ${l.name}` : "Location";
-        })();
-
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -264,14 +300,21 @@ export default function CostControlPage() {
       if (asOf.trim()) sp.set("as_of", asOf.trim());
       if (locationId !== "all") sp.set("location_id", locationId);
 
-      const res = await fetch(`/api/restaurant/cost-control?${sp.toString()}`, { cache: "no-store" });
+      const res = await fetch(`/api/restaurant/cost-control?${sp.toString()}`, {
+        cache: "no-store",
+      });
       const text = await res.text();
 
       let json: CostControlResponse;
       try {
         json = JSON.parse(text) as CostControlResponse;
       } catch {
-        throw new Error(`Cost Control API returned non-JSON (${res.status}). BodyPreview=${text.slice(0, 140)}`);
+        throw new Error(
+          `Cost Control API returned non-JSON (${res.status}). BodyPreview=${text.slice(
+            0,
+            140
+          )}`
+        );
       }
 
       setData(json);
@@ -302,24 +345,52 @@ export default function CostControlPage() {
 
   const tileKpis: RestaurantKpi[] = React.useMemo(() => {
     return kpis.map((k) => {
-      const v = k.unit === "pct" && typeof k.value === "number" && k.value > 1 ? k.value / 100 : k.value;
+      const v =
+        k.unit === "pct" &&
+          typeof k.value === "number" &&
+          k.value > 1
+          ? k.value / 100
+          : k.value;
       return { ...(k as any), value: v } as RestaurantKpi;
     });
   }, [kpis]);
 
-  const byCode = React.useMemo(() => new Map(tileKpis.map((k) => [k.code, k])), [tileKpis]);
+  const byCode = React.useMemo(
+    () => new Map(tileKpis.map((k) => [k.code, k])),
+    [tileKpis]
+  );
 
-  const spotlightCodes = [
+  const costDisciplineKpis = [
     "CC_FOOD_COST_PCT",
     "CC_LABOR_COST_PCT",
     "CC_PRIME_COST_PCT",
     "CC_WASTE_PCT",
-    "CC_STOCKOUTS",
-  ];
+  ]
+    .map((code) => byCode.get(code))
+    .filter(Boolean) as RestaurantKpi[];
 
-  const spotlight = spotlightCodes.map((c) => byCode.get(c)).filter(Boolean) as RestaurantKpi[];
-  const used = new Set(spotlight.map((k) => k.code));
-  const remaining = tileKpis.filter((k) => !used.has(k.code));
+  const leakageControlKpis = [
+    "CC_DISCOUNT_PCT",
+    "CC_STOCKOUTS",
+    "CC_VOID_PCT",
+    "CC_COMP_PCT",
+  ]
+    .map((code) => byCode.get(code))
+    .filter(Boolean) as RestaurantKpi[];
+
+  const usedCodes = new Set([
+    ...costDisciplineKpis.map((k) => k.code),
+    ...leakageControlKpis.map((k) => k.code),
+  ]);
+
+  const fallbackKpis = tileKpis.filter((k) => !usedCodes.has(k.code));
+
+  while (costDisciplineKpis.length < 4 && fallbackKpis.length) {
+    costDisciplineKpis.push(fallbackKpis.shift()!);
+  }
+  while (leakageControlKpis.length < 4 && fallbackKpis.length) {
+    leakageControlKpis.push(fallbackKpis.shift()!);
+  }
 
   const dayLabels = normalizeLabels(series.day);
   const foodTrend = toNums(series.FOOD_COST_PCT);
@@ -328,209 +399,193 @@ export default function CostControlPage() {
   const wasteTrend = toNums(series.WASTE_PCT);
   const discountTrend = toNums(series.DISCOUNT_PCT);
 
-  return (
-    <div className="space-y-4">
-      <SectionCard title="Cost Control" subtitle="Prime cost, leakage, and controllable expense pressure across locations.">
-        <div className="pt-1">
-          <div className="mt-4 flex flex-wrap items-end gap-4">
-            <div className="flex flex-col">
-              <label className="text-xs text-muted-foreground">Location</label>
-              <select
-                className="h-9 min-w-[200px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-              >
-                <option value="all">All Locations</option>
-                {locationsUnique.map((l) => (
-                  <option key={l.location_id} value={l.location_id}>
-                    {l.location_code} — {l.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+  const header = (
+    <SectionCard
+      title="Cost Control Intelligence"
+      subtitle="Monitor controllable cost pressure, leakage, and margin discipline across locations."
+    >
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-4 pt-2">
+          <select
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
+          >
+            <option value="all">All Locations</option>
+            {locationsUnique.map((l) => (
+              <option key={l.location_id} value={l.location_id}>
+                {l.location_code} — {l.name}
+              </option>
+            ))}
+          </select>
 
-            <div className="flex flex-col">
-              <label className="text-xs text-muted-foreground">Window</label>
-              <select
-                className="h-9 min-w-[110px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-                value={windowCode}
-                onChange={(e) => setWindowCode(e.target.value as any)}
-              >
-                <option value="7d">7D</option>
-                <option value="30d">30D</option>
-                <option value="90d">90D</option>
-                <option value="ytd">YTD</option>
-              </select>
-            </div>
+          <select
+            value={windowCode}
+            onChange={(e) => setWindowCode(e.target.value as any)}
+            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
+          >
+            <option value="7d">Last 7 Days</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="90d">Last 90 Days</option>
+            <option value="ytd">Year to Date</option>
+          </select>
 
-            <div className="flex flex-col">
-              <label className="text-xs text-muted-foreground">Snapshot</label>
-              <input
-                className="h-9 w-[240px] rounded-xl border border-border bg-background px-3 text-sm text-foreground hover:bg-muted/40"
-                value={asOf}
-                onChange={(e) => setAsOf(e.target.value)}
-                placeholder="2026-12-31T00:00:00Z"
-              />
-            </div>
+          <input
+            type="date"
+            value={asOf ? asOf.split("T")[0] : ""}
+            onChange={(e) => setAsOf(e.target.value)}
+            onKeyDown={(e) => e.preventDefault()}
+            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
+          />
 
-            <button
-              className="group h-9 rounded-xl border border-border bg-background px-4 text-sm hover:bg-muted disabled:opacity-70"
-              onClick={load}
-              disabled={loading}
-            >
-              <RefreshCcw
-                className={`h-4 w-4 ${
-                  loading ? "animate-spin" : "transition-transform duration-300 group-hover:rotate-180"
-                }`}
-              />
-            </button>
+          <button
+            onClick={load}
+            disabled={loading}
+            aria-label="Refresh cost control dashboard"
+            className="group flex h-10 items-center justify-center rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 disabled:opacity-50"
+          >
+            <RefreshCcw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
+          </button>
         </div>
 
-        <div className="mt-4 text-sm font-semibold text-foreground tracking-tight">
-          Last Updated: <span className="font-medium">{formatAsOf(data?.as_of)}</span>
-          <span className="mx-2 text-muted-foreground">•</span>
-          <span className="font-medium">{locLabel}</span>
-        </div>
-
-        {!ok && data?.error && (
-          <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
+        {!ok && data?.error ? (
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
             <div className="font-medium">Cost Control API Error</div>
-            <div className="mt-1 text-xs text-muted-foreground">{data.error}</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {data.error}
+            </div>
           </div>
-        )}
-</div>
+        ) : null}
+      </div>
+    </SectionCard>
+  );
+
+  const kpiSection = loading ? (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <SkeletonGroup title="Cost Discipline" />
+      <SkeletonGroup title="Leakage & Controls" />
+    </div>
+  ) : (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <SectionCard
+        title="Cost Discipline"
+        subtitle="Core controllable cost structure across the selected window."
+      >
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {costDisciplineKpis.map((k) => (
+            <RestaurantKpiTile
+              key={k.code}
+              kpi={k}
+              series={(series as any)[k.code] ?? []}
+            />
+          ))}
+        </div>
       </SectionCard>
 
-      {loading ? (
-        <SkeletonTiles />
-      ) : (
-        <SectionCard title="Cost spotlight" subtitle="Highest-signal controllable cost KPIs for the selected window.">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-            {spotlight.map((k) => (
-              <RestaurantKpiTile key={k.code} kpi={k} series={(series as any)[k.code]} />
+      <SectionCard
+        title="Leakage & Controls"
+        subtitle="Discount, waste, stock pressure, and other margin leakage signals."
+      >
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {leakageControlKpis.map((k) => (
+            <RestaurantKpiTile
+              key={k.code}
+              kpi={k}
+              series={(series as any)[k.code] ?? []}
+            />
+          ))}
+        </div>
+      </SectionCard>
+    </div>
+  );
+
+  const intelligence =
+  !loading ? (
+    <ValoraIntelligence
+      alerts={alerts}
+      actions={actions}
+    />
+  ) : null;
+
+  const charts =
+    !loading ? (
+      <>
+        <LineChart
+          title="Food Cost % Trend"
+          labels={dayLabels}
+          values={foodTrend}
+          valueFmt={(n) => fmtPct2(n)}
+          tone="food"
+        />
+        <LineChart
+          title="Labor Cost % Trend"
+          labels={dayLabels}
+          values={laborTrend}
+          valueFmt={(n) => fmtPct2(n)}
+          tone="labor"
+        />
+        <LineChart
+          title="Prime Cost % Trend"
+          labels={dayLabels}
+          values={primeTrend}
+          valueFmt={(n) => fmtPct2(n)}
+          tone="prime"
+        />
+        <LineChart
+          title="Waste % Trend"
+          labels={dayLabels}
+          values={wasteTrend}
+          valueFmt={(n) => fmtPct2(n)}
+          tone="waste"
+        />
+        <LineChart
+          title="Discount % Trend"
+          labels={dayLabels}
+          values={discountTrend}
+          valueFmt={(n) => fmtPct2(n)}
+          tone="discount"
+        />
+      </>
+    ) : null;
+
+  const performanceInsights =
+    !loading ? (
+      <SectionCard
+        title="Performance Insights"
+        subtitle="What changed across cost pressure, leakage, and controllable expense trends."
+      >
+        {alerts.length ? (
+          <div className="space-y-3">
+            {alerts.slice(0, 4).map((a) => (
+              <div
+                key={`insight-${a.id}`}
+                className={`rounded-xl border p-3 ${severityCardClass(a.severity)}`}
+              >
+                <div className="text-sm font-semibold text-foreground">
+                  {a.title}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {a.detail}
+                </div>
+              </div>
             ))}
           </div>
+        ) : (
+          <div className="rounded-xl border border-border/60 bg-background/20 p-4 text-sm text-muted-foreground">
+            No major cost-control shifts detected for this selection.
+          </div>
+        )}
+      </SectionCard>
+    ) : null;
 
-          {remaining.length ? (
-            <div className="mt-3">
-              <div className="text-xs font-semibold text-muted-foreground/80">Additional KPIs</div>
-              <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {remaining.map((k) => (
-                  <RestaurantKpiTile key={k.code} kpi={k} series={(series as any)[k.code]} />
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </SectionCard>
-      )}
 
-      {!loading ? (
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-          <SectionCard title="Exceptions & alerts" subtitle="Areas where controllable cost is drifting above normal range.">
-            {alerts.length ? (
-              <div className="space-y-2">
-                {alerts.slice(0, 8).map((a) => (
-                  <div key={a.id} className="rounded-xl border border-border bg-background/40 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-foreground">{a.title}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">{a.detail}</div>
-                      </div>
-                      <span
-                        className={[
-                          "shrink-0 rounded-xl border px-2 py-1 text-[11px] font-medium",
-                          a.severity === "risk"
-                            ? "border-rose-500/30 bg-rose-500/10 text-rose-200"
-                            : a.severity === "warn"
-                            ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
-                            : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-                        ].join(" ")}
-                      >
-                        {a.severity}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-border bg-background/40 p-4 text-sm text-muted-foreground">
-                No cost-control exceptions detected for the selected window.
-              </div>
-            )}
-          </SectionCard>
-
-          <SectionCard title="Top actions" subtitle="Operator-ready actions to improve margin and reduce leakage.">
-            {actions.length ? (
-              <div className="space-y-2">
-                {actions.slice(0, 3).map((a) => (
-                  <div key={a.id} className="rounded-xl border border-border bg-background/40 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-foreground">
-                          <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-border bg-background text-xs">
-                            {a.priority}
-                          </span>
-                          {a.title}
-                        </div>
-                        <div className="mt-1 text-xs text-muted-foreground">{a.rationale}</div>
-                      </div>
-                      {a.owner ? (
-                        <span className="shrink-0 rounded-xl border border-border/30 bg-background/30 px-2 py-1 text-[11px] text-muted-foreground">
-                          {a.owner}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-border bg-background/40 p-4 text-sm text-muted-foreground">
-                No actions available yet for this window.
-              </div>
-            )}
-          </SectionCard>
-        </div>
-      ) : null}
-
-      {!loading ? (
-        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-          <LineChart
-            title="Food Cost % Trend"
-            labels={dayLabels}
-            values={foodTrend}
-            valueFmt={(n) => fmtPct2(n)}
-            tone="food"
-          />
-          <LineChart
-            title="Labor Cost % Trend"
-            labels={dayLabels}
-            values={laborTrend}
-            valueFmt={(n) => fmtPct2(n)}
-            tone="labor"
-          />
-          <LineChart
-            title="Prime Cost % Trend"
-            labels={dayLabels}
-            values={primeTrend}
-            valueFmt={(n) => fmtPct2(n)}
-            tone="prime"
-          />
-          <LineChart
-            title="Waste % Trend"
-            labels={dayLabels}
-            values={wasteTrend}
-            valueFmt={(n) => fmtPct2(n)}
-            tone="waste"
-          />
-          <LineChart
-            title="Discount % Trend"
-            labels={dayLabels}
-            values={discountTrend}
-            valueFmt={(n) => fmtPct2(n)}
-            tone="discount"
-          />
-        </div>
-      ) : null}
-    </div>
+  return (
+    <PageScaffold
+      header={header}
+      kpiSection={kpiSection}
+      charts={charts}
+      performanceInsights={performanceInsights}
+      intelligence={intelligence}
+    />
   );
 }

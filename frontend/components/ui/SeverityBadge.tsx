@@ -3,12 +3,12 @@ type Severity = "good" | "warn" | "risk" | "neutral";
 export function SeverityBadge({ severity }: { severity: Severity }) {
   const styles =
     severity === "risk"
-      ? "border-rose-500/30 bg-rose-500/10 text-rose-200"
+      ? "border-rose-500/30 bg-rose-500/10 !text-foreground"
       : severity === "warn"
-      ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+      ? "border-amber-500/30 bg-amber-500/10 !text-foreground"
       : severity === "good"
-      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-      : "border-white/15 bg-white/5 text-muted-foreground";
+      ? "border-emerald-500/30 bg-emerald-500/10 !text-πforeground"
+      : "border-white/15 bg-white/5 !text-foreground";
 
   const label =
     severity === "risk"
