@@ -137,9 +137,122 @@ function FaqRow({ q, a }: { q: string; a: string }) {
   );
 }
 
+/* ─── Win2K System Tray Clock ─── */
+function TaskbarClock() {
+  const [time, setTime] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const updateTime = () => {
+      setTime(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Render placeholder during SSR/hydration
+  if (time === null) {
+    return <span style={{ fontFamily: "'Courier New', monospace", fontSize: 11, minWidth: 50 }}>--:--</span>;
+  }
+
+  return (
+    <span style={{ fontFamily: "'Courier New', monospace", fontSize: 11 }}>
+      {time}
+    </span>
+  );
+}
+
+/* ─── Win2K Video Player Modal ─── */
+function WinVideoModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ zIndex: 9999, background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="win-window"
+        style={{ width: "90%", maxWidth: 720, fontFamily: "Tahoma, Arial, sans-serif" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Title bar */}
+        <div className="win-titlebar select-none">
+          <span className="text-xs">📼</span>
+          <span className="flex-1 text-xs font-bold">Windows Media Player — Valora AI Demo</span>
+          <div className="flex gap-0.5">
+            <button className="win-btn" style={{ padding: "0 4px", minWidth: 16, minHeight: 14, fontSize: 9, lineHeight: 1 }}>_</button>
+            <button className="win-btn" style={{ padding: "0 4px", minWidth: 16, minHeight: 14, fontSize: 9, lineHeight: 1 }}>□</button>
+            <button
+              onClick={onClose}
+              className="win-btn"
+              style={{ padding: "0 4px", minWidth: 16, minHeight: 14, fontSize: 9, lineHeight: 1, background: "#c04040", borderTopColor: "#ff8080", borderLeftColor: "#ff8080" }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+        {/* Menu bar */}
+        <div className="win-panel flex gap-0" style={{ borderTop: "none", padding: "2px 4px", fontSize: 11 }}>
+          {["File", "View", "Play", "Tools", "Help"].map((m) => (
+            <button key={m} className="hover:bg-[#0a2470] hover:text-white px-2 py-0.5 text-xs" style={{ background: "none", border: "none", cursor: "default" }}>
+              {m}
+            </button>
+          ))}
+        </div>
+        {/* Video content */}
+        <div className="win-sunken" style={{ margin: 4, background: "#000000" }}>
+          <div style={{ position: "relative", paddingBottom: "56.25%", height: 0 }}>
+            <iframe
+              src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1"
+              title="Valora AI Demo Video"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
+            />
+          </div>
+        </div>
+        {/* Playback controls */}
+        <div className="win-panel" style={{ margin: "0 4px 4px", padding: 4 }}>
+          <div className="flex items-center gap-2">
+            {/* Progress bar */}
+            <div className="win-sunken flex-1" style={{ height: 12, background: "#000080", position: "relative" }}>
+              <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "35%", background: "#00ff00" }} />
+            </div>
+            <span style={{ fontSize: 10, fontFamily: "'Courier New', monospace", color: "#000000" }}>01:23 / 03:32</span>
+          </div>
+          <div className="flex items-center justify-center gap-1 mt-2">
+            <button className="win-btn" style={{ fontSize: 10, padding: "2px 6px" }}>⏮</button>
+            <button className="win-btn" style={{ fontSize: 10, padding: "2px 6px" }}>⏪</button>
+            <button className="win-btn win-btn-primary" style={{ fontSize: 10, padding: "2px 10px" }}>⏸</button>
+            <button className="win-btn" style={{ fontSize: 10, padding: "2px 6px" }}>⏩</button>
+            <button className="win-btn" style={{ fontSize: 10, padding: "2px 6px" }}>⏭</button>
+            <div style={{ width: 16 }} />
+            <span style={{ fontSize: 10 }}>🔊</span>
+            <div className="win-sunken" style={{ width: 60, height: 8, background: "#ffffff", position: "relative" }}>
+              <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "70%", background: "#000080" }} />
+            </div>
+          </div>
+        </div>
+        {/* Status bar */}
+        <div className="win-statusbar flex items-center gap-4">
+          <div className="win-sunken" style={{ minWidth: 120, padding: "1px 4px", fontSize: 10 }}>
+            Playing
+          </div>
+          <div className="win-sunken flex-1" style={{ padding: "1px 4px", fontSize: 10 }}>
+            Valora AI Demo — Operational Intelligence Platform
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Main Page ─── */
 export default function HomePage() {
   const [tab, setTab] = React.useState<"platform" | "contact" | "faq">("platform");
+  const [videoOpen, setVideoOpen] = React.useState(false);
 
   return (
     <div
@@ -273,18 +386,32 @@ export default function HomePage() {
 
                 <WinPanel title="Product Walkthrough">
                   <p style={{ fontSize: 11, fontFamily: "Tahoma, Arial, sans-serif", marginBottom: 8 }}>
-                    A short product demo or explainer video can live here to show how the platform works.
+                    Click below to watch a demo of how Valora turns business data into action.
                   </p>
-                  <div
-                    className="win-sunken flex flex-col items-center justify-center"
-                    style={{ minHeight: 200, background: "#000000", color: "#00ff00", fontFamily: "\"Courier New\", monospace" }}
+                  <button
+                    onClick={() => setVideoOpen(true)}
+                    className="win-sunken flex flex-col items-center justify-center w-full cursor-pointer hover:opacity-90 transition-opacity"
+                    style={{ minHeight: 200, background: "#000000", color: "#00ff00", fontFamily: "\"Courier New\", monospace", border: "none" }}
                   >
-                    <div style={{ fontSize: 28 }}>▶</div>
-                    <div style={{ fontSize: 11, marginTop: 8, color: "#00ff00" }}>Demo video area</div>
-                    <div style={{ fontSize: 10, marginTop: 4, color: "#00c000", textAlign: "center", maxWidth: 200 }}>
-                      Add a short walkthrough here to show operators how Valora turns business data into action.
+                    <div
+                      className="win-raised flex items-center justify-center"
+                      style={{ width: 56, height: 56, background: "#d4d0c8", borderRadius: 0 }}
+                    >
+                      <span style={{ fontSize: 24, color: "#000080" }}>▶</span>
                     </div>
-                  </div>
+                    <div style={{ fontSize: 12, marginTop: 12, color: "#00ff00", fontWeight: "bold" }}>
+                      ► PLAY DEMO VIDEO
+                    </div>
+                    <div style={{ fontSize: 10, marginTop: 4, color: "#00c000" }}>
+                      Windows Media Player
+                    </div>
+                    <div
+                      className="win-raised mt-3"
+                      style={{ padding: "4px 12px", fontSize: 10, background: "#d4d0c8", color: "#000000" }}
+                    >
+                      Double-click to open
+                    </div>
+                  </button>
                 </WinPanel>
               </div>
             )}
@@ -349,9 +476,7 @@ export default function HomePage() {
         >
           <span>🔊</span>
           <span>🌐</span>
-          <span style={{ fontFamily: "'Courier New', monospace", fontSize: 11 }}>
-            {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-          </span>
+          <TaskbarClock />
         </div>
       </div>
 
@@ -362,6 +487,9 @@ export default function HomePage() {
       <div className="text-center pb-2" style={{ fontSize: 10, fontFamily: "Tahoma, Arial, sans-serif", color: "#ffffff" }}>
         © {new Date().getFullYear()} Valora AI, Inc. All rights reserved. · Best viewed in Internet Explorer 5.0 · 800×600 resolution
       </div>
+
+      {/* Video Modal */}
+      <WinVideoModal isOpen={videoOpen} onClose={() => setVideoOpen(false)} />
     </div>
   );
 }
