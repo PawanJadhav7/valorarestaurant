@@ -1,93 +1,41 @@
 @import "tailwindcss";
 
 /* =========================
-   Valora Apple-Glass Tokens
+   Valora Windows 2000 Tokens
    ========================= */
 
 :root {
-  /* Tailwind-facing tokens (rgb triplets) */
-  --background: 248 250 252;        /* slate-50 */
-  --foreground: 15 23 42;           /* slate-900 */
-  --card: 255 255 255;              /* white */
-  --border: 226 232 240;            /* slate-200 */
+  /* Win2K system colors */
+  --background: 212 208 200;        /* classic Windows gray */
+  --foreground: 0 0 0;              /* black text */
+  --card: 212 208 200;              /* same gray for panels */
+  --border: 128 128 128;            /* mid-gray */
 
-  --muted: 241 245 249;             /* slate-100 */
-  --muted-foreground: 100 116 139;  /* slate-500 */
+  --muted: 236 233 216;             /* light beige */
+  --muted-foreground: 64 64 64;     /* dark gray */
 
-  --ring: 148 163 184;              /* slate-400 */
-  --success: 34 197 94;             /* green-500 */
-  --danger: 239 68 68;              /* red-500 */
+  --ring: 0 0 128;                  /* classic blue focus */
+  --success: 0 128 0;               /* green */
+  --danger: 128 0 0;                /* maroon */
 
-  /* Glass material */
-  --glass-bg: 255 255 255;
-  --glass-alpha: 0.58;
-  --glass-border: 255 255 255;
-  --glass-border-alpha: 0.28;
+  /* Rounding - Win2K uses no rounding */
+  --radius: 0px;
 
-  /* Shadow */
-  --shadow: 2 6 23;                 /* deep ink */
-  --shadow-alpha: 0.10;
-
-  /* Blur + saturation */
-  --glass-blur: 18px;
-  --glass-sat: 160%;
-
-  /* Rounding */
-  --radius: 18px;
-}
-
-/* ✅ System dark only when NOT explicitly overridden */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --background: 2 6 23;
-    --foreground: 226 232 240;
-    --card: 15 23 42;
-    --border: 51 65 85;
-
-    --muted: 30 41 59;
-    --muted-foreground: 148 163 184;
-    --ring: 100 116 139;
-
-    --glass-bg: 15 23 42;
-    --glass-alpha: 0.55;
-    --glass-border: 255 255 255;
-    --glass-border-alpha: 0.14;
-
-    --shadow: 0 0 0;
-    --shadow-alpha: 0.35;
-  }
-}
-
-/* Dark theme */
-  :root[data-theme="dark"] {
-  --background: 2 6 23;
-  --foreground: 226 232 240;
-  --card: 15 23 42;
-  --border: 51 65 85;
-
-  --muted: 30 41 59;
-  --muted-foreground: 148 163 184;
-  --ring: 100 116 139;
-
-  --glass-bg: 15 23 42;
-  --glass-alpha: 0.55;
-  --glass-border: 255 255 255;
-  --glass-border-alpha: 0.14;
-
+  /* Glass compat vars (Win2K: no glass) */
+  --glass-bg: 212 208 200;
+  --glass-alpha: 1;
+  --glass-border: 128 128 128;
+  --glass-border-alpha: 1;
+  --glass-blur: 0px;
+  --glass-sat: 100%;
   --shadow: 0 0 0;
-  --shadow-alpha: 0.35;
+  --shadow-alpha: 0;
 }
-/* Explicit light theme (optional but clean) */
-:root[data-theme="light"] {
-  --background: 248 250 252;
-  --foreground: 15 23 42;
-  --card: 255 255 255;
-  --border: 226 232 240;
-}
-
 
 html, body {
   height: 100%;
+  font-family: "Tahoma", "Arial", sans-serif;
+  font-size: 11px;
 }
 
 body {
@@ -95,93 +43,209 @@ body {
   color: rgb(var(--foreground));
 }
 
-:root,
-body,
-.glass,
-[data-theme] * {
-  transition:
-    background-color 150ms ease,
-    color 150ms ease,
-    border-color 150ms ease,
-    box-shadow 150ms ease,
-    opacity 150ms ease;
-}
-
 /* =========================
-   Glass Utility Class
+   Windows 2000 Bevel Utilities
    ========================= */
 
-/* ---------- Glass Material ---------- */
-.glass {
+/* Raised (like a button) */
+.win-raised {
+  background: #d4d0c8;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #404040;
+  border-bottom: 2px solid #404040;
+  box-shadow: inset 1px 1px 0 #e8e4dc, inset -1px -1px 0 #808080;
+}
+
+/* Sunken / inset */
+.win-sunken {
+  background: #ffffff;
+  border-top: 2px solid #404040;
+  border-left: 2px solid #404040;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  box-shadow: inset 1px 1px 0 #808080;
+}
+
+/* Panel / container */
+.win-panel {
+  background: #d4d0c8;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #808080;
+}
+
+/* Win2K window chrome */
+.win-window {
+  background: #d4d0c8;
+  border: 2px solid #0a2470;
+  box-shadow: 2px 2px 0 #000000;
+}
+
+/* Title bar */
+.win-titlebar {
+  background: linear-gradient(90deg, #0a2470 0%, #a6caf0 100%);
+  color: #ffffff;
+  font-weight: bold;
+  font-size: 11px;
+  padding: 3px 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+}
+
+/* Classic button */
+.win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #d4d0c8;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #404040;
+  border-bottom: 2px solid #404040;
+  box-shadow: inset 1px 1px 0 #e8e4dc, inset -1px -1px 0 #808080;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-family: "Tahoma", "Arial", sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.win-btn:active {
+  border-top: 2px solid #404040;
+  border-left: 2px solid #404040;
+  border-right: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  box-shadow: inset 1px 1px 0 #808080;
+}
+
+.win-btn-primary {
+  background: linear-gradient(180deg, #1650c0 0%, #0a2470 100%);
+  color: #ffffff;
+  border-top: 2px solid #5080f0;
+  border-left: 2px solid #5080f0;
+  border-right: 2px solid #000040;
+  border-bottom: 2px solid #000040;
+  font-weight: bold;
+  padding: 5px 16px;
+  font-size: 12px;
+}
+
+/* Tabs */
+.win-tab {
+  background: #d4d0c8;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: none;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-family: "Tahoma", "Arial", sans-serif;
+  cursor: pointer;
   position: relative;
-
-  /* IMPORTANT: prevent the sheen/grain from "floating" outside */
-  overflow: hidden;
-  isolation: isolate;
-
-  border-radius: var(--radius);
-  background: rgba(var(--glass-bg) / var(--glass-alpha));
-  border: 1px solid rgba(var(--glass-border) / var(--glass-border-alpha));
-  box-shadow: 0 18px 60px rgba(var(--shadow) / var(--shadow-alpha));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  top: 2px;
 }
 
-
-/* Highlight sheen (toned down + no aggressive tilt) */
-.glass::before {
-  content: "";
-  position: absolute;
-  inset: -20%;
-  pointer-events: none;
-
-  /* Softer highlight, less "sheet of light" effect */
-  background: radial-gradient(
-    circle at 22% 18%,
-    rgba(255, 255, 255, 0.18),
-    rgba(255, 255, 255, 0.00) 60%
-  );
-
-  transform: rotate(0deg);
-  opacity: 0.65;
-}
-
-/* Subtle grain (reduced intensity) */
-.glass::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-
-  background-image: repeating-linear-gradient(
-    0deg,
-    rgba(255,255,255,0.02),
-    rgba(255,255,255,0.02) 1px,
-    transparent 1px,
-    transparent 3px
-  );
-
-  opacity: 0.10;
-  mix-blend-mode: overlay;
-}
-
-.glass > * {
-  position: relative;
+.win-tab-active {
+  background: #d4d0c8;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #d4d0c8;
+  font-weight: bold;
   z-index: 1;
+}
+
+/* Status bar */
+.win-statusbar {
+  background: #d4d0c8;
+  border-top: 1px solid #808080;
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+/* Fieldset / group box */
+.win-groupbox {
+  border: 1px solid #808080;
+  box-shadow: -1px -1px 0 0 #ffffff;
+  background: #d4d0c8;
+  padding: 12px 10px 10px;
+  position: relative;
+}
+
+/* Scrollbar (best-effort, Chrome only) */
+::-webkit-scrollbar { width: 16px; height: 16px; }
+::-webkit-scrollbar-track { background: #d4d0c8; }
+::-webkit-scrollbar-thumb {
+  background: #d4d0c8;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #404040;
+  border-bottom: 2px solid #404040;
+}
+::-webkit-scrollbar-button {
+  background: #d4d0c8;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #404040;
+  border-bottom: 2px solid #404040;
+  height: 16px;
+  width: 16px;
+}
+
+/* Override glass class for Win2K */
+.glass {
+  background: #d4d0c8;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  border-right: 2px solid #808080;
+  border-bottom: 2px solid #808080;
+  border-radius: 0;
+  box-shadow: 2px 2px 0 #000;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .glass::before,
 .glass::after {
-  z-index: 0;
+  display: none;
 }
 
-/* Fallback when backdrop-filter isn’t supported */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass {
-    background: rgba(var(--glass-bg) / 0.85);
-  }
+/* Taskbar */
+.win-taskbar {
+  background: linear-gradient(180deg, #1f3c9e 0%, #0a2470 40%, #1650c0 100%);
+  border-top: 2px solid #4060d0;
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+  gap: 4px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .glass::before { opacity: 0.6; }
+/* Desktop teal background */
+.win-desktop {
+  background: #3a6ea5;
+}
+
+/* Blinking cursor for "live" indicator */
+@keyframes win-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.win-blink {
+  animation: win-blink 1s step-start infinite;
+}
+
+/* Marquee-style scan line overlay (subtle) */
+.win-scanlines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(0,0,0,0.03),
+    rgba(0,0,0,0.03) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
 }
