@@ -6,7 +6,7 @@ import { RefreshCcw } from "lucide-react";
 import { SectionCard } from "@/components/valora/SectionCard";
 import { PageScaffold } from "@/components/restaurant/PageScaffold";
 import { KpiGroup } from "@/components/restaurant/KpiGroup";
-import { ValoraIntelligence } from "@/components/restaurant/ValoraIntelligence";
+
 import {
   RestaurantKpiTile,
   type Kpi as RestaurantKpi,
@@ -622,23 +622,43 @@ export default function LaborPage() {
     </>
   ) : null;
 
-  const intelligence = (
-    <ValoraIntelligence
-      alerts={
-        <div className="rounded-2xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
-          Labor-specific alerts will flow here next, including overtime spikes,
-          labor cost breaches, and staffing variance exceptions.
+  const intelligence =
+  !loading ? (
+    <SectionCard
+      title="Valora Intelligence"
+      subtitle="What needs attention and what actions to take."
+    >
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="space-y-3">
+          <div className="text-sm font-semibold text-foreground">
+            Attention Required
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Labor cost exceptions, overtime pressure, and staffing risks.
+          </div>
+
+          <div className="rounded-xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
+            Labor-specific alerts will flow here next, including overtime spikes,
+            labor cost breaches, and staffing variance exceptions.
+          </div>
         </div>
-      }
-      actions={
-        <div className="rounded-2xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
-          Labor-focused recommended actions will appear here next, such as
-          staffing adjustments, overtime reduction opportunities, and
-          productivity improvements.
+
+        <div className="space-y-3 xl:border-l xl:border-border/40 xl:pl-6">
+          <div className="text-sm font-semibold text-foreground">
+            Recommended Actions
+          </div>
+          <div className="text-xs text-muted-foreground">
+            AI-driven next steps to improve labor efficiency and control.
+          </div>
+
+          <div className="rounded-xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
+            Recommended labor actions will appear here next, including schedule
+            rebalancing, staffing adjustments, and overtime reduction steps.
+          </div>
         </div>
-      }
-    />
-  );
+      </div>
+    </SectionCard>
+  ) : null;
 
   const drilldown = (
     <SectionCard
