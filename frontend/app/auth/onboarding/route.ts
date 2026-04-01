@@ -1,7 +1,9 @@
-// app/auth/onboarding/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function cleanText(v: unknown, max = 80) {
   if (typeof v !== "string") return "";
