@@ -636,20 +636,41 @@ export default function InventoryPage() {
     </>
   ) : null;
 
-  const intelligence = (
-    <ValoraIntelligence
-      alerts={
-        <div className="rounded-2xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
-          Inventory alerts will flow here next, including stockout risk, waste spikes, variance breaches, and excess inventory issues.
+  const intelligence =
+  !loading ? (
+    <SectionCard
+      title="Valora Intelligence"
+      subtitle="What needs attention and what actions to take."
+    >
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="space-y-3">
+          <div className="text-sm font-semibold text-foreground">
+            Attention Required
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Inventory exceptions, stock pressure, and waste-related issues.
+          </div>
+
+          <div className="rounded-2xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
+            Inventory alerts will flow here next, including stockout risk, waste spikes, variance breaches, and excess inventory issues.
+          </div>
         </div>
-      }
-      actions={
-        <div className="rounded-2xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
-          Inventory recommended actions will appear here next, such as reorder prioritization, waste reduction steps, stock balancing, and replenishment timing improvements.
+
+        <div className="space-y-3 xl:border-l xl:border-border/40 xl:pl-6">
+          <div className="text-sm font-semibold text-foreground">
+            Recommended Actions
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Recommended steps to improve inventory health and reduce leakage.
+          </div>
+
+          <div className="rounded-2xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
+            Inventory actions will flow here next, including reorder corrections, waste reduction steps, transfer recommendations, and stock balancing actions.
+          </div>
         </div>
-      }
-    />
-  );
+      </div>
+    </SectionCard>
+  ) : null;
 
   const drilldown = (
     <SectionCard
@@ -693,7 +714,6 @@ export default function InventoryPage() {
       kpiSection={kpiSection}
       charts={charts}
       intelligence={intelligence}
-      drilldown={drilldown}
     />
   );
 }
