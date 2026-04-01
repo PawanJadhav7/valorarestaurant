@@ -3,10 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import GlassCardGlow from "../../components/ui/GlassCardGlow";
+import GlassCardGlow from "@/components/ui/GlassCardGlow";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import FormField from "../../components/ui/FormField";
+import FormField from "@/components/ui/FormField";
 import FormMessage from "@/components/ui/FormMessage";
 
 type SignInClientProps = {
