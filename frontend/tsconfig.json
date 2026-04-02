@@ -34,10 +34,13 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
+    "!app/restaurant/BackendTest.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "app/restaurant/BackendTest.tsx",
+    "**/app/restaurant/BackendTest.tsx"
   ]
 }

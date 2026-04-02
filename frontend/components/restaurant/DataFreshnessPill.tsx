@@ -114,12 +114,12 @@ export function DataFreshnessPill({
   const label = status === "green" ? "Data: Fresh" : status === "amber" ? "Data: Watch" : "Data: Action";
 
   const pillCls =
-    status === "green"
-      ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
-      : status === "amber"
-      ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
-      : "border-rose-400/30 bg-rose-400/10 text-rose-200";
-
+  status === "green"
+    ? "border-emerald-400/30 bg-emerald-400/10 !text-foreground"
+    : status === "amber"
+    ? "border-amber-400/30 bg-amber-400/10 !text-foreground"
+    : "border-rose-400/30 bg-rose-400/10 !text-foreground";
+    
   const tooltip = dataOk
     ? [
         `Latest day: ${fmtDate(_latestDay)}`,

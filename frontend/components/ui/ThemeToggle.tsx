@@ -11,13 +11,14 @@ export function ThemeToggle() {
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
 
-  const nextTheme = theme === "system" ? "light" : theme === "light" ? "dark" : "system";
-
   const Icon =
     theme === "system" ? Monitor : resolvedTheme === "dark" ? Sun : Moon;
 
   const label =
     theme === "system" ? "System" : resolvedTheme === "dark" ? "Dark" : "Light";
+
+  const nextTheme =
+    theme === "system" ? "light" : theme === "light" ? "dark" : "system";
 
   return (
     <button

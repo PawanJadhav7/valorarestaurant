@@ -29,19 +29,39 @@ type NavItem = {
 };
 
 const CORE: NavItem[] = [
-  { label: "Overview", href: "/restaurant", icon: LayoutDashboard },
+  { label: "Business Overview", href: "/restaurant", icon: LayoutDashboard },
   { label: "Sales & Demand", href: "/restaurant/sales", icon: TrendingUp },
-  { label: "Operations", href: "/restaurant/ops", icon: ClipboardList },
-  { label: "Cost Control", href: "/restaurant/cost-control", icon: BadgeDollarSign },
-  { label: "Profit", href: "/restaurant/profit", icon: DollarSign },
-  { label: "Menu Optimization", href: "/restaurant/menu-intelligence", icon: UtensilsCrossed },
-  { label: "Inventory", href: "/restaurant/ops/inventory", icon: Boxes },
-  { label: "Staff", href: "/restaurant/ops/labor", icon: Users },
+  {
+    label: "Operations Intelligence",
+    href: "/restaurant/operations",
+    icon: ClipboardList,
+  },
+  {
+    label: "Cost Management",
+    href: "/restaurant/cost-control",
+    icon: BadgeDollarSign,
+  },
+  { label: "Profitability", href: "/restaurant/profit", icon: DollarSign },
+  {
+    label: "Menu Optimization",
+    href: "/restaurant/menu-optimization",
+    icon: UtensilsCrossed,
+  },
+  { label: "Inventory Health", href: "/restaurant/inventory", icon: Boxes },
+  { label: "Workforce Performance", href: "/restaurant/labor", icon: Users },
 ];
 
-const INSIGHTS: NavItem[] = [
-  { label: "Alerts", href: "/restaurant/ops/alerts", icon: Bell },
-  { label: "AI Insights", href: "/restaurant/insights", icon: Sparkles },
+const INTELLIGENCE: NavItem[] = [
+  {
+    label: "Attention Required",
+    href: "/restaurant/insights/alerts",
+    icon: Bell,
+  },
+  {
+    label: "Recommended Actions",
+    href: "/restaurant/insights/actions",
+    icon: Sparkles,
+  },
 ];
 
 const ADMIN: NavItem[] = [
@@ -61,7 +81,9 @@ function itemCls(active: boolean) {
     "glass border border-border/10 bg-background/15 backdrop-blur-xl",
     "shadow-[0_4px_20px_rgba(0,0,0,0.05)]",
     "hover:bg-background/25 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] hover:-translate-y-[1px]",
-    active ? "text-foreground bg-background/30 border-border/20" : "text-muted-foreground",
+    active
+      ? "text-foreground bg-background/30 border-border/20"
+      : "text-muted-foreground",
   ].join(" ");
 }
 
@@ -84,7 +106,9 @@ async function safeJson(res: Response) {
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`Non-JSON (${res.status}). BodyPreview=${text.slice(0, 160)}`);
+    throw new Error(
+      `Non-JSON (${res.status}). BodyPreview=${text.slice(0, 160)}`
+    );
   }
 }
 
@@ -94,7 +118,10 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
 
   return (
     <Link href={item.href} className={itemCls(active)}>
-      <span aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl"
+      >
         <span className="absolute -inset-[120%] rotate-12 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
       </span>
 
@@ -103,11 +130,15 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
       <Icon
         className={[
           "h-4 w-4 transition-all duration-200",
-          active ? "opacity-90 text-foreground" : "opacity-60 group-hover:opacity-80 group-hover:text-foreground",
+          active
+            ? "opacity-90 text-foreground"
+            : "opacity-60 group-hover:opacity-80 group-hover:text-foreground",
         ].join(" ")}
       />
 
-      <span className="min-w-0 truncate">{item.label}</span>
+      <span className="min-w-0 leading-snug whitespace-normal break-words">
+        {item.label}
+      </span>
 
       <span className="ml-auto text-xs text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100">
         ›
@@ -169,13 +200,17 @@ function GlassAccordion({
 export function RestaurantSidebar() {
   const pathname = usePathname();
 
-  const [openInsights, setOpenInsights] = React.useState(false);
+  const [openIntelligence, setOpenIntelligence] = React.useState(false);
   const [openAdmin, setOpenAdmin] = React.useState(false);
   const [clientName, setClientName] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (INSIGHTS.some((n) => isActivePath(pathname, n.href))) setOpenInsights(true);
-    if (ADMIN.some((n) => isActivePath(pathname, n.href))) setOpenAdmin(true);
+    if (INTELLIGENCE.some((n) => isActivePath(pathname, n.href))) {
+      setOpenIntelligence(true);
+    }
+    if (ADMIN.some((n) => isActivePath(pathname, n.href))) {
+      setOpenAdmin(true);
+    }
   }, [pathname]);
 
   React.useEffect(() => {
@@ -189,7 +224,10 @@ export function RestaurantSidebar() {
         }
         const j = await safeJson(r);
         const name = j?.user?.tenant_name ?? null;
-        if (alive) setClientName(typeof name === "string" && name.trim() ? name.trim() : null);
+        if (alive)
+          setClientName(
+            typeof name === "string" && name.trim() ? name.trim() : null
+          );
       } catch {
         if (alive) setClientName(null);
       }
@@ -200,39 +238,35 @@ export function RestaurantSidebar() {
   }, []);
 
   return (
-    <aside className="sticky top-0 h-dvh w-[280px] shrink-0 p-4">
+    <aside className="sticky top-0 h-dvh w-[320px] shrink-0 p-4">
       <div className="glass rounded-3xl border border-border/20 bg-background/20 p-4 shadow-lg">
-        {/* Header */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-           <div className="flex items-center gap-2">
-            <div className="text-sm font-semibold text-foreground truncate">
-              {clientName ?? "Tenant Workspace"}
+            <div className="flex items-center gap-2">
+              <div className="truncate text-sm font-semibold text-foreground">
+                {clientName ?? "Tenant Workspace"}
+              </div>
+              <DataHealthDot />
             </div>
-            <DataHealthDot />
-          </div>
           </div>
         </div>
 
-        {/* Core business nav */}
         <div className="mt-4 space-y-2">
           {CORE.map((n) => (
             <NavLink key={n.href} item={n} pathname={pathname} />
           ))}
         </div>
 
-        {/* Insights */}
         <GlassAccordion
-          title="Insights"
-          open={openInsights}
-          onToggle={() => setOpenInsights((v) => !v)}
+          title="Valora Intelligence"
+          open={openIntelligence}
+          onToggle={() => setOpenIntelligence((v) => !v)}
         >
-          {INSIGHTS.map((n) => (
+          {INTELLIGENCE.map((n) => (
             <NavLink key={n.href} item={n} pathname={pathname} />
           ))}
         </GlassAccordion>
 
-        {/* Admin */}
         <GlassAccordion
           title="Admin"
           open={openAdmin}
@@ -243,8 +277,6 @@ export function RestaurantSidebar() {
           ))}
         </GlassAccordion>
 
-       
-        {/* Footer */}
         <div className="mt-6">
           <div
             className={[

@@ -1,4 +1,3 @@
-//frontend/components/layout/TopNav.tsx
 "use client";
 
 import Link from "next/link";
@@ -132,7 +131,7 @@ export function TopNav() {
 
       <div className="glass border-b border-border/20 px-6 py-3 backdrop-blur-xl">
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href={onHome} className="flex items-center gap-2">
             <Image
               src="/valoraailogo.png"
               alt="Valora AI"
