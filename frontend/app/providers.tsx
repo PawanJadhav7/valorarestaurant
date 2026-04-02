@@ -9,6 +9,7 @@ export function Providers({ children }: { children: ReactNode }) {
       attribute="data-theme"
       defaultTheme="system"
       enableSystem
+      disableTransitionOnChange
     >
       {children}
     </ThemeProvider>
