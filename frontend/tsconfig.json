@@ -11,13 +11,13 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
-    "incremental": true,
     "baseUrl": ".",
     "paths": {
       "@/*": [
@@ -32,9 +32,9 @@
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    "!app/restaurant/BackendTest.tsx",
+    "app/api/auth/onboarding/pos/csv/route.ts",
+    "signup/SignupClient.tsx",
+    "signup/page.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],

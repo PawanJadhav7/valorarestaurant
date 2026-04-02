@@ -51,29 +51,31 @@ export default function SignInClient({ searchParams }: SignInClientProps) {
   const [err, setErr] = React.useState<string | null>(searchParams?.error ?? null);
   const [loading, setLoading] = React.useState(false);
 
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setErr(null);
-    setLoading(true);
+  async function submit(e: React.FormEvent) {
+  e.preventDefault();
+  setErr(null);
+  setLoading(true);
 
-    try {
-      const r = await fetch("/api/auth/signin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, next }),
-      });
+  try {
+    const res = await fetch("/api/auth/signin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, next }),
+    });
 
-      const j = await safeJson(r);
-      if (!j.ok) throw new Error(j.error ?? "Sign in failed");
+    const data = await res.json();
 
-      router.push(j.redirect ?? next);
-      router.refresh();
-    } catch (e: any) {
-      setErr(e?.message ?? String(e));
-    } finally {
-      setLoading(false);
+    if (!res.ok) {
+      throw new Error(data.error || "Sign in failed");
     }
+
+    router.push(data.redirect || next);
+  } catch (err: any) {
+    setErr(err.message || "Something went wrong");
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 md:py-14">
