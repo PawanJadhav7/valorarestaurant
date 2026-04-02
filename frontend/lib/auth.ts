@@ -1,3 +1,4 @@
+//frontend/lib/auth.ts
 import { pool } from "@/lib/db";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
@@ -145,7 +146,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!row) {
     try {
       await pool.query(
-        `delete from app.user_session where session_id = $1::uuid`,
+        `delete from auth.user_session where session_id = $1::uuid`,
         [sessionId]
       );
     } catch {}
