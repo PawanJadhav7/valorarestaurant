@@ -1,4 +1,3 @@
-// app/api/auth/logout/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { cookies } from "next/headers";
@@ -21,12 +20,15 @@ export async function POST() {
     await clearSessionCookie();
 
     return NextResponse.json(
-      { ok: true, redirect: "/auth/signin" },
+      { ok: true, redirect: "/signin" },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (e: any) {
-    // still clear cookie even if DB delete fails
     await clearSessionCookie();
-    return NextResponse.json({ ok: false, error: e?.message ?? String(e) }, { status: 500 });
+
+    return NextResponse.json(
+      { ok: false, error: e?.message ?? String(e), redirect: "/signin" },
+      { status: 500, headers: { "Cache-Control": "no-store" } }
+    );
   }
 }

@@ -1,4 +1,3 @@
-//app/api/auth/signup/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import {
@@ -77,7 +76,7 @@ export async function POST(req: Request) {
     const { session_id, expires_at } = await createSession(user_id);
 
     const res = NextResponse.json(
-      { ok: true, redirect: "/onboarding" },
+      { ok: true, redirect: "/post-login" },
       { headers: { "Cache-Control": "no-store" } }
     );
 

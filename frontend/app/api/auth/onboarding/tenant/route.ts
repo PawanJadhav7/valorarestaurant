@@ -1,4 +1,3 @@
-// frontend/app/api/auth/onboarding/tenant/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
@@ -6,7 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function cleanText(v: any, max = 120): string {
+function cleanText(v: unknown, max = 120): string {
   if (typeof v !== "string") return "";
   const s = v.trim();
   if (!s) return "";
@@ -20,11 +19,11 @@ type LocationInput = {
   currency_code?: string;
 };
 
-function cleanLocations(arr: any): LocationInput[] {
+function cleanLocations(arr: unknown): LocationInput[] {
   if (!Array.isArray(arr)) return [];
 
   const cleaned = arr
-    .map((x) => ({
+    .map((x: any) => ({
       location_name: cleanText(x?.location_name, 140),
       region: cleanText(x?.region, 80),
       country_code: cleanText(x?.country_code, 2).toUpperCase(),
@@ -143,7 +142,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       tenant_id: existingTenantId,
-      redirect: "/billing",
+      redirect: "/subscription",
     });
   }
 
@@ -280,7 +279,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       tenant_id,
-      redirect: "/billing",
+      redirect: "/subscription",
     });
   } catch (e: any) {
     await client.query("rollback");
