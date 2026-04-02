@@ -1,5 +1,4 @@
-//app/api/restaurant/sales/aov-histogram/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { withTenant } from "@/lib/tenant-context";
 
 export const runtime = "nodejs";
@@ -18,36 +17,87 @@ function parseLocationId(sp: URLSearchParams): number | null {
   return Number.isInteger(n) ? n : null;
 }
 
-function parsePositiveInt(sp: URLSearchParams, key: string, fallback: number) {
-  const raw = sp.get(key);
-  if (!raw) return fallback;
-  const n = Number(raw);
-  return Number.isInteger(n) && n > 0 ? n : fallback;
+function parseAsOf(sp: URLSearchParams): string | null {
+  const raw = sp.get("as_of");
+  if (!raw) return null;
+  return raw.slice(0, 10);
 }
 
-function windowStartSql(windowCode: "7d" | "30d" | "90d" | "ytd") {
-  if (windowCode === "7d") return `(current_date - interval '6 days')::date`;
-  if (windowCode === "30d") return `(current_date - interval '29 days')::date`;
-  if (windowCode === "90d") return `(current_date - interval '89 days')::date`;
-  return `date_trunc('year', current_date)::date`;
+function parsePositiveNumber(
+  value: string | null,
+  fallback: number,
+  min: number,
+  max: number
+) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(n, max));
 }
 
-export async function GET(req: Request) {
+function windowBoundsSql(
+  windowCode: "7d" | "30d" | "90d" | "ytd",
+  anchorSql: string
+) {
+  const anchorDate = `(${anchorSql})::date`;
+
+  switch (windowCode) {
+    case "7d":
+      return {
+        startSql: `(${anchorDate} - 6)`,
+        endSql: anchorDate,
+      };
+    case "30d":
+      return {
+        startSql: `(${anchorDate} - 29)`,
+        endSql: anchorDate,
+      };
+    case "90d":
+      return {
+        startSql: `(${anchorDate} - 89)`,
+        endSql: anchorDate,
+      };
+    case "ytd":
+    default:
+      return {
+        startSql: `make_date(extract(year from ${anchorDate})::int, 1, 1)`,
+        endSql: anchorDate,
+      };
+  }
+}
+
+export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
+    const asOf = parseAsOf(url.searchParams);
     const windowCode = parseWindow(url.searchParams);
     const locationId = parseLocationId(url.searchParams);
-    const bucketSize = parsePositiveInt(url.searchParams, "bucket_size", 10);
-    const maxValue = parsePositiveInt(url.searchParams, "max_value", 200);
+
+    const bucketSize = parsePositiveNumber(
+      url.searchParams.get("bucket_size"),
+      10,
+      1,
+      1000
+    );
+
+    const maxValue = parsePositiveNumber(
+      url.searchParams.get("max_value"),
+      200,
+      10,
+      10000
+    );
 
     const result = await withTenant(async ({ client, tenantId }) => {
       const allowedRes = await client.query(
         `
-        select distinct tl.location_id::bigint as location_id
+        select
+          tl.location_id::bigint as location_id,
+          dl.location_name
         from app.tenant_location tl
+        left join restaurant.dim_location dl
+          on dl.location_id = tl.location_id
         where tl.tenant_id = $1::uuid
           and tl.is_active = true
-        order by 1
+        order by tl.location_id
         `,
         [tenantId]
       );
@@ -59,7 +109,10 @@ export async function GET(req: Request) {
       if (allowedIds.length === 0) {
         return {
           status: 403,
-          body: { ok: false, error: "No locations assigned to this tenant yet" },
+          body: {
+            ok: false,
+            error: "No locations assigned to this tenant yet",
+          },
         };
       }
 
@@ -70,58 +123,83 @@ export async function GET(req: Request) {
         };
       }
 
-      const startSql = windowStartSql(windowCode);
+      const anchorRes = await client.query(
+        `
+        select coalesce(
+          $4::date,
+          max(o.order_date)
+        ) as anchor_day
+        from restaurant.fact_order o
+        where o.tenant_id = $1::uuid
+          and o.location_id = any($2::bigint[])
+          and ($3::bigint is null or o.location_id = $3::bigint)
+          and o.order_status = 'completed'
+        `,
+        [tenantId, allowedIds, locationId, asOf]
+      );
+
+      const anchorDay = anchorRes.rows?.[0]?.anchor_day ?? null;
+
+      if (!anchorDay) {
+        return {
+          status: 200,
+          body: {
+            ok: true,
+            window: windowCode,
+            location: { id: locationId ?? "all" },
+            bucket_size: bucketSize,
+            max_value: maxValue,
+            anchor_day: null,
+            buckets: [],
+          },
+        };
+      }
+
+      const { startSql, endSql } = windowBoundsSql(windowCode, "$6");
 
       const histRes = await client.query(
         `
-        with daily_aov as (
+        with orders_base as (
           select
-            day,
-            case
-              when coalesce(sum(orders), 0) = 0 then null
-              else round((sum(revenue) / sum(orders))::numeric, 2)
-            end as aov
-          from restaurant.f_location_daily_features
-          where tenant_id = $1::uuid
-            and day >= ${startSql}
-            and location_id = any($2::bigint[])
-            and ($3::bigint is null or location_id = $3::bigint)
-          group by day
+            o.order_id,
+            o.order_date,
+            o.net_sales
+          from restaurant.fact_order o
+          where o.tenant_id = $1::uuid
+            and o.location_id = any($2::bigint[])
+            and ($3::bigint is null or o.location_id = $3::bigint)
+            and o.order_status = 'completed'
+            and o.order_date >= ${startSql}
+            and o.order_date <= ${endSql}
         ),
         bucketed as (
           select
-            floor(least(aov, $5::numeric - 0.000001) / $4::numeric) * $4::numeric as bucket_from,
-            floor(least(aov, $5::numeric - 0.000001) / $4::numeric) * $4::numeric + $4::numeric as bucket_to
-          from daily_aov
-          where aov is not null
-            and aov >= 0
-            and aov < $5::numeric
-        ),
-        counts as (
-          select
-            bucket_from,
-            bucket_to,
+            floor(greatest(o.net_sales, 0) / $4::numeric) * $4::numeric as bucket_from,
+            floor(greatest(o.net_sales, 0) / $4::numeric) * $4::numeric + $4::numeric as bucket_to,
             count(*)::int as orders
-          from bucketed
-          group by bucket_from, bucket_to
+          from orders_base o
+          where o.net_sales is not null
+            and o.net_sales >= 0
+            and o.net_sales <= $5::numeric
+          group by 1, 2
         ),
-        totals as (
-          select coalesce(sum(orders), 0)::numeric as total_orders
-          from counts
+        tot as (
+          select coalesce(sum(orders), 0) as total_orders
+          from bucketed
         )
         select
-          c.bucket_from::numeric(18,2) as bucket_from,
-          c.bucket_to::numeric(18,2) as bucket_to,
-          c.orders,
+          bucket_from,
+          bucket_to,
+          orders,
           case
-            when t.total_orders = 0 then 0
-            else round((c.orders / t.total_orders * 100)::numeric, 2)
+            when tot.total_orders = 0 then 0
+            else round((bucketed.orders::numeric / tot.total_orders::numeric) * 100, 2)
           end as share_pct
-        from counts c
-        cross join totals t
-        order by c.bucket_from
+        from bucketed
+        cross join tot
+        order by bucket_from
         `,
-        [tenantId, allowedIds, locationId, bucketSize, maxValue]
+        [tenantId, allowedIds, locationId, bucketSize, maxValue, anchorDay]
       );
 
       return {
@@ -129,9 +207,12 @@ export async function GET(req: Request) {
         body: {
           ok: true,
           window: windowCode,
-          location: { id: locationId ?? "all" },
+          location: {
+            id: locationId ?? "all",
+          },
           bucket_size: bucketSize,
           max_value: maxValue,
+          anchor_day: anchorDay,
           buckets: histRes.rows ?? [],
         },
       };
@@ -140,7 +221,7 @@ export async function GET(req: Request) {
     return NextResponse.json(result.body, { status: result.status });
   } catch (e: any) {
     return NextResponse.json(
-      { ok: false, error: e?.message ?? "AOV histogram route error" },
+      { ok: false, error: e?.message ?? "aov histogram route error" },
       { status: 500 }
     );
   }

@@ -1,3 +1,4 @@
+//frontend/app/api/db-check/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 
@@ -16,12 +17,14 @@ export async function GET() {
   try {
     const r = await pool.query(`
       SELECT
+        current_schema() AS schema,
         current_database() AS db,
         current_user AS usr,
         inet_server_addr() AS server_addr,
         inet_server_port() AS server_port,
         inet_client_addr() AS client_addr,
         current_setting('server_version') AS server_version,
+        current_setting('search_path') AS search_path,
         EXISTS (
           SELECT 1 FROM information_schema.schemata WHERE schema_name='analytics'
         ) AS has_analytics,
