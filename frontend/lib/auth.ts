@@ -37,7 +37,7 @@ export async function createSession(userId: string) {
 
   await pool.query(
     `
-    insert into app.user_session (session_id, user_id, expires_at)
+    insert into auth.user_session (session_id, user_id, expires_at)
     values ($1::uuid, $2::uuid, $3::timestamptz)
     `,
     [session_id, userId, expires_at.toISOString()]
@@ -89,7 +89,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const sessionRes = await pool.query(
     `
     select user_id, expires_at
-    from app.user_session
+    from auth.user_session
     where session_id = $1::uuid
     limit 1
     `,
@@ -103,7 +103,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (!expiresAt || expiresAt.getTime() <= Date.now()) {
     try {
       await pool.query(
-        `delete from app.user_session where session_id = $1::uuid`,
+        `delete from auth.user_session where session_id = $1::uuid`,
         [sessionId]
       );
     } catch {}
@@ -125,7 +125,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       u.onboarding_status,
       tu.tenant_id,
       t.tenant_name as client_name
-    from app.app_user u
+    from auth.app_user u
     left join lateral (
       select tenant_id
       from app.tenant_user
