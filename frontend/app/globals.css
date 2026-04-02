@@ -36,9 +36,33 @@
   --radius: 18px;
 }
 
-/* ✅ System dark only when NOT explicitly overridden */
+/* Explicit system = light */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]),
+  :root[data-theme="system"] {
+    --background: 248 250 252;
+    --foreground: 15 23 42;
+    --card: 255 255 255;
+    --border: 226 232 240;
+
+    --muted: 241 245 249;
+    --muted-foreground: 100 116 139;
+    --ring: 148 163 184;
+
+    --glass-bg: 255 255 255;
+    --glass-alpha: 0.58;
+    --glass-border: 255 255 255;
+    --glass-border-alpha: 0.28;
+
+    --shadow: 2 6 23;
+    --shadow-alpha: 0.10;
+  }
+}
+
+/* Explicit system = dark */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
+  :root:not([data-theme]),
+  :root[data-theme="system"] {
     --background: 2 6 23;
     --foreground: 226 232 240;
     --card: 15 23 42;
@@ -58,8 +82,8 @@
   }
 }
 
-/* Dark theme */
-  :root[data-theme="dark"] {
+/* Explicit dark theme */
+:root[data-theme="dark"] {
   --background: 2 6 23;
   --foreground: 226 232 240;
   --card: 15 23 42;
@@ -77,16 +101,29 @@
   --shadow: 0 0 0;
   --shadow-alpha: 0.35;
 }
-/* Explicit light theme (optional but clean) */
+
+/* Explicit light theme */
 :root[data-theme="light"] {
   --background: 248 250 252;
   --foreground: 15 23 42;
   --card: 255 255 255;
   --border: 226 232 240;
+
+  --muted: 241 245 249;
+  --muted-foreground: 100 116 139;
+  --ring: 148 163 184;
+
+  --glass-bg: 255 255 255;
+  --glass-alpha: 0.58;
+  --glass-border: 255 255 255;
+  --glass-border-alpha: 0.28;
+
+  --shadow: 2 6 23;
+  --shadow-alpha: 0.10;
 }
 
-
-html, body {
+html,
+body {
   height: 100%;
 }
 
@@ -111,11 +148,8 @@ body,
    Glass Utility Class
    ========================= */
 
-/* ---------- Glass Material ---------- */
 .glass {
   position: relative;
-
-  /* IMPORTANT: prevent the sheen/grain from "floating" outside */
   overflow: hidden;
   isolation: isolate;
 
@@ -127,32 +161,27 @@ body,
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
 
-
-/* Highlight sheen (toned down + no aggressive tilt) */
+/* Highlight sheen */
 .glass::before {
   content: "";
   position: absolute;
   inset: -20%;
   pointer-events: none;
-
-  /* Softer highlight, less "sheet of light" effect */
   background: radial-gradient(
     circle at 22% 18%,
     rgba(255, 255, 255, 0.18),
     rgba(255, 255, 255, 0.00) 60%
   );
-
   transform: rotate(0deg);
   opacity: 0.65;
 }
 
-/* Subtle grain (reduced intensity) */
+/* Subtle grain */
 .glass::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-
   background-image: repeating-linear-gradient(
     0deg,
     rgba(255,255,255,0.02),
@@ -160,7 +189,6 @@ body,
     transparent 1px,
     transparent 3px
   );
-
   opacity: 0.10;
   mix-blend-mode: overlay;
 }
@@ -175,7 +203,6 @@ body,
   z-index: 0;
 }
 
-/* Fallback when backdrop-filter isn’t supported */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass {
     background: rgba(var(--glass-bg) / 0.85);
@@ -183,5 +210,7 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .glass::before { opacity: 0.6; }
+  .glass::before {
+    opacity: 0.6;
+  }
 }
