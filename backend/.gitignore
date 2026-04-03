@@ -1,1 +1,4 @@
 .venv_valora_backend/
+celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
