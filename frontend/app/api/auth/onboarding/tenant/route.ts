@@ -1,3 +1,4 @@
+// frontend/app/api/auth/onboarding/tenant/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";

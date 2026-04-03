@@ -1,4 +1,3 @@
-//frontend/app/api/auth/status/route.ts
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { pool } from "@/lib/db";
@@ -17,11 +16,6 @@ type NextStep =
 export async function GET() {
   try {
     const user = await getSessionUser();
-    console.log("auth status: session user", {
-      user_id: user?.user_id ?? null,
-      tenant_id: user?.tenant_id ?? null,
-      onboarding_status: user?.onboarding_status ?? null,
-    });
 
     if (!user) {
       return NextResponse.json(
@@ -56,7 +50,6 @@ export async function GET() {
 
     if (has_tenant) {
       try {
-        console.log("auth status: checking subscription", { tenantId });
         const sub = await pool.query(
           `
           select subscription_status
@@ -76,7 +69,6 @@ export async function GET() {
       }
 
       try {
-        console.log("auth status: checking tenant data_ready", { tenantId });
         const tenant = await pool.query(
           `
           select data_ready
@@ -94,28 +86,20 @@ export async function GET() {
       }
     }
 
-    const onboarding_done = profile_complete && has_tenant && subscription_active && data_ready;
+    const onboarding_done =
+      profile_complete && has_tenant && subscription_active && data_ready;
 
     let next_step: NextStep = "dashboard";
 
-    // 1. First mandatory step after signup/login = profile onboarding
     if (!profile_complete) {
       next_step = "onboarding";
-    }
-    // 2. Then tenant creation
-    else if (!has_tenant) {
+    } else if (!has_tenant) {
       next_step = "tenant";
-    }
-    // 3. Then subscription
-    else if (!subscription_active) {
+    } else if (!subscription_active) {
       next_step = "subscription";
-    }
-    // 4. Then POS / CSV onboarding
-    else if (!data_ready) {
+    } else if (!data_ready) {
       next_step = "pos";
-    }
-    // 5. Otherwise user is done
-    else {
+    } else {
       next_step = "dashboard";
     }
 

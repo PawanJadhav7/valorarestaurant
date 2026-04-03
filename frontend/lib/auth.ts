@@ -1,4 +1,3 @@
-//frontend/lib/auth.ts
 import { pool } from "@/lib/db";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
