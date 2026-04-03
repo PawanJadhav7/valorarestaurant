@@ -328,8 +328,49 @@ class POSIngestionService:
         return {"ok": True, "provider": "toast", "data_rows_ingested": 0}
 
     def _ingest_square(self) -> Dict[str, Any]:
-        logger.debug("Simulating Square ingestion")
-        return {"ok": True, "provider": "square", "data_rows_ingested": 0}
+        logger.info(
+            "Starting Square ingestion for tenant %s in %s mode",
+            self.tenant_id,
+            self.mode,
+        )
+
+        if self.mode == "manual":
+            return {
+                "ok": True,
+                "provider": "square",
+                "mode": "manual",
+                "data_rows_ingested": 0,
+            }
+
+        access_token = os.getenv("SQUARE_ACCESS_TOKEN")  # or fetch from DB
+        if not access_token:
+            return {
+                "ok": False,
+                "provider": "square",
+                "error": "No Square access token found",
+            }
+
+        try:
+            from app.integrations.pos.square_adapter import SquareAdapter
+            adapter = SquareAdapter()
+
+            orders, next_cursor = adapter.fetch_orders_updated_since(
+                access_token=access_token,
+                external_location_id=os.getenv("SQUARE_LOCATION_ID", ""),
+                cursor=None,
+                limit=100,
+            )
+
+            return {
+                "ok": True,
+                "provider": "square",
+                "data_rows_ingested": len(orders),
+                "next_cursor": next_cursor,
+            }
+
+        except Exception as e:
+            logger.error("Square ingestion failed for tenant %s: %s", self.tenant_id, e)
+            return {"ok": False, "provider": "square", "error": str(e)}
 
     def _ingest_clover(self) -> Dict[str, Any]:
         logger.info(
@@ -398,6 +439,17 @@ class POSIngestionService:
             "state": tenant_id,
         }
         return f"{os.getenv('CLOVER_API_BASE')}/oauth/authorize?{urlencode(params)}"
+
+    # ---------------- Square OAuth & API ---------------- #
+    def get_square_oauth_url(self, tenant_id: str) -> str:
+        params = {
+            "client_id": os.getenv("SQUARE_APP_ID"),
+            "scope": "MERCHANT_PROFILE_READ ORDERS_READ PAYMENTS_READ CUSTOMERS_READ ITEMS_READ",
+            "session": "false",
+            "state": tenant_id,
+        }
+        base_url = os.getenv("SQUARE_OAUTH_BASE", "https://connect.squareupsandbox.com")
+        return f"{base_url}/oauth2/authorize?{urlencode(params)}"
 
     def exchange_code_for_token(self, code: str) -> dict:
         url = f"{os.getenv('CLOVER_API_BASE')}/oauth/token"

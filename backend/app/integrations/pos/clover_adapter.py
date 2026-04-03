@@ -7,7 +7,9 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-import httpx
+import requests
+import certifi
+import ssl
 
 from .base import POSAdapter
 from .schemas import (
@@ -23,46 +25,42 @@ from .schemas import (
 class CloverAdapter(POSAdapter):
     provider_name = "clover"
 
-    def __init__(self, base_url: str = "https://apisandbox.dev.clover.com") -> None:
+    def __init__(self, base_url: str = "https://sandbox.dev.clover.com") -> None:
         self.base_url = base_url.rstrip("/")
 
     def fetch_orders_updated_since(
-        self,
-        *,
-        access_token: str,
-        external_location_id: str,
-        cursor: str | None,
-        limit: int = 100,
+            self,
+            *,
+            access_token: str,
+            external_location_id: str,
+            cursor: str | None,
+            limit: int = 100,
     ) -> tuple[list[CanonicalOrder], str | None]:
         if not access_token:
             raise ValueError("Missing Clover access token")
+
         headers = {
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/json",
         }
 
-        params: dict[str, Any] = {
-            "limit": limit,
-        }
-
+        params: dict[str, Any] = {"limit": limit}
         if cursor:
             params["updatedSince"] = cursor
 
-        with httpx.Client(timeout=30.0) as client:
-            response = client.get(
-                f"{self.base_url}/v3/merchants/{external_location_id}/orders",
-                headers=headers,
-                params=params,
-            )
-            response.raise_for_status()
-            payload = response.json()
+        response = requests.get(
+            f"{self.base_url}/v3/merchants/{external_location_id}/orders",
+            headers=headers,
+            params=params,
+            timeout=30.0,
+            verify=certifi.where(),
+        )
+        response.raise_for_status()
+        payload = response.json()
 
         raw_orders = payload.get("elements", []) or []
-        orders: list[CanonicalOrder] = [
-            self._map_order(
-                external_location_id=external_location_id,
-                row=row,
-            )
+        orders = [
+            self._map_order(external_location_id=external_location_id, row=row)
             for row in raw_orders
         ]
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from sqlalchemy import text
 from app.db import get_db
 import logging
-
+from app.integrations.pos.registry_instance import pos_registry
 from app.services.pos_ingestion_service import POSIngestionService
 from app.services.restaurant_metrics_service import RestaurantMetricsService
 

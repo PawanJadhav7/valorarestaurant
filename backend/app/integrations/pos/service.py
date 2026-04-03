@@ -87,6 +87,11 @@ class POSIngestionService:
                     payload_hash=payload_hash,
                 )
 
+                # Duplicate order — already synced, skip silently
+                if raw_event_id is None:
+                    processed += 1
+                    continue
+
                 try:
                     self.repo.upsert_order_graph(
                         tenant_id=tenant_id,
@@ -102,8 +107,6 @@ class POSIngestionService:
                 except Exception as e:
                     self.repo.mark_raw_event_failed(raw_event_id, str(e))
                     failed += 1
-                except Exception:
-                    raise
 
             self.repo.update_cursor(
                 tenant_id=tenant_id,
@@ -176,9 +179,15 @@ class POSIngestionService:
             payload_hash=payload_hash,
         )
 
+        # Duplicate webhook — already processed, skip silently
+        if raw_event_id is None:
+            return {
+                "status": "duplicate_skipped",
+                "event_type": envelope.event_type,
+            }
+
         self.repo.mark_raw_event_processed(raw_event_id)
-        self.db.commit() 
-      
+        self.db.commit()
 
         return {
             "status": "webhook_received",

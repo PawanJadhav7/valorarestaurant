@@ -108,6 +108,8 @@ class POSRepository:
                 CAST(:payload_json AS jsonb), :payload_hash,
                 'new', now()
             )
+            ON CONFLICT (tenant_id, location_id, provider, payload_hash)
+            DO NOTHING
             RETURNING raw_event_id
         """)
         res = self.db.execute(q, {
@@ -120,7 +122,8 @@ class POSRepository:
             "payload_json": json.dumps(payload_json),
             "payload_hash": payload_hash,
         })
-        return int(res.scalar_one())
+        row = res.first()
+        return int(row[0]) if row else None
 
     def mark_raw_event_processed(self, raw_event_id: int) -> None:
         self.db.execute(text("""
@@ -140,129 +143,55 @@ class POSRepository:
         """), {"id": raw_event_id, "error": error[:1000]})
 
     # -----------------------------------------------------
-    # CORE UPSERT
+    # CORE UPSERT — writes to staging POS tables
+    # No dependency on internal IDs (menu_item_id etc.)
     # -----------------------------------------------------
     def upsert_order_graph(
-    self,
-    *,
-    tenant_id: str,
-    location_id: int,
-    pos_connection_id: int,
-    raw_event_id: int,
-    order: CanonicalOrder,
-) -> int:
+        self,
+        *,
+        tenant_id: str,
+        location_id: int,
+        pos_connection_id: int,
+        raw_event_id: int,
+        order: CanonicalOrder,
+    ) -> int:
+
+        # ---- Upsert pos_order ----
         res = self.db.execute(text("""
-            UPDATE restaurant.fact_order
-            SET order_ts = :order_ts,
-                order_date = :order_date,
-                order_channel = :order_channel,
-                order_status = :order_status,
-                gross_sales = :gross_sales,
-                discount_amount = :discount_amount,
-                net_sales = :net_sales,
-                customer_count = :customer_count,
-                external_location_id = :external_location_id,
-                pos_connection_id = :pos_connection_id,
-                raw_event_id = :raw_event_id,
-                opened_at_utc = :opened_at_utc,
-                closed_at_utc = :closed_at_utc,
-                tax_amount = :tax_amount,
-                tip_amount = :tip_amount,
-                service_charge_amount = :service_charge_amount,
-                currency_code_pos = :currency_code_pos,
-                provider_updated_at_utc = :provider_updated_at_utc,
-                customer_external_id = :customer_external_id
-            WHERE tenant_id = :tenant_id
-            AND location_id = :location_id
-            AND provider = :provider
-            AND provider_order_id = :provider_order_id
-            RETURNING order_id
-        """), {
-            "tenant_id": tenant_id,
-            "location_id": location_id,
-            "provider": order.provider,
-            "provider_order_id": order.provider_order_id,
-            "order_ts": order.order_ts,
-            "order_date": order.order_date,
-            "order_channel": order.order_channel,
-            "order_status": order.order_status,
-            "gross_sales": self._n(order.gross_sales),
-            "discount_amount": self._n(order.discount_amount),
-            "net_sales": self._n(order.net_sales),
-            "customer_count": order.customer_count,
-            "external_location_id": order.external_location_id,
-            "pos_connection_id": pos_connection_id,
-            "raw_event_id": raw_event_id,
-            "opened_at_utc": order.opened_at_utc,
-            "closed_at_utc": order.closed_at_utc,
-            "tax_amount": self._n(order.tax_amount),
-            "tip_amount": self._n(order.tip_amount),
-            "service_charge_amount": self._n(order.service_charge_amount),
-            "currency_code_pos": order.currency_code_pos,
-            "provider_updated_at_utc": order.provider_updated_at_utc,
-            "customer_external_id": order.customer_external_id,
-        })
-
-        row = res.first()
-
-        if row:
-            order_id = int(row[0])
-        else:
-            res = self.db.execute(text("""
-            INSERT INTO restaurant.fact_order (
-                tenant_id,
-                location_id,
-                order_ts,
-                order_date,
-                order_channel,
-                order_status,
-                gross_sales,
-                discount_amount,
-                net_sales,
-                customer_count,
-                provider,
-                provider_order_id,
-                external_location_id,
-                pos_connection_id,
-                raw_event_id,
-                opened_at_utc,
-                closed_at_utc,
-                tax_amount,
-                tip_amount,
-                service_charge_amount,
-                currency_code_pos,
-                provider_updated_at_utc,
-                customer_external_id
+            INSERT INTO restaurant.pos_order (
+                tenant_id, location_id, provider, provider_order_id,
+                order_ts, order_date, order_channel, order_status,
+                gross_sales, discount_amount, net_sales,
+                tax_amount, tip_amount, service_charge_amount,
+                customer_count, currency_code, customer_external_id,
+                pos_connection_id, raw_event_id
             )
             VALUES (
-                :tenant_id,
-                :location_id,
-                :order_ts,
-                :order_date,
-                :order_channel,
-                :order_status,
-                :gross_sales,
-                :discount_amount,
-                :net_sales,
-                :customer_count,
-                :provider,
-                :provider_order_id,
-                :external_location_id,
-                :pos_connection_id,
-                :raw_event_id,
-                :opened_at_utc,
-                :closed_at_utc,
-                :tax_amount,
-                :tip_amount,
-                :service_charge_amount,
-                :currency_code_pos,
-                :provider_updated_at_utc,
-                :customer_external_id
+                :tenant_id, :location_id, :provider, :provider_order_id,
+                :order_ts, :order_date, :order_channel, :order_status,
+                :gross_sales, :discount_amount, :net_sales,
+                :tax_amount, :tip_amount, :service_charge_amount,
+                :customer_count, :currency_code, :customer_external_id,
+                :pos_connection_id, :raw_event_id
             )
-            RETURNING order_id
+            ON CONFLICT (tenant_id, provider, provider_order_id)
+            DO UPDATE SET
+                order_status          = EXCLUDED.order_status,
+                gross_sales           = EXCLUDED.gross_sales,
+                discount_amount       = EXCLUDED.discount_amount,
+                net_sales             = EXCLUDED.net_sales,
+                tax_amount            = EXCLUDED.tax_amount,
+                tip_amount            = EXCLUDED.tip_amount,
+                service_charge_amount = EXCLUDED.service_charge_amount,
+                customer_count        = EXCLUDED.customer_count,
+                raw_event_id          = EXCLUDED.raw_event_id,
+                synced_at             = now()
+            RETURNING pos_order_id
         """), {
             "tenant_id": tenant_id,
             "location_id": location_id,
+            "provider": order.provider,
+            "provider_order_id": order.provider_order_id,
             "order_ts": order.order_ts,
             "order_date": order.order_date,
             "order_channel": order.order_channel,
@@ -270,86 +199,83 @@ class POSRepository:
             "gross_sales": self._n(order.gross_sales),
             "discount_amount": self._n(order.discount_amount),
             "net_sales": self._n(order.net_sales),
-            "customer_count": order.customer_count,
-            "provider": order.provider,
-            "provider_order_id": order.provider_order_id,
-            "external_location_id": order.external_location_id,
-            "pos_connection_id": pos_connection_id,
-            "raw_event_id": raw_event_id,
-            "opened_at_utc": order.opened_at_utc,
-            "closed_at_utc": order.closed_at_utc,
             "tax_amount": self._n(order.tax_amount),
             "tip_amount": self._n(order.tip_amount),
             "service_charge_amount": self._n(order.service_charge_amount),
-            "currency_code_pos": order.currency_code_pos,
-            "provider_updated_at_utc": order.provider_updated_at_utc,
+            "customer_count": order.customer_count,
+            "currency_code": order.currency_code_pos,
             "customer_external_id": order.customer_external_id,
+            "pos_connection_id": pos_connection_id,
+            "raw_event_id": raw_event_id,
         })
-        order_id = int(res.scalar_one())
+        pos_order_id = int(res.scalar_one())
 
+        # ---- Replace items ----
         self.db.execute(
-            text("DELETE FROM restaurant.fact_order_item WHERE order_id = :id"),
-            {"id": order_id},
+            text("DELETE FROM restaurant.pos_order_item WHERE pos_order_id = :id"),
+            {"id": pos_order_id},
         )
-        self.db.execute(
-            text("DELETE FROM restaurant.fact_order_payment WHERE order_id = :id"),
-            {"id": order_id},
-        )
-
         for item in order.items:
             self.db.execute(text("""
-            INSERT INTO restaurant.fact_order_item (
-                order_id,
-                tenant_id,
-                location_id,
-                quantity,
-                unit_price,
-                line_revenue
-            )
-            VALUES (
-                :order_id,
-                :tenant_id,
-                :location_id,
-                :qty,
-                :price,
-                :rev
-            )
-        """), {
-            "order_id": order_id,
-            "tenant_id": tenant_id,
-            "location_id": location_id,
-            "qty": item.quantity,
-            "price": self._n(item.unit_price),
-            "rev": self._n(item.line_revenue),
-        })
+                INSERT INTO restaurant.pos_order_item (
+                    pos_order_id, tenant_id, location_id,
+                    provider_line_id, provider_item_id,
+                    item_name, category, quantity,
+                    unit_price, line_revenue, line_discount,
+                    line_cogs, modifiers
+                ) VALUES (
+                    :pos_order_id, :tenant_id, :location_id,
+                    :provider_line_id, :provider_item_id,
+                    :item_name, :category, :quantity,
+                    :unit_price, :line_revenue, :line_discount,
+                    :line_cogs, CAST(:modifiers AS jsonb)
+                )
+            """), {
+                "pos_order_id": pos_order_id,
+                "tenant_id": tenant_id,
+                "location_id": location_id,
+                "provider_line_id": item.provider_line_id,
+                "provider_item_id": item.external_item_id,
+                "item_name": item.item_name,
+                "category": item.category,
+                "quantity": item.quantity,
+                "unit_price": self._n(item.unit_price),
+                "line_revenue": self._n(item.line_revenue),
+                "line_discount": self._n(item.line_discount),
+                "line_cogs": self._n(item.line_cogs),
+                "modifiers": json.dumps(item.modifiers),
+            })
 
+        # ---- Replace payments ----
+        self.db.execute(
+            text("DELETE FROM restaurant.pos_order_payment WHERE pos_order_id = :id"),
+            {"id": pos_order_id},
+        )
         for pay in order.payments:
             self.db.execute(text("""
-                INSERT INTO restaurant.fact_order_payment (
-                    order_id,
-                    tenant_id,
-                    location_id,
-                    amount,
-                    payment_method
-            )
-            VALUES (
-                :order_id,
-                :tenant_id,
-                :location_id,
-                :amount,
-                :method
-            )
-        """), {
-            "order_id": order_id,
-            "tenant_id": tenant_id,
-            "location_id": location_id,
-            "amount": self._n(pay.amount),
-            "method": pay.payment_method,
-        })
+                INSERT INTO restaurant.pos_order_payment (
+                    pos_order_id, tenant_id, location_id,
+                    provider_payment_id, payment_method,
+                    amount, payment_status
+                ) VALUES (
+                    :pos_order_id, :tenant_id, :location_id,
+                    :provider_payment_id, :payment_method,
+                    :amount, :payment_status
+                )
+            """), {
+                "pos_order_id": pos_order_id,
+                "tenant_id": tenant_id,
+                "location_id": location_id,
+                "provider_payment_id": pay.provider_payment_id,
+                "payment_method": pay.payment_method,
+                "amount": self._n(pay.amount),
+                "payment_status": pay.payment_status,
+            })
 
-        return order_id
+        return pos_order_id
+
     # -----------------------------------------------------
-    # SYNC JOB LOGGING (Observability / Monitoring)
+    # SYNC JOB LOGGING
     # -----------------------------------------------------
     def create_sync_job_log(
         self,
@@ -362,22 +288,14 @@ class POSRepository:
     ) -> int:
         res = self.db.execute(text("""
             INSERT INTO restaurant.pos_sync_job_log (
-                tenant_id,
-                location_id,
-                provider,
-                resource_name,
-                run_type,
-                started_at,
-                status
+                tenant_id, location_id, provider,
+                resource_name, run_type,
+                started_at, status
             )
             VALUES (
-                :tenant_id,
-                :location_id,
-                :provider,
-                :resource_name,
-                :run_type,
-                now(),
-                'running'
+                :tenant_id, :location_id, :provider,
+                :resource_name, :run_type,
+                now(), 'running'
             )
             RETURNING sync_job_id
         """), {
@@ -401,12 +319,12 @@ class POSRepository:
     ) -> None:
         self.db.execute(text("""
             UPDATE restaurant.pos_sync_job_log
-            SET completed_at = now(),
-                status = :status,
-                records_fetched = :records_fetched,
+            SET completed_at      = now(),
+                status            = :status,
+                records_fetched   = :records_fetched,
                 records_processed = :records_processed,
-                records_failed = :records_failed,
-                error_message = :error_message
+                records_failed    = :records_failed,
+                error_message     = :error_message
             WHERE sync_job_id = :sync_job_id
         """), {
             "sync_job_id": sync_job_id,

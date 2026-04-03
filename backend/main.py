@@ -25,9 +25,15 @@ from app.api.subscription_summary import router as subscription_summary_router
 from app.api import alerts
 from app.api.alerts import router as alerts_router
 from app.api.ai_actions import router as ai_actions_router
+# Add this line with the other imports
+from app.integrations.pos.registry_instance import pos_registry
+from app.api.onboarding_square_callback import router as square_callback_router
+# With other imports at top
+from app.api.square_sync import router as square_sync_router
+from app.api.clover_sync import router as clover_sync_router
+import logging
 
-
-
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="Valora AI API")
 
@@ -71,7 +77,12 @@ app.include_router(dashboard_router)
 app.include_router(ai_generate_router)
 app.include_router(ai_read_router)
 app.include_router(ai_chat_router)
+# Register (with other app.include_router calls)
+app.include_router(square_callback_router)
+# With other app.include_router() calls
+app.include_router(square_sync_router)
 
+app.include_router(clover_sync_router)
 
 @app.get("/")
 def root():

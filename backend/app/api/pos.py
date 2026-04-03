@@ -7,6 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.services.pos_ingestion_service import POSIngestionService
+from app.integrations.pos.registry_instance import pos_registry
 
 router = APIRouter(prefix="/api/onboarding/pos", tags=["Onboarding"])
 
