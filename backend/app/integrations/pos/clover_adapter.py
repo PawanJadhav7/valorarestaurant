@@ -150,11 +150,17 @@ class CloverAdapter(POSAdapter):
             or row.get("createdTime")
         )
 
-        gross_sales = self._money_to_decimal(
-            row.get("total")
-            or row.get("totalAmount")
-            or 0
-        )
+        payments_elements = (row.get("payments") or {}).get("elements", [])
+        if payments_elements:
+            gross_sales = sum(
+                self._money_to_decimal(p.get("amount", 0))
+                for p in payments_elements
+                if p.get("result") in ("SUCCESS", None)
+            )
+        else:
+            gross_sales = self._money_to_decimal(
+                row.get("total") or row.get("totalAmount") or 0
+            )
 
         tax_amount = self._money_to_decimal(
             row.get("taxAmount")
@@ -218,7 +224,11 @@ class CloverAdapter(POSAdapter):
         )
 
     def _map_items(self, row: dict[str, Any]) -> list[CanonicalOrderItem]:
-        raw_items = row.get("lineItems") or row.get("items") or []
+        raw_items = (
+                (row.get("lineItems") or {}).get("elements", [])
+                or (row.get("items") or {}).get("elements", [])
+                or []
+        )
         results: list[CanonicalOrderItem] = []
 
         for item in raw_items:
@@ -260,14 +270,21 @@ class CloverAdapter(POSAdapter):
         return results
 
     def _map_payments(self, row: dict[str, Any]) -> list[CanonicalPayment]:
-        raw_payments = row.get("payments") or []
+        raw_payments = (row.get("payments") or {}).get("elements", [])
         results: list[CanonicalPayment] = []
 
         for payment in raw_payments:
+            # Only include successful payments
+            if payment.get("result") not in ("SUCCESS", None):
+                continue
+
             tender_label = None
             tender = payment.get("tender")
             if isinstance(tender, dict):
-                tender_label = self._safe_str(tender.get("label")) or self._safe_str(tender.get("id"))
+                tender_label = (
+                        self._safe_str(tender.get("label"))
+                        or self._safe_str(tender.get("id"))
+                )
 
             results.append(
                 CanonicalPayment(
