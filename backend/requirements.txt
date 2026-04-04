@@ -46,7 +46,7 @@ uritemplate==4.2.0
 urllib3==2.6.3
 uvicorn==0.41.0
 websockets==16.0
-pandas==2.2.2
+pandas==2.2.3
 python-multipart==0.0.9
 squareup==44.0.1.20260122
 certifi
