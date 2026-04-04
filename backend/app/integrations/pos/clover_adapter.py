@@ -44,7 +44,7 @@ class CloverAdapter(POSAdapter):
             "Accept": "application/json",
         }
 
-        params: dict[str, Any] = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit, "expand": "lineItems,payments", "include": "payments"}
         if cursor:
             params["updatedSince"] = cursor
 
