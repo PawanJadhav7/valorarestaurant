@@ -534,7 +534,7 @@ export async function GET(req: Request) {
           ? agg.values.reduce((a, b) => a + b, 0) / agg.values.length
           : agg.sum;
 
-      const normalized = unit === "pct" ? normalizePct(raw) : raw;
+      const normalized = unit === "pct" ? raw / 100 : raw;
 
       const s = series[mapped.code];
       const pair = lastTwo(s);

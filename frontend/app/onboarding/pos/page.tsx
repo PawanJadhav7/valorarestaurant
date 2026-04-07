@@ -848,7 +848,7 @@ export default function POSPage() {
                     className="h-12 w-full"
                     onClick={() => router.push("/onboarding/success")}
                   >
-                    Go to dashboard →
+                    Review your setup →
                   </Button>
                 </div>
               </>

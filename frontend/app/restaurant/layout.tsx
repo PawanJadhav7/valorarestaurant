@@ -4,7 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { RestaurantSidebar } from "@/components/restaurant/RestaurantSidebar";
 import { getSessionUser } from "@/lib/auth";
-import { getUserTenantSubscription, isSubscriptionActive } from "@/lib/billing";
+import { getUserTenantSubscription, hasFullAccess } from "@/lib/billing";
 
 function daysLeft(trialEndsAt: string | Date | null | undefined) {
   if (!trialEndsAt) return null;
@@ -27,7 +27,7 @@ export default async function RestaurantLayout({ children }: { children: ReactNo
   if (!done) redirect("/onboarding");
 
   const subscription = await getUserTenantSubscription(user.user_id);
-  const subscribed = isSubscriptionActive(subscription?.subscription_status);
+  const subscribed = hasFullAccess(subscription);
 
   if (!subscribed) redirect("/subscription");
 

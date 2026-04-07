@@ -1,72 +1,74 @@
-//frontend/app/api/dashboard/latest-date/route.ts
+// frontend/app/api/dashboard/latest-date/route.ts
 import { NextResponse } from "next/server";
-import { Pool } from "pg";
+import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_VALORA_API_BASE_URL ||
-  "https://valorarestaurant.onrender.com";
-console.log("LATEST DATE API_BASE =", API_BASE);
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-async function getCurrentTenantIdForUser(userId: string): Promise<string | null> {
-  const tenantRes = await pool.query(
-    `
-    select tenant_id
-    from app.v_user_current_tenant
-    where user_id = $1::uuid
-    limit 1
-    `,
-    [userId]
-  );
-
-  if (tenantRes.rowCount === 0) return null;
-  return tenantRes.rows[0]?.tenant_id ?? null;
-}
-
 export async function GET() {
   try {
     const user = await getSessionUser();
-
     if (!user?.user_id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const tenantId = await getCurrentTenantIdForUser(user.user_id);
+    // Get tenant_id for user
+    const tenantRes = await pool.query(
+      `
+      SELECT tenant_id
+      FROM app.tenant_user
+      WHERE user_id = $1::uuid
+      ORDER BY created_at ASC
+      LIMIT 1
+      `,
+      [user.user_id]
+    );
 
+    const tenantId = tenantRes.rows?.[0]?.tenant_id ?? null;
     if (!tenantId) {
-      return NextResponse.json(
-        { error: "Tenant not resolved" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Tenant not found" }, { status: 403 });
     }
 
-    const url = `${API_BASE}/api/dashboard/latest-date?tenant_id=${encodeURIComponent(
-      tenantId
-    )}`;
+    // Get allowed location IDs for tenant
+    const locRes = await pool.query(
+      `
+      SELECT location_id
+      FROM app.tenant_location
+      WHERE tenant_id = $1::uuid
+        AND is_active = true
+      `,
+      [tenantId]
+    );
 
-    const res = await fetch(url, {
-      method: "GET",
-      cache: "no-store",
-    });
+    const locationIds = locRes.rows.map((r: any) => Number(r.location_id)).filter(Number.isFinite);
 
-    const text = await res.text();
+    if (locationIds.length === 0) {
+      return NextResponse.json({ latest_date: null, has_data: false });
+    }
 
-    return new NextResponse(text, {
-      status: res.status,
-      headers: {
-        "content-type": "application/json",
-        "cache-control": "no-store",
-      },
-    });
-  } catch (error: any) {
+    // Get latest date from Silver layer
+    const dateRes = await pool.query(
+      `
+      SELECT MAX(day)::text AS latest_date
+      FROM restaurant.f_location_daily_features
+      WHERE tenant_id = $1::uuid
+        AND location_id = ANY($2::bigint[])
+      `,
+      [tenantId, locationIds]
+    );
+
+    const latest_date = dateRes.rows?.[0]?.latest_date ?? null;
+
     return NextResponse.json(
-      { error: error?.message ?? "Failed to fetch latest dashboard date" },
+      { latest_date, has_data: !!latest_date },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+
+  } catch (e: any) {
+    console.error("latest-date error:", e);
+    return NextResponse.json(
+      { error: e?.message ?? "Failed to fetch latest date" },
       { status: 500 }
     );
   }
