@@ -1,0 +1,608 @@
+[22:06:26] INFO ============================================================
+[22:06:26] INFO BRONZE GENERATOR — Q4 2025 (2025-10-01 → 2025-12-31)
+[22:06:26] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[22:06:26] INFO Silver ETL will run separately after Bronze is complete.
+[22:06:26] INFO ============================================================
+[22:06:26] INFO Found 1 connection(s) to process
+[22:06:26] INFO ──────────────────────────────────────────────────
+[22:06:26] INFO Processing: The Copper Kettle - Main (square) [american]
+[22:28:01] INFO ✅ The Copper Kettle - Main → Open: 91 | Closed: 1 | Bronze inserted: 11489 | Batches: 203
+[22:28:01] INFO ============================================================
+[22:28:01] INFO BRONZE COMPLETE — Q4 2025 (2025-10-01 → 2025-12-31)
+[22:28:01] INFO   Total Bronze records inserted: 11489
+[22:28:01] INFO   Next: Run ETL to process Bronze → Silver
+[22:28:01] INFO ============================================================
+✅ Step 2 DONE — The Copper Kettle 2025 Q4
+[22:28:06] INFO ============================================================
+[22:28:06] INFO BRONZE GENERATOR — Q4 2025 (2025-10-01 → 2025-12-31)
+[22:28:06] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[22:28:06] INFO Silver ETL will run separately after Bronze is complete.
+[22:28:06] INFO ============================================================
+[22:28:06] INFO Found 1 connection(s) to process
+[22:28:06] INFO ──────────────────────────────────────────────────
+[22:28:06] INFO Processing: Casa del Sol - Main (square) [mexican]
+[22:44:06] INFO ✅ Casa del Sol - Main → Open: 78 | Closed: 14 | Bronze inserted: 8380 | Batches: 148
+[22:44:06] INFO ============================================================
+[22:44:06] INFO BRONZE COMPLETE — Q4 2025 (2025-10-01 → 2025-12-31)
+[22:44:06] INFO   Total Bronze records inserted: 8380
+[22:44:06] INFO   Next: Run ETL to process Bronze → Silver
+[22:44:06] INFO ============================================================
+✅ Step 3 DONE — Casa del Sol 2025 Q4
+[22:44:11] INFO ============================================================
+[22:44:11] INFO BRONZE GENERATOR — Q4 2025 (2025-10-01 → 2025-12-31)
+[22:44:11] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[22:44:11] INFO Silver ETL will run separately after Bronze is complete.
+[22:44:11] INFO ============================================================
+[22:44:12] INFO Found 1 connection(s) to process
+[22:44:12] INFO ──────────────────────────────────────────────────
+[22:44:12] INFO Processing: The Green Plate - Main (square) [american]
+[23:02:53] ERROR Bronze insert failed: could not receive data from server: Operation timed out
+SSL SYSCALL error: Operation timed out
+
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] ERROR Bronze insert failed: cursor already closed
+[23:02:53] WARNING Flush attempt 1 failed: connection already closed — reconnecting...
+[23:09:17] INFO ✅ The Green Plate - Main → Open: 91 | Closed: 1 | Bronze inserted: 11462 | Batches: 201
+[23:09:17] INFO ============================================================
+[23:09:17] INFO BRONZE COMPLETE — Q4 2025 (2025-10-01 → 2025-12-31)
+[23:09:17] INFO   Total Bronze records inserted: 11462
+[23:09:17] INFO   Next: Run ETL to process Bronze → Silver
+[23:09:17] INFO ============================================================
+✅ Step 4 DONE — The Green Plate 2025 Q4
+[23:09:22] INFO ============================================================
+[23:09:22] INFO BRONZE GENERATOR — Q4 2025 (2025-10-01 → 2025-12-31)
+[23:09:22] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[23:09:22] INFO Silver ETL will run separately after Bronze is complete.
+[23:09:22] INFO ============================================================
+[23:09:23] INFO Found 1 connection(s) to process
+[23:09:23] INFO ──────────────────────────────────────────────────
+[23:09:23] INFO Processing: Sakura Ramen - Main (square) [asian]
+[23:27:00] INFO ✅ Sakura Ramen - Main → Open: 77 | Closed: 15 | Bronze inserted: 9399 | Batches: 164
+[23:27:00] INFO ============================================================
+[23:27:00] INFO BRONZE COMPLETE — Q4 2025 (2025-10-01 → 2025-12-31)
+[23:27:00] INFO   Total Bronze records inserted: 9399
+[23:27:00] INFO   Next: Run ETL to process Bronze → Silver
+[23:27:00] INFO ============================================================
+✅ Step 5 DONE — Sakura Ramen 2025 Q4
+[23:27:05] INFO ============================================================
+[23:27:05] INFO BRONZE GENERATOR — Q4 2025 (2025-10-01 → 2025-12-31)
+[23:27:05] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[23:27:05] INFO Silver ETL will run separately after Bronze is complete.
+[23:27:05] INFO ============================================================
+[23:27:06] INFO Found 1 connection(s) to process
+[23:27:06] INFO ──────────────────────────────────────────────────
+[23:27:06] INFO Processing: Blue Lantern Noodle House (clover) [asian]
+[23:44:22] INFO ✅ Blue Lantern Noodle House → Open: 77 | Closed: 15 | Bronze inserted: 9387 | Batches: 164
+[23:44:22] INFO ============================================================
+[23:44:22] INFO BRONZE COMPLETE — Q4 2025 (2025-10-01 → 2025-12-31)
+[23:44:22] INFO   Total Bronze records inserted: 9387
+[23:44:22] INFO   Next: Run ETL to process Bronze → Silver
+[23:44:22] INFO ============================================================
+✅ Step 6 DONE — Blue Lantern Noodle House 2025 Q4
+[23:44:27] INFO ============================================================
+[23:44:27] INFO BRONZE GENERATOR — Q4 2025 (2025-10-01 → 2025-12-31)
+[23:44:27] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[23:44:27] INFO Silver ETL will run separately after Bronze is complete.
+[23:44:27] INFO ============================================================
+[23:44:28] INFO Found 1 connection(s) to process
+[23:44:28] INFO ──────────────────────────────────────────────────
+[23:44:28] INFO Processing: The Gilded Fork (clover) [american]
+[00:08:11] INFO ✅ The Gilded Fork → Open: 91 | Closed: 1 | Bronze inserted: 11515 | Batches: 203
+[00:08:11] INFO ============================================================
+[00:08:11] INFO BRONZE COMPLETE — Q4 2025 (2025-10-01 → 2025-12-31)
+[00:08:11] INFO   Total Bronze records inserted: 11515
+[00:08:11] INFO   Next: Run ETL to process Bronze → Silver
+[00:08:11] INFO ============================================================
+✅ Step 7 DONE — The Gilded Fork 2025 Q4
+[00:08:16] INFO ============================================================
+[00:08:16] INFO BRONZE GENERATOR — Q4 2025 (2025-10-01 → 2025-12-31)
+[00:08:16] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[00:08:16] INFO Silver ETL will run separately after Bronze is complete.
+[00:08:16] INFO ============================================================
+[00:08:17] INFO Found 1 connection(s) to process
+[00:08:17] INFO ──────────────────────────────────────────────────
+[00:08:17] INFO Processing: Casa Fuego (clover) [mexican]
+[00:25:16] INFO ✅ Casa Fuego → Open: 78 | Closed: 14 | Bronze inserted: 8295 | Batches: 148
+[00:25:16] INFO ============================================================
+[00:25:16] INFO BRONZE COMPLETE — Q4 2025 (2025-10-01 → 2025-12-31)
+[00:25:16] INFO   Total Bronze records inserted: 8295
+[00:25:16] INFO   Next: Run ETL to process Bronze → Silver
+[00:25:16] INFO ============================================================
+✅ Step 8 DONE — Casa Fuego 2025 Q4
+[00:25:21] INFO ============================================================
+[00:25:21] INFO BRONZE GENERATOR — Q4 2025 (2025-10-01 → 2025-12-31)
+[00:25:21] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[00:25:21] INFO Silver ETL will run separately after Bronze is complete.
+[00:25:21] INFO ============================================================
+[00:25:22] INFO Found 1 connection(s) to process
+[00:25:22] INFO ──────────────────────────────────────────────────
+[00:25:22] INFO Processing: Maple Street Bistro (clover) [american]
+[00:48:00] INFO ✅ Maple Street Bistro → Open: 91 | Closed: 1 | Bronze inserted: 11452 | Batches: 199
+[00:48:00] INFO ============================================================
+[00:48:00] INFO BRONZE COMPLETE — Q4 2025 (2025-10-01 → 2025-12-31)
+[00:48:00] INFO   Total Bronze records inserted: 11452
+[00:48:00] INFO   Next: Run ETL to process Bronze → Silver
+[00:48:00] INFO ============================================================
+✅ Step 9 DONE — Maple Street Bistro 2025 Q4
+[00:48:05] INFO ============================================================
+[00:48:05] INFO BRONZE GENERATOR — Q4 2025 (2025-10-01 → 2025-12-31)
+[00:48:05] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[00:48:05] INFO Silver ETL will run separately after Bronze is complete.
+[00:48:05] INFO ============================================================
+[00:48:05] INFO Found 1 connection(s) to process
+[00:48:05] INFO ──────────────────────────────────────────────────
+[00:48:05] INFO Processing: The Harbor Grille (clover) [american]
+[01:09:35] INFO ✅ The Harbor Grille → Open: 91 | Closed: 1 | Bronze inserted: 11337 | Batches: 199
+[01:09:35] INFO ============================================================
+[01:09:35] INFO BRONZE COMPLETE — Q4 2025 (2025-10-01 → 2025-12-31)
+[01:09:35] INFO   Total Bronze records inserted: 11337
+[01:09:35] INFO   Next: Run ETL to process Bronze → Silver
+[01:09:35] INFO ============================================================
+✅ Step 10 DONE — The Harbor Grille 2025 Q4
+[01:09:40] INFO ============================================================
+[01:09:40] INFO BRONZE GENERATOR — Q3 2025 (2025-07-01 → 2025-09-30)
+[01:09:40] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[01:09:40] INFO Silver ETL will run separately after Bronze is complete.
+[01:09:40] INFO ============================================================
+[01:09:41] INFO Found 1 connection(s) to process
+[01:09:41] INFO ──────────────────────────────────────────────────
+[01:09:41] INFO Processing: Bella Napoli - Main (square) [italian]
+[01:26:49] INFO ✅ Bella Napoli - Main → Open: 79 | Closed: 13 | Bronze inserted: 8838 | Batches: 156
+[01:26:49] INFO ============================================================
+[01:26:49] INFO BRONZE COMPLETE — Q3 2025 (2025-07-01 → 2025-09-30)
+[01:26:49] INFO   Total Bronze records inserted: 8838
+[01:26:49] INFO   Next: Run ETL to process Bronze → Silver
+[01:26:49] INFO ============================================================
+✅ Step 11 DONE — Bella Napoli 2025 Q3
+[01:26:55] INFO ============================================================
+[01:26:55] INFO BRONZE GENERATOR — Q3 2025 (2025-07-01 → 2025-09-30)
+[01:26:55] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[01:26:55] INFO Silver ETL will run separately after Bronze is complete.
+[01:26:55] INFO ============================================================
+[01:26:55] INFO Found 1 connection(s) to process
+[01:26:55] INFO ──────────────────────────────────────────────────
+[01:26:55] INFO Processing: The Copper Kettle - Main (square) [american]
+[01:48:44] INFO ✅ The Copper Kettle - Main → Open: 92 | Closed: 0 | Bronze inserted: 11250 | Batches: 200
+[01:48:44] INFO ============================================================
+[01:48:44] INFO BRONZE COMPLETE — Q3 2025 (2025-07-01 → 2025-09-30)
+[01:48:44] INFO   Total Bronze records inserted: 11250
+[01:48:44] INFO   Next: Run ETL to process Bronze → Silver
+[01:48:44] INFO ============================================================
+✅ Step 12 DONE — The Copper Kettle 2025 Q3
+[01:48:50] INFO ============================================================
+[01:48:50] INFO BRONZE GENERATOR — Q3 2025 (2025-07-01 → 2025-09-30)
+[01:48:50] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[01:48:50] INFO Silver ETL will run separately after Bronze is complete.
+[01:48:50] INFO ============================================================
+[01:48:50] INFO Found 1 connection(s) to process
+[01:48:50] INFO ──────────────────────────────────────────────────
+[01:48:50] INFO Processing: Casa del Sol - Main (square) [mexican]
+[02:04:51] INFO ✅ Casa del Sol - Main → Open: 78 | Closed: 14 | Bronze inserted: 8352 | Batches: 148
+[02:04:51] INFO ============================================================
+[02:04:51] INFO BRONZE COMPLETE — Q3 2025 (2025-07-01 → 2025-09-30)
+[02:04:51] INFO   Total Bronze records inserted: 8352
+[02:04:51] INFO   Next: Run ETL to process Bronze → Silver
+[02:04:51] INFO ============================================================
+✅ Step 13 DONE — Casa del Sol 2025 Q3
+[02:04:56] INFO ============================================================
+[02:04:56] INFO BRONZE GENERATOR — Q3 2025 (2025-07-01 → 2025-09-30)
+[02:04:56] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[02:04:56] INFO Silver ETL will run separately after Bronze is complete.
+[02:04:56] INFO ============================================================
+[02:04:56] INFO Found 1 connection(s) to process
+[02:04:56] INFO ──────────────────────────────────────────────────
+[02:04:56] INFO Processing: The Green Plate - Main (square) [american]
+[02:27:20] INFO ✅ The Green Plate - Main → Open: 92 | Closed: 0 | Bronze inserted: 11277 | Batches: 198
+[02:27:20] INFO ============================================================
+[02:27:20] INFO BRONZE COMPLETE — Q3 2025 (2025-07-01 → 2025-09-30)
+[02:27:20] INFO   Total Bronze records inserted: 11277
+[02:27:20] INFO   Next: Run ETL to process Bronze → Silver
+[02:27:20] INFO ============================================================
+✅ Step 14 DONE — The Green Plate 2025 Q3
+[02:27:25] INFO ============================================================
+[02:27:25] INFO BRONZE GENERATOR — Q3 2025 (2025-07-01 → 2025-09-30)
+[02:27:25] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[02:27:25] INFO Silver ETL will run separately after Bronze is complete.
+[02:27:25] INFO ============================================================
+[02:27:26] INFO Found 1 connection(s) to process
+[02:27:26] INFO ──────────────────────────────────────────────────
+[02:27:26] INFO Processing: Sakura Ramen - Main (square) [asian]
+[02:45:04] INFO ✅ Sakura Ramen - Main → Open: 79 | Closed: 13 | Bronze inserted: 9546 | Batches: 169
+[02:45:04] INFO ============================================================
+[02:45:04] INFO BRONZE COMPLETE — Q3 2025 (2025-07-01 → 2025-09-30)
+[02:45:04] INFO   Total Bronze records inserted: 9546
+[02:45:04] INFO   Next: Run ETL to process Bronze → Silver
+[02:45:04] INFO ============================================================
+✅ Step 15 DONE — Sakura Ramen 2025 Q3
+[02:45:09] INFO ============================================================
+[02:45:09] INFO BRONZE GENERATOR — Q3 2025 (2025-07-01 → 2025-09-30)
+[02:45:09] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[02:45:09] INFO Silver ETL will run separately after Bronze is complete.
+[02:45:09] INFO ============================================================
+[02:45:09] INFO Found 1 connection(s) to process
+[02:45:09] INFO ──────────────────────────────────────────────────
+[02:45:09] INFO Processing: Blue Lantern Noodle House (clover) [asian]
+[03:03:39] INFO ✅ Blue Lantern Noodle House → Open: 79 | Closed: 13 | Bronze inserted: 9437 | Batches: 165
+[03:03:39] INFO ============================================================
+[03:03:39] INFO BRONZE COMPLETE — Q3 2025 (2025-07-01 → 2025-09-30)
+[03:03:39] INFO   Total Bronze records inserted: 9437
+[03:03:39] INFO   Next: Run ETL to process Bronze → Silver
+[03:03:39] INFO ============================================================
+✅ Step 16 DONE — Blue Lantern Noodle House 2025 Q3
+[03:03:44] INFO ============================================================
+[03:03:44] INFO BRONZE GENERATOR — Q3 2025 (2025-07-01 → 2025-09-30)
+[03:03:44] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[03:03:44] INFO Silver ETL will run separately after Bronze is complete.
+[03:03:44] INFO ============================================================
+[03:03:45] INFO Found 1 connection(s) to process
+[03:03:45] INFO ──────────────────────────────────────────────────
+[03:03:45] INFO Processing: The Gilded Fork (clover) [american]
+[03:26:55] INFO ✅ The Gilded Fork → Open: 92 | Closed: 0 | Bronze inserted: 11321 | Batches: 199
+[03:26:55] INFO ============================================================
+[03:26:55] INFO BRONZE COMPLETE — Q3 2025 (2025-07-01 → 2025-09-30)
+[03:26:55] INFO   Total Bronze records inserted: 11321
+[03:26:55] INFO   Next: Run ETL to process Bronze → Silver
+[03:26:55] INFO ============================================================
+✅ Step 17 DONE — The Gilded Fork 2025 Q3
+[03:27:00] INFO ============================================================
+[03:27:00] INFO BRONZE GENERATOR — Q3 2025 (2025-07-01 → 2025-09-30)
+[03:27:00] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[03:27:00] INFO Silver ETL will run separately after Bronze is complete.
+[03:27:00] INFO ============================================================
+[03:27:01] INFO Found 1 connection(s) to process
+[03:27:01] INFO ──────────────────────────────────────────────────
+[03:27:01] INFO Processing: Casa Fuego (clover) [mexican]
+[03:44:05] INFO ✅ Casa Fuego → Open: 78 | Closed: 14 | Bronze inserted: 8383 | Batches: 148
+[03:44:05] INFO ============================================================
+[03:44:05] INFO BRONZE COMPLETE — Q3 2025 (2025-07-01 → 2025-09-30)
+[03:44:05] INFO   Total Bronze records inserted: 8383
+[03:44:05] INFO   Next: Run ETL to process Bronze → Silver
+[03:44:05] INFO ============================================================
+✅ Step 18 DONE — Casa Fuego 2025 Q3
+[03:44:10] INFO ============================================================
+[03:44:10] INFO BRONZE GENERATOR — Q3 2025 (2025-07-01 → 2025-09-30)
+[03:44:10] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[03:44:10] INFO Silver ETL will run separately after Bronze is complete.
+[03:44:10] INFO ============================================================
+[03:44:10] INFO Found 1 connection(s) to process
+[03:44:10] INFO ──────────────────────────────────────────────────
+[03:44:10] INFO Processing: Maple Street Bistro (clover) [american]
+[04:05:09] INFO ✅ Maple Street Bistro → Open: 92 | Closed: 0 | Bronze inserted: 11260 | Batches: 199
+[04:05:09] INFO ============================================================
+[04:05:09] INFO BRONZE COMPLETE — Q3 2025 (2025-07-01 → 2025-09-30)
+[04:05:09] INFO   Total Bronze records inserted: 11260
+[04:05:09] INFO   Next: Run ETL to process Bronze → Silver
+[04:05:09] INFO ============================================================
+✅ Step 19 DONE — Maple Street Bistro 2025 Q3
+[04:05:15] INFO ============================================================
+[04:05:15] INFO BRONZE GENERATOR — Q3 2025 (2025-07-01 → 2025-09-30)
+[04:05:15] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[04:05:15] INFO Silver ETL will run separately after Bronze is complete.
+[04:05:15] INFO ============================================================
+[04:05:15] INFO Found 1 connection(s) to process
+[04:05:15] INFO ──────────────────────────────────────────────────
+[04:05:15] INFO Processing: The Harbor Grille (clover) [american]
+[04:26:06] INFO ✅ The Harbor Grille → Open: 92 | Closed: 0 | Bronze inserted: 11257 | Batches: 199
+[04:26:06] INFO ============================================================
+[04:26:06] INFO BRONZE COMPLETE — Q3 2025 (2025-07-01 → 2025-09-30)
+[04:26:06] INFO   Total Bronze records inserted: 11257
+[04:26:06] INFO   Next: Run ETL to process Bronze → Silver
+[04:26:06] INFO ============================================================
+✅ Step 20 DONE — The Harbor Grille 2025 Q3
+[04:26:11] INFO ============================================================
+[04:26:11] INFO BRONZE GENERATOR — Q2 2025 (2025-04-01 → 2025-06-30)
+[04:26:11] INFO Days: 91 | Batch size: 50 | Layer: Bronze only
+[04:26:11] INFO Silver ETL will run separately after Bronze is complete.
+[04:26:11] INFO ============================================================
+[04:26:12] INFO Found 1 connection(s) to process
+[04:26:12] INFO ──────────────────────────────────────────────────
+[04:26:12] INFO Processing: Bella Napoli - Main (square) [italian]
+[04:41:14] INFO ✅ Bella Napoli - Main → Open: 78 | Closed: 13 | Bronze inserted: 8601 | Batches: 151
+[04:41:14] INFO ============================================================
+[04:41:14] INFO BRONZE COMPLETE — Q2 2025 (2025-04-01 → 2025-06-30)
+[04:41:14] INFO   Total Bronze records inserted: 8601
+[04:41:14] INFO   Next: Run ETL to process Bronze → Silver
+[04:41:14] INFO ============================================================
+✅ Step 21 DONE — Bella Napoli 2025 Q2
+[04:41:19] INFO ============================================================
+[04:41:19] INFO BRONZE GENERATOR — Q2 2025 (2025-04-01 → 2025-06-30)
+[04:41:19] INFO Days: 91 | Batch size: 50 | Layer: Bronze only
+[04:41:19] INFO Silver ETL will run separately after Bronze is complete.
+[04:41:19] INFO ============================================================
+[04:41:19] INFO Found 1 connection(s) to process
+[04:41:19] INFO ──────────────────────────────────────────────────
+[04:41:19] INFO Processing: The Copper Kettle - Main (square) [american]
+[05:03:12] INFO ✅ The Copper Kettle - Main → Open: 91 | Closed: 0 | Bronze inserted: 11157 | Batches: 196
+[05:03:12] INFO ============================================================
+[05:03:12] INFO BRONZE COMPLETE — Q2 2025 (2025-04-01 → 2025-06-30)
+[05:03:12] INFO   Total Bronze records inserted: 11157
+[05:03:12] INFO   Next: Run ETL to process Bronze → Silver
+[05:03:12] INFO ============================================================
+✅ Step 22 DONE — The Copper Kettle 2025 Q2
+[05:03:17] INFO ============================================================
+[05:03:17] INFO BRONZE GENERATOR — Q2 2025 (2025-04-01 → 2025-06-30)
+[05:03:17] INFO Days: 91 | Batch size: 50 | Layer: Bronze only
+[05:03:17] INFO Silver ETL will run separately after Bronze is complete.
+[05:03:17] INFO ============================================================
+[05:03:17] INFO Found 1 connection(s) to process
+[05:03:17] INFO ──────────────────────────────────────────────────
+[05:03:17] INFO Processing: Casa del Sol - Main (square) [mexican]
+[05:18:17] INFO ✅ Casa del Sol - Main → Open: 78 | Closed: 13 | Bronze inserted: 8274 | Batches: 147
+[05:18:17] INFO ============================================================
+[05:18:17] INFO BRONZE COMPLETE — Q2 2025 (2025-04-01 → 2025-06-30)
+[05:18:17] INFO   Total Bronze records inserted: 8274
+[05:18:17] INFO   Next: Run ETL to process Bronze → Silver
+[05:18:17] INFO ============================================================
+✅ Step 23 DONE — Casa del Sol 2025 Q2
+[05:18:22] INFO ============================================================
+[05:18:22] INFO BRONZE GENERATOR — Q2 2025 (2025-04-01 → 2025-06-30)
+[05:18:22] INFO Days: 91 | Batch size: 50 | Layer: Bronze only
+[05:18:22] INFO Silver ETL will run separately after Bronze is complete.
+[05:18:22] INFO ============================================================
+[05:18:23] INFO Found 1 connection(s) to process
+[05:18:23] INFO ──────────────────────────────────────────────────
+[05:18:23] INFO Processing: The Green Plate - Main (square) [american]
+[05:39:33] INFO ✅ The Green Plate - Main → Open: 91 | Closed: 0 | Bronze inserted: 11007 | Batches: 194
+[05:39:33] INFO ============================================================
+[05:39:33] INFO BRONZE COMPLETE — Q2 2025 (2025-04-01 → 2025-06-30)
+[05:39:33] INFO   Total Bronze records inserted: 11007
+[05:39:33] INFO   Next: Run ETL to process Bronze → Silver
+[05:39:33] INFO ============================================================
+✅ Step 24 DONE — The Green Plate 2025 Q2
+[05:39:38] INFO ============================================================
+[05:39:38] INFO BRONZE GENERATOR — Q2 2025 (2025-04-01 → 2025-06-30)
+[05:39:38] INFO Days: 91 | Batch size: 50 | Layer: Bronze only
+[05:39:38] INFO Silver ETL will run separately after Bronze is complete.
+[05:39:38] INFO ============================================================
+[05:39:39] INFO Found 1 connection(s) to process
+[05:39:39] INFO ──────────────────────────────────────────────────
+[05:39:39] INFO Processing: Sakura Ramen - Main (square) [asian]
+[05:56:54] INFO ✅ Sakura Ramen - Main → Open: 78 | Closed: 13 | Bronze inserted: 9274 | Batches: 164
+[05:56:54] INFO ============================================================
+[05:56:54] INFO BRONZE COMPLETE — Q2 2025 (2025-04-01 → 2025-06-30)
+[05:56:54] INFO   Total Bronze records inserted: 9274
+[05:56:54] INFO   Next: Run ETL to process Bronze → Silver
+[05:56:54] INFO ============================================================
+✅ Step 25 DONE — Sakura Ramen 2025 Q2
+[05:56:59] INFO ============================================================
+[05:56:59] INFO BRONZE GENERATOR — Q2 2025 (2025-04-01 → 2025-06-30)
+[05:56:59] INFO Days: 91 | Batch size: 50 | Layer: Bronze only
+[05:56:59] INFO Silver ETL will run separately after Bronze is complete.
+[05:56:59] INFO ============================================================
+[05:56:59] INFO Found 1 connection(s) to process
+[05:56:59] INFO ──────────────────────────────────────────────────
+[05:56:59] INFO Processing: Blue Lantern Noodle House (clover) [asian]
+[06:15:15] INFO ✅ Blue Lantern Noodle House → Open: 78 | Closed: 13 | Bronze inserted: 9198 | Batches: 163
+[06:15:15] INFO ============================================================
+[06:15:15] INFO BRONZE COMPLETE — Q2 2025 (2025-04-01 → 2025-06-30)
+[06:15:15] INFO   Total Bronze records inserted: 9198
+[06:15:15] INFO   Next: Run ETL to process Bronze → Silver
+[06:15:15] INFO ============================================================
+✅ Step 26 DONE — Blue Lantern Noodle House 2025 Q2
+[06:15:20] INFO ============================================================
+[06:15:20] INFO BRONZE GENERATOR — Q2 2025 (2025-04-01 → 2025-06-30)
+[06:15:20] INFO Days: 91 | Batch size: 50 | Layer: Bronze only
+[06:15:20] INFO Silver ETL will run separately after Bronze is complete.
+[06:15:20] INFO ============================================================
+[06:15:20] INFO Found 1 connection(s) to process
+[06:15:20] INFO ──────────────────────────────────────────────────
+[06:15:20] INFO Processing: The Gilded Fork (clover) [american]
+[06:37:30] INFO ✅ The Gilded Fork → Open: 91 | Closed: 0 | Bronze inserted: 11071 | Batches: 194
+[06:37:30] INFO ============================================================
+[06:37:30] INFO BRONZE COMPLETE — Q2 2025 (2025-04-01 → 2025-06-30)
+[06:37:30] INFO   Total Bronze records inserted: 11071
+[06:37:30] INFO   Next: Run ETL to process Bronze → Silver
+[06:37:30] INFO ============================================================
+✅ Step 27 DONE — The Gilded Fork 2025 Q2
+[06:37:35] INFO ============================================================
+[06:37:35] INFO BRONZE GENERATOR — Q2 2025 (2025-04-01 → 2025-06-30)
+[06:37:35] INFO Days: 91 | Batch size: 50 | Layer: Bronze only
+[06:37:35] INFO Silver ETL will run separately after Bronze is complete.
+[06:37:35] INFO ============================================================
+[06:37:36] INFO Found 1 connection(s) to process
+[06:37:36] INFO ──────────────────────────────────────────────────
+[06:37:36] INFO Processing: Casa Fuego (clover) [mexican]
+[06:51:55] INFO ✅ Casa Fuego → Open: 78 | Closed: 13 | Bronze inserted: 8223 | Batches: 145
+[06:51:55] INFO ============================================================
+[06:51:55] INFO BRONZE COMPLETE — Q2 2025 (2025-04-01 → 2025-06-30)
+[06:51:55] INFO   Total Bronze records inserted: 8223
+[06:51:55] INFO   Next: Run ETL to process Bronze → Silver
+[06:51:55] INFO ============================================================
+✅ Step 28 DONE — Casa Fuego 2025 Q2
+[06:52:00] INFO ============================================================
+[06:52:00] INFO BRONZE GENERATOR — Q2 2025 (2025-04-01 → 2025-06-30)
+[06:52:00] INFO Days: 91 | Batch size: 50 | Layer: Bronze only
+[06:52:00] INFO Silver ETL will run separately after Bronze is complete.
+[06:52:00] INFO ============================================================
+[06:52:01] INFO Found 1 connection(s) to process
+[06:52:01] INFO ──────────────────────────────────────────────────
+[06:52:01] INFO Processing: Maple Street Bistro (clover) [american]
+[07:13:06] INFO ✅ Maple Street Bistro → Open: 91 | Closed: 0 | Bronze inserted: 11108 | Batches: 199
+[07:13:06] INFO ============================================================
+[07:13:06] INFO BRONZE COMPLETE — Q2 2025 (2025-04-01 → 2025-06-30)
+[07:13:06] INFO   Total Bronze records inserted: 11108
+[07:13:06] INFO   Next: Run ETL to process Bronze → Silver
+[07:13:06] INFO ============================================================
+✅ Step 29 DONE — Maple Street Bistro 2025 Q2
+[07:13:11] INFO ============================================================
+[07:13:11] INFO BRONZE GENERATOR — Q2 2025 (2025-04-01 → 2025-06-30)
+[07:13:11] INFO Days: 91 | Batch size: 50 | Layer: Bronze only
+[07:13:11] INFO Silver ETL will run separately after Bronze is complete.
+[07:13:11] INFO ============================================================
+[07:13:12] INFO Found 1 connection(s) to process
+[07:13:12] INFO ──────────────────────────────────────────────────
+[07:13:12] INFO Processing: The Harbor Grille (clover) [american]
+[07:33:32] INFO ✅ The Harbor Grille → Open: 91 | Closed: 0 | Bronze inserted: 11000 | Batches: 195
+[07:33:32] INFO ============================================================
+[07:33:32] INFO BRONZE COMPLETE — Q2 2025 (2025-04-01 → 2025-06-30)
+[07:33:32] INFO   Total Bronze records inserted: 11000
+[07:33:32] INFO   Next: Run ETL to process Bronze → Silver
+[07:33:32] INFO ============================================================
+✅ Step 30 DONE — The Harbor Grille 2025 Q2
+[07:33:38] INFO ============================================================
+[07:33:38] INFO BRONZE GENERATOR — Q1 2025 (2025-01-01 → 2025-03-31)
+[07:33:38] INFO Days: 90 | Batch size: 50 | Layer: Bronze only
+[07:33:38] INFO Silver ETL will run separately after Bronze is complete.
+[07:33:38] INFO ============================================================
+[07:33:38] INFO Found 1 connection(s) to process
+[07:33:38] INFO ──────────────────────────────────────────────────
+[07:33:38] INFO Processing: Bella Napoli - Main (square) [italian]
+[07:49:49] INFO ✅ Bella Napoli - Main → Open: 77 | Closed: 13 | Bronze inserted: 8366 | Batches: 148
+[07:49:49] INFO ============================================================
+[07:49:49] INFO BRONZE COMPLETE — Q1 2025 (2025-01-01 → 2025-03-31)
+[07:49:49] INFO   Total Bronze records inserted: 8366
+[07:49:49] INFO   Next: Run ETL to process Bronze → Silver
+[07:49:49] INFO ============================================================
+✅ Step 31 DONE — Bella Napoli 2025 Q1
+[07:49:55] INFO ============================================================
+[07:49:55] INFO BRONZE GENERATOR — Q1 2025 (2025-01-01 → 2025-03-31)
+[07:49:55] INFO Days: 90 | Batch size: 50 | Layer: Bronze only
+[07:49:55] INFO Silver ETL will run separately after Bronze is complete.
+[07:49:55] INFO ============================================================
+[07:49:55] INFO Found 1 connection(s) to process
+[07:49:55] INFO ──────────────────────────────────────────────────
+[07:49:55] INFO Processing: The Copper Kettle - Main (square) [american]
+[08:11:05] INFO ✅ The Copper Kettle - Main → Open: 90 | Closed: 0 | Bronze inserted: 11086 | Batches: 196
+[08:11:05] INFO ============================================================
+[08:11:05] INFO BRONZE COMPLETE — Q1 2025 (2025-01-01 → 2025-03-31)
+[08:11:05] INFO   Total Bronze records inserted: 11086
+[08:11:05] INFO   Next: Run ETL to process Bronze → Silver
+[08:11:05] INFO ============================================================
+✅ Step 32 DONE — The Copper Kettle 2025 Q1
+[08:11:11] INFO ============================================================
+[08:11:11] INFO BRONZE GENERATOR — Q1 2025 (2025-01-01 → 2025-03-31)
+[08:11:11] INFO Days: 90 | Batch size: 50 | Layer: Bronze only
+[08:11:11] INFO Silver ETL will run separately after Bronze is complete.
+[08:11:11] INFO ============================================================
+[08:11:11] INFO Found 1 connection(s) to process
+[08:11:11] INFO ──────────────────────────────────────────────────
+[08:11:11] INFO Processing: Casa del Sol - Main (square) [mexican]
+[08:26:52] INFO ✅ Casa del Sol - Main → Open: 77 | Closed: 13 | Bronze inserted: 8041 | Batches: 143
+[08:26:52] INFO ============================================================
+[08:26:52] INFO BRONZE COMPLETE — Q1 2025 (2025-01-01 → 2025-03-31)
+[08:26:52] INFO   Total Bronze records inserted: 8041
+[08:26:52] INFO   Next: Run ETL to process Bronze → Silver
+[08:26:52] INFO ============================================================
+✅ Step 33 DONE — Casa del Sol 2025 Q1
+[08:26:58] INFO ============================================================
+[08:26:58] INFO BRONZE GENERATOR — Q1 2025 (2025-01-01 → 2025-03-31)
+[08:26:58] INFO Days: 90 | Batch size: 50 | Layer: Bronze only
+[08:26:58] INFO Silver ETL will run separately after Bronze is complete.
+[08:26:58] INFO ============================================================
+[08:26:58] INFO Found 1 connection(s) to process
+[08:26:58] INFO ──────────────────────────────────────────────────
+[08:26:58] INFO Processing: The Green Plate - Main (square) [american]
+[08:47:56] INFO ✅ The Green Plate - Main → Open: 90 | Closed: 0 | Bronze inserted: 10932 | Batches: 192
+[08:47:56] INFO ============================================================
+[08:47:56] INFO BRONZE COMPLETE — Q1 2025 (2025-01-01 → 2025-03-31)
+[08:47:56] INFO   Total Bronze records inserted: 10932
+[08:47:56] INFO   Next: Run ETL to process Bronze → Silver
+[08:47:56] INFO ============================================================
+✅ Step 34 DONE — The Green Plate 2025 Q1
+[08:48:01] INFO ============================================================
+[08:48:01] INFO BRONZE GENERATOR — Q1 2025 (2025-01-01 → 2025-03-31)
+[08:48:01] INFO Days: 90 | Batch size: 50 | Layer: Bronze only
+[08:48:01] INFO Silver ETL will run separately after Bronze is complete.
+[08:48:01] INFO ============================================================
+[08:48:02] INFO Found 1 connection(s) to process
+[08:48:02] INFO ──────────────────────────────────────────────────
+[08:48:02] INFO Processing: Sakura Ramen - Main (square) [asian]
+[09:06:01] INFO ✅ Sakura Ramen - Main → Open: 77 | Closed: 13 | Bronze inserted: 9077 | Batches: 159
+[09:06:01] INFO ============================================================
+[09:06:01] INFO BRONZE COMPLETE — Q1 2025 (2025-01-01 → 2025-03-31)
+[09:06:01] INFO   Total Bronze records inserted: 9077
+[09:06:01] INFO   Next: Run ETL to process Bronze → Silver
+[09:06:01] INFO ============================================================
+✅ Step 35 DONE — Sakura Ramen 2025 Q1
+[09:06:07] INFO ============================================================
+[09:06:07] INFO BRONZE GENERATOR — Q1 2025 (2025-01-01 → 2025-03-31)
+[09:06:07] INFO Days: 90 | Batch size: 50 | Layer: Bronze only
+[09:06:07] INFO Silver ETL will run separately after Bronze is complete.
+[09:06:07] INFO ============================================================
+[09:06:07] INFO Found 1 connection(s) to process
+[09:06:07] INFO ──────────────────────────────────────────────────
+[09:06:07] INFO Processing: Blue Lantern Noodle House (clover) [asian]
+[09:22:15] INFO ✅ Blue Lantern Noodle House → Open: 77 | Closed: 13 | Bronze inserted: 8946 | Batches: 155
+[09:22:15] INFO ============================================================
+[09:22:15] INFO BRONZE COMPLETE — Q1 2025 (2025-01-01 → 2025-03-31)
+[09:22:15] INFO   Total Bronze records inserted: 8946
+[09:22:15] INFO   Next: Run ETL to process Bronze → Silver
+[09:22:15] INFO ============================================================
+✅ Step 36 DONE — Blue Lantern Noodle House 2025 Q1
+[09:22:20] INFO ============================================================
+[09:22:20] INFO BRONZE GENERATOR — Q1 2025 (2025-01-01 → 2025-03-31)
+[09:22:20] INFO Days: 90 | Batch size: 50 | Layer: Bronze only
+[09:22:20] INFO Silver ETL will run separately after Bronze is complete.
+[09:22:20] INFO ============================================================
+[09:22:20] INFO Found 1 connection(s) to process
+[09:22:20] INFO ──────────────────────────────────────────────────
+[09:22:20] INFO Processing: The Gilded Fork (clover) [american]
+[09:44:21] INFO ✅ The Gilded Fork → Open: 90 | Closed: 0 | Bronze inserted: 10911 | Batches: 193
+[09:44:21] INFO ============================================================
+[09:44:21] INFO BRONZE COMPLETE — Q1 2025 (2025-01-01 → 2025-03-31)
+[09:44:21] INFO   Total Bronze records inserted: 10911
+[09:44:21] INFO   Next: Run ETL to process Bronze → Silver
+[09:44:21] INFO ============================================================
+✅ Step 37 DONE — The Gilded Fork 2025 Q1
+[09:44:26] INFO ============================================================
+[09:44:26] INFO BRONZE GENERATOR — Q1 2025 (2025-01-01 → 2025-03-31)
+[09:44:26] INFO Days: 90 | Batch size: 50 | Layer: Bronze only
+[09:44:26] INFO Silver ETL will run separately after Bronze is complete.
+[09:44:26] INFO ============================================================
+[09:44:27] INFO Found 1 connection(s) to process
+[09:44:27] INFO ──────────────────────────────────────────────────
+[09:44:27] INFO Processing: Casa Fuego (clover) [mexican]
+[10:01:00] INFO ✅ Casa Fuego → Open: 77 | Closed: 13 | Bronze inserted: 8139 | Batches: 143
+[10:01:00] INFO ============================================================
+[10:01:00] INFO BRONZE COMPLETE — Q1 2025 (2025-01-01 → 2025-03-31)
+[10:01:00] INFO   Total Bronze records inserted: 8139
+[10:01:00] INFO   Next: Run ETL to process Bronze → Silver
+[10:01:00] INFO ============================================================
+✅ Step 38 DONE — Casa Fuego 2025 Q1
+[10:01:06] INFO ============================================================
+[10:01:06] INFO BRONZE GENERATOR — Q1 2025 (2025-01-01 → 2025-03-31)
+[10:01:06] INFO Days: 90 | Batch size: 50 | Layer: Bronze only
+[10:01:06] INFO Silver ETL will run separately after Bronze is complete.
+[10:01:06] INFO ============================================================
+[10:01:06] INFO Found 1 connection(s) to process
+[10:01:06] INFO ──────────────────────────────────────────────────
+[10:01:06] INFO Processing: Maple Street Bistro (clover) [american]
+[10:20:53] INFO ✅ Maple Street Bistro → Open: 90 | Closed: 0 | Bronze inserted: 10942 | Batches: 195
+[10:20:53] INFO ============================================================
+[10:20:53] INFO BRONZE COMPLETE — Q1 2025 (2025-01-01 → 2025-03-31)
+[10:20:53] INFO   Total Bronze records inserted: 10942
+[10:20:53] INFO   Next: Run ETL to process Bronze → Silver
+[10:20:53] INFO ============================================================
+✅ Step 39 DONE — Maple Street Bistro 2025 Q1
+[10:20:58] INFO ============================================================
+[10:20:58] INFO BRONZE GENERATOR — Q1 2025 (2025-01-01 → 2025-03-31)
+[10:20:58] INFO Days: 90 | Batch size: 50 | Layer: Bronze only
+[10:20:58] INFO Silver ETL will run separately after Bronze is complete.
+[10:20:58] INFO ============================================================
+[10:20:58] INFO Found 1 connection(s) to process
+[10:20:58] INFO ──────────────────────────────────────────────────
+[10:20:58] INFO Processing: The Harbor Grille (clover) [american]
+[10:36:58] INFO ✅ The Harbor Grille → Open: 90 | Closed: 0 | Bronze inserted: 10924 | Batches: 193
+[10:36:58] INFO ============================================================
+[10:36:58] INFO BRONZE COMPLETE — Q1 2025 (2025-01-01 → 2025-03-31)
+[10:36:58] INFO   Total Bronze records inserted: 10924
+[10:36:58] INFO   Next: Run ETL to process Bronze → Silver
+[10:36:58] INFO ============================================================
+✅ Step 40 DONE — The Harbor Grille 2025 Q1

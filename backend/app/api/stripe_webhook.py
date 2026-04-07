@@ -184,57 +184,81 @@ def handle_subscription_update(event: dict, db) -> None:
     stripe_price_id = price_obj.get("id")
     stripe_product_id = price_obj.get("product")
 
-    if tenant_id:
-        db.execute(
+    # ── Fallback: resolve tenant_id via stripe_customer_id or stripe_subscription_id ──
+    if not tenant_id:
+        row = db.execute(
             text("""
-                UPDATE app.tenant_subscription
-                SET
-                    stripe_customer_id = COALESCE(:stripe_customer_id, stripe_customer_id),
-                    stripe_subscription_id = COALESCE(:stripe_subscription_id, stripe_subscription_id),
-                    stripe_price_id = COALESCE(:stripe_price_id, stripe_price_id),
-                    stripe_product_id = COALESCE(:stripe_product_id, stripe_product_id),
-                    stripe_status = :stripe_status,
-                    subscription_status = :subscription_status,
-                    cancel_at_period_end = :cancel_at_period_end,
-                    canceled_at = CASE
-                        WHEN :canceled_at IS NOT NULL THEN to_timestamp(:canceled_at)
-                        ELSE canceled_at
-                    END,
-                    current_period_start = CASE
-                        WHEN :current_period_start IS NOT NULL THEN to_timestamp(:current_period_start)
-                        ELSE current_period_start
-                    END,
-                    current_period_end = CASE
-                        WHEN :current_period_end IS NOT NULL THEN to_timestamp(:current_period_end)
-                        ELSE current_period_end
-                    END,
-                    access_expires_at = CASE
-                        WHEN :current_period_end IS NOT NULL THEN to_timestamp(:current_period_end)
-                        ELSE access_expires_at
-                    END,
-                    quantity = :quantity,
-                    updated_at = now()
-                WHERE tenant_id = CAST(:tenant_id AS uuid)
+                SELECT tenant_id::text
+                FROM app.tenant_subscription
+                WHERE stripe_customer_id = :customer_id
+                   OR stripe_subscription_id = :subscription_id
+                LIMIT 1
             """),
             {
-                "tenant_id": tenant_id,
-                "stripe_customer_id": stripe_customer_id,
-                "stripe_subscription_id": stripe_subscription_id,
-                "stripe_price_id": stripe_price_id,
-                "stripe_product_id": stripe_product_id,
-                "stripe_status": stripe_status,
-                "subscription_status": app_status,
-                "cancel_at_period_end": cancel_at_period_end,
-                "canceled_at": canceled_at,
-                "current_period_start": current_period_start,
-                "current_period_end": current_period_end,
-                "quantity": quantity or 1,
+                "customer_id": stripe_customer_id,
+                "subscription_id": stripe_subscription_id,
             },
-        )
-        sync_feature_entitlements_for_tenant(tenant_id, db)
+        ).mappings().first()
+
+        if row:
+            tenant_id = str(row["tenant_id"])
+
+    if not tenant_id:
+        print(f"⚠️  Could not resolve tenant_id for subscription {stripe_subscription_id}")
         return
-    # fallback logic omitted for brevity (same as your previous full code)
-    ...
+
+    db.execute(
+        text("""
+            UPDATE app.tenant_subscription
+            SET
+                stripe_customer_id = COALESCE(:stripe_customer_id, stripe_customer_id),
+                stripe_subscription_id = COALESCE(:stripe_subscription_id, stripe_subscription_id),
+                stripe_price_id = COALESCE(:stripe_price_id, stripe_price_id),
+                stripe_product_id = COALESCE(:stripe_product_id, stripe_product_id),
+                stripe_status = :stripe_status,
+                subscription_status = :subscription_status,
+                cancel_at_period_end = :cancel_at_period_end,
+                canceled_at = CASE
+                    WHEN :canceled_at IS NOT NULL THEN to_timestamp(:canceled_at)
+                    ELSE canceled_at
+                END,
+                current_period_start = CASE
+                    WHEN :current_period_start IS NOT NULL THEN to_timestamp(:current_period_start)
+                    ELSE current_period_start
+                END,
+                current_period_end = CASE
+                    WHEN :current_period_end IS NOT NULL THEN to_timestamp(:current_period_end)
+                    ELSE current_period_end
+                END,
+                access_expires_at = CASE
+                    WHEN :current_period_end IS NOT NULL THEN to_timestamp(:current_period_end)
+                    ELSE access_expires_at
+                END,
+                trial_ends_at = CASE
+                    WHEN :stripe_status = 'trialing' AND trial_ends_at IS NULL
+                    THEN to_timestamp(:current_period_end)
+                    ELSE trial_ends_at
+                END,
+                quantity = :quantity,
+                updated_at = now()
+            WHERE tenant_id = CAST(:tenant_id AS uuid)
+        """),
+        {
+            "tenant_id": tenant_id,
+            "stripe_customer_id": stripe_customer_id,
+            "stripe_subscription_id": stripe_subscription_id,
+            "stripe_price_id": stripe_price_id,
+            "stripe_product_id": stripe_product_id,
+            "stripe_status": stripe_status,
+            "subscription_status": app_status,
+            "cancel_at_period_end": cancel_at_period_end,
+            "canceled_at": canceled_at,
+            "current_period_start": current_period_start,
+            "current_period_end": current_period_end,
+            "quantity": quantity or 1,
+        },
+    )
+    sync_feature_entitlements_for_tenant(tenant_id, db)
 
 
 def handle_invoice_paid(event: dict, db) -> None:
@@ -328,7 +352,10 @@ async def stripe_webhook(request: Request):
         event_type = event_data["type"]
         stripe_object_id = event_data["data"]["object"].get("id")
         event_object = event_data["data"]["object"]
-        tenant_id_for_log = event_object.get("client_reference_id") or event_object.get("metadata", {}).get("tenant_id")
+        tenant_id_for_log = (
+            event_object.get("client_reference_id")
+            or event_object.get("metadata", {}).get("tenant_id")
+        )
 
         db.execute(
             text("""
@@ -366,17 +393,31 @@ async def stripe_webhook(request: Request):
         )
         db.commit()
 
-        # Dispatch to handlers
+        # ── Dispatch to handlers ──────────────────────────────────
         if event_type == "checkout.session.completed":
             handle_checkout_completed(event_data, db)
-        elif event_type in ("customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"):
+        elif event_type in (
+            "customer.subscription.created",
+            "customer.subscription.updated",
+            "customer.subscription.deleted",
+        ):
             handle_subscription_update(event_data, db)
-        elif event_type in ("invoice.paid", "invoice.payment_succeeded", "invoice_payment.paid"):
+        elif event_type in (
+            "invoice.paid",
+            "invoice.payment_succeeded",
+            "invoice_payment.paid",
+        ):
             handle_invoice_paid(event_data, db)
-        elif event_type in ("invoice.payment_failed", "invoice_payment.failed"):
+        elif event_type in (
+            "invoice.payment_failed",
+            "invoice_payment.failed",
+        ):
             handle_payment_failed(event_data, db)
+        else:
+            print(f"ℹ️  Unhandled event type: {event_type}")
 
         db.commit()
+
         db.execute(
             text("""
                 UPDATE stripe.subscription_event_log
@@ -390,7 +431,7 @@ async def stripe_webhook(request: Request):
         )
         db.commit()
 
-        print(f"Stripe event processed: {event_type} / {event_id}")
+        print(f"✅ Stripe event processed: {event_type} / {event_id}")
         return {"status": "ok"}
 
     except Exception as e:
@@ -410,7 +451,7 @@ async def stripe_webhook(request: Request):
             db.commit()
         except Exception:
             db.rollback()
-        print(f"Stripe webhook error: {e}")
+        print(f"❌ Stripe webhook error: {e}")
         raise HTTPException(status_code=500, detail="Webhook processing failed")
     finally:
         db.close()

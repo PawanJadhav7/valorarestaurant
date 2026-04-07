@@ -17,7 +17,6 @@ from app.api.onboarding_subscription import router as onboarding_subscription_ro
 from app.api.user_tenants import router as user_tenants_router
 from app.api.switch_tenant import router as switch_tenant_router
 from dotenv import load_dotenv
-from app.api.onboarding_clover_callback import router as clover_callback_router
 from app.api.stripe_verify_session import router as stripe_verify_router
 from app.api.subscription_change import router as subscription_change_router
 from app.api.subscription_change_job import router as subscription_change_job_router
@@ -25,9 +24,12 @@ from app.api.subscription_summary import router as subscription_summary_router
 from app.api import alerts
 from app.api.alerts import router as alerts_router
 from app.api.ai_actions import router as ai_actions_router
+from app.api.onboarding_pos_connect import router as onboarding_pos_connect_router
 # Add this line with the other imports
 from app.integrations.pos.registry_instance import pos_registry
 from app.api.onboarding_square_callback import router as square_callback_router
+from app.api.onboarding_clover_callback import router as clover_callback_router
+from app.api.onboarding_pos_locations import router as onboarding_pos_locations_router
 # With other imports at top
 from app.api.square_sync import router as square_sync_router
 from app.api.clover_sync import router as clover_sync_router
@@ -49,13 +51,15 @@ app.include_router(onboarding_subscription_router)
 app.include_router(user_tenants_router)
 app.include_router(switch_tenant_router)
 app.include_router(clover_callback_router)
+app.include_router(square_callback_router)
 app.include_router(stripe_verify_router)
 app.include_router(subscription_change_router)
 app.include_router(subscription_change_job_router)
 app.include_router(subscription_summary_router)
 app.include_router(alerts_router)
 app.include_router(ai_actions_router)
-
+app.include_router(onboarding_pos_locations_router)
+app.include_router(onboarding_pos_connect_router)
 
 load_dotenv()
 load_dotenv(".env.local")
