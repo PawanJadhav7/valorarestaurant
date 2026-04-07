@@ -624,6 +624,8 @@ export default function RestaurantOverviewPage() {
       <div className="pt-2">
         <div className="flex flex-wrap items-center gap-4">
           <select
+            title="Select location"
+            aria-label="Select location"
             value={locationId}
             onChange={(e) => {
               const nextLocationId = e.target.value;
@@ -641,6 +643,8 @@ export default function RestaurantOverviewPage() {
           </select>
 
           <select
+            title="Select date range"
+            aria-label="Select date range"
             value="30d"
             onChange={() => { }}
             className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
@@ -653,6 +657,8 @@ export default function RestaurantOverviewPage() {
 
           <input
             type="date"
+            title="Select insight date"
+            aria-label="Select insight date"
             value={insightDate ? String(insightDate).slice(0, 10) : ""}
             onChange={() => { }}
             onKeyDown={(e) => e.preventDefault()}

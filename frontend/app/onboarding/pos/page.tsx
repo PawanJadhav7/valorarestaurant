@@ -724,6 +724,8 @@ export default function POSPage() {
                       <input
                         type="file"
                         accept=".csv"
+                        title="Upload CSV file"
+                        aria-label="Upload CSV file"
                         className="mt-3 text-xs text-muted-foreground file:mr-2 file:rounded-xl file:border file:border-border/60 file:bg-background/40 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground"
                         onChange={(e) => {
                           const f = e.target.files?.[0];

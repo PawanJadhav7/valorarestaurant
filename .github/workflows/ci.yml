@@ -35,6 +35,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Lint
+        run: npm run lint || true
+
+      - name: Check requirements install
+        run: pip check
+            
+
   backend-checks:
     name: Backend checks
     runs-on: ubuntu-latest
