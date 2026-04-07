@@ -9,13 +9,6 @@ import FormField from "@/components/ui/FormField";
 import FormMessage from "@/components/ui/FormMessage";
 import OnboardingStepHeader from "@/components/onboarding/OnboardingStepHeader";
 
-type LocationDraft = {
-  location_name: string;
-  region: string;
-  country_code: string;
-  currency_code: string;
-};
-
 async function safeJson(res: Response) {
   const text = await res.text();
   try {
@@ -23,15 +16,6 @@ async function safeJson(res: Response) {
   } catch {
     throw new Error(`Non-JSON (${res.status}). BodyPreview=${text.slice(0, 160)}`);
   }
-}
-
-function blankLocation(): LocationDraft {
-  return {
-    location_name: "",
-    region: "",
-    country_code: "US",
-    currency_code: "USD",
-  };
 }
 
 function ValuePill({ children }: { children: React.ReactNode }) {
@@ -55,47 +39,15 @@ export default function OnboardingTenantClient() {
   const router = useRouter();
 
   const [tenantName, setTenantName] = React.useState("");
-  const [locations, setLocations] = React.useState<LocationDraft[]>([blankLocation()]);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
-
-  function updateLocation(i: number, patch: Partial<LocationDraft>) {
-    setLocations((prev) => prev.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
-  }
-
-  function addLocation() {
-    setLocations((prev) => [...prev, blankLocation()]);
-  }
-
-  function removeLocation(i: number) {
-    const next = locations.filter((_, idx) => idx !== i);
-    setLocations(next.length ? next : [blankLocation()]);
-  }
-
-  function cleanedLocations(): LocationDraft[] {
-    return locations
-      .map((x) => ({
-        location_name: x.location_name.trim(),
-        region: x.region.trim(),
-        country_code: x.country_code.trim().toUpperCase(),
-        currency_code: x.currency_code.trim().toUpperCase(),
-      }))
-      .filter((x) => x.location_name);
-  }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErr(null);
 
-    const cleaned = cleanedLocations();
-
     if (!tenantName.trim()) {
-      setErr("Tenant name is required.");
-      return;
-    }
-
-    if (cleaned.length === 0) {
-      setErr("Please add at least one location.");
+      setErr("Business name is required.");
       return;
     }
 
@@ -105,10 +57,7 @@ export default function OnboardingTenantClient() {
       const res = await fetch("/api/onboarding/tenant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tenant_name: tenantName.trim(),
-          locations: cleaned,
-        }),
+        body: JSON.stringify({ tenant_name: tenantName.trim() }),
       });
 
       const j = await safeJson(res);
@@ -125,34 +74,37 @@ export default function OnboardingTenantClient() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 md:py-14">
-    <OnboardingStepHeader
-      currentStep="tenant"
-      title="Set up your business workspace"
-      subtitle="Create the tenant and add at least one location."
-      backHref="/onboarding"
-    />
-      <div className="grid grid-cols-1 gap-6 items-stretch lg:grid-cols-[1.05fr_0.95fr]">
-        <GlassCardGlow className="h-full p-6 md:p-8">
+      <OnboardingStepHeader
+        currentStep="tenant"
+        title="Set up your workspace"
+        subtitle="Enter your business name to create your Valora workspace."
+        
+      />
+
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+        {/* ── Left: Form ─────────────────────── */}
+        <GlassCardGlow className="p-6 md:p-8">
           <div className="inline-flex items-center rounded-full border border-border/60 bg-background/50 px-3 py-1 text-[11px] font-semibold tracking-wide text-foreground/80 shadow-sm">
-            Tenant setup
+            Workspace setup
           </div>
 
           <div className="mt-5 text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-            Set up your business workspace
+            Name your business
           </div>
 
           <div className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground md:text-base">
-            Create the tenant and add at least one location before activating subscription.
+            This is the name of your restaurant group or business entity. Your
+            locations will be imported automatically from your POS system in a later step.
           </div>
 
-          {err ? (
+          {err && (
             <FormMessage className="mt-5" type="error">
               {err}
             </FormMessage>
-          ) : null}
+          )}
 
           <form onSubmit={submit} className="mt-6 space-y-5">
-            <FormField label="Tenant / business name" htmlFor="tenantName" required>
+            <FormField label="Business / group name" htmlFor="tenantName" required>
               <Input
                 id="tenantName"
                 placeholder="e.g. Texas Grill Group"
@@ -162,99 +114,40 @@ export default function OnboardingTenantClient() {
               />
             </FormField>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-semibold text-foreground">Branch locations</div>
-                  <div className="text-xs text-muted-foreground">
-                    Add at least one operating location.
-                  </div>
+            {/* Info note */}
+            <div className="rounded-2xl border border-border/40 bg-background/20 p-4">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/40 text-[11px] text-foreground/50">
+                  ℹ
                 </div>
-
-                <Button type="button" variant="secondary" onClick={addLocation}>
-                  + Add location
-                </Button>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    Locations are imported from your POS.
+                  </span>{" "}
+                  After connecting Square or Clover, we fetch your real locations
+                  and let you select which ones to activate.
+                </p>
               </div>
-
-              {locations.map((loc, i) => (
-                <div
-                  key={i}
-                  className="rounded-2xl border border-border/60 bg-background/30 p-4"
-                >
-                  <div className="mb-3 flex items-center justify-between">
-                    <div className="text-xs font-medium text-muted-foreground">
-                      Location {i + 1}
-                    </div>
-                    <Button type="button" variant="ghost" onClick={() => removeLocation(i)}>
-                      Remove
-                    </Button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <FormField label="Location name" htmlFor={`location_name_${i}`} required>
-                      <Input
-                        id={`location_name_${i}`}
-                        placeholder="e.g. Austin - Downtown"
-                        value={loc.location_name}
-                        onChange={(e) =>
-                          updateLocation(i, { location_name: e.target.value })
-                        }
-                        required
-                      />
-                    </FormField>
-
-                    <FormField label="Region / state" htmlFor={`region_${i}`}>
-                      <Input
-                        id={`region_${i}`}
-                        placeholder="e.g. Texas"
-                        value={loc.region}
-                        onChange={(e) => updateLocation(i, { region: e.target.value })}
-                      />
-                    </FormField>
-
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <FormField label="Country code" htmlFor={`country_${i}`} required>
-                        <Input
-                          id={`country_${i}`}
-                          placeholder="US"
-                          maxLength={2}
-                          value={loc.country_code}
-                          onChange={(e) =>
-                            updateLocation(i, { country_code: e.target.value.toUpperCase() })
-                          }
-                          required
-                        />
-                      </FormField>
-
-                      <FormField label="Currency code" htmlFor={`currency_${i}`} required>
-                        <Input
-                          id={`currency_${i}`}
-                          placeholder="USD"
-                          maxLength={3}
-                          value={loc.currency_code}
-                          onChange={(e) =>
-                            updateLocation(i, { currency_code: e.target.value.toUpperCase() })
-                          }
-                          required
-                        />
-                      </FormField>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
 
-            <Button type="submit" variant="primary" className="h-12 w-full" disabled={busy} loading={busy}>
-              {busy ? "Creating workspace..." : "Continue to subscription"}
+            <Button
+              type="submit"
+              variant="primary"
+              className="h-12 w-full"
+              disabled={busy}
+              loading={busy}
+            >
+              {busy ? "Creating workspace..." : "Continue to subscription →"}
             </Button>
           </form>
         </GlassCardGlow>
 
-        <GlassCardGlow className="h-full p-6 md:p-8">
+        {/* ── Right: Info panel ──────────────── */}
+        <GlassCardGlow className="p-6 md:p-8">
           <div className="flex flex-wrap gap-2">
             <ValuePill>Tenant-scoped billing</ValuePill>
+            <ValuePill>POS location sync</ValuePill>
             <ValuePill>Multi-location ready</ValuePill>
-            <ValuePill>Data model setup</ValuePill>
           </div>
 
           <div className="mt-5 text-2xl font-semibold tracking-tight text-foreground">
@@ -262,21 +155,26 @@ export default function OnboardingTenantClient() {
           </div>
 
           <div className="mt-3 text-sm leading-7 text-muted-foreground">
-            Your subscription, POS data, and dashboards all belong to the tenant. This step creates the workspace foundation before billing and POS onboarding.
+            Your business workspace is the foundation for all analytics, billing,
+            and POS data in Valora. Everything ties back to this tenant.
           </div>
 
           <div className="mt-6 space-y-3">
             <InfoCard
-              title="Creates the business shell"
-              text="Establishes the tenant that users, billing, and analytics will belong to."
+              title="Creates your workspace"
+              text="Establishes the tenant that your subscription, POS connections, and analytics will all belong to."
             />
             <InfoCard
-              title="Defines operating locations"
-              text="Sets up branch-level structure so uploaded POS data can be mapped correctly."
+              title="Locations come from your POS"
+              text="After connecting Square or Clover, your real locations are fetched and mapped automatically — no manual entry needed."
             />
             <InfoCard
-              title="Prepares the next step"
-              text="Once tenant setup is complete, subscription activation and CSV onboarding can proceed cleanly."
+              title="Billing is per location"
+              text="Your plan includes 1 location. Add more locations at any time from your dashboard. Each additional location is billed per your plan."
+            />
+            <InfoCard
+              title="One tenant, many locations"
+              text="As your business grows, you can add new locations and POS connections directly from your settings."
             />
           </div>
         </GlassCardGlow>

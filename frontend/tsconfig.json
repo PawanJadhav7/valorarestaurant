@@ -6,7 +6,9 @@
       "dom.iterable",
       "esnext"
     ],
-    "types": ["react"],
+    "types": [
+      "react"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -28,7 +30,8 @@
       {
         "name": "next"
       }
-    ]
+    ],
+    "incremental": true
   },
   "include": [
     "next-env.d.ts",
