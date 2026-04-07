@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import os
-import uuid
 
 import requests
 from fastapi import APIRouter, HTTPException
@@ -30,8 +29,9 @@ class SaveConnectionRequest(BaseModel):
 def save_pos_connection(payload: SaveConnectionRequest, user_id: str):
     """
     Save POS connection for selected locations.
-    Creates dim_entity + dim_location + pos_connection + app.tenant_location
-    Triggers background sync via Celery.
+    Creates dim_location + pos_connection + app.tenant_location
+    Saves full address from POS (name, address, city, region, postal_code, timezone)
+    Triggers background sync.
     Updates onboarding_status to 'complete'.
     """
     provider     = payload.provider.strip().lower()
@@ -76,7 +76,7 @@ def save_pos_connection(payload: SaveConnectionRequest, user_id: str):
             {"tenant_id": tenant_id},
         ).mappings().first()
 
-        if not sub or sub["subscription_status"] not in ("trial", "active"):
+        if not sub or sub["subscription_status"] not in ("trial", "active", "trialing"):
             raise HTTPException(
                 status_code=403,
                 detail="Active subscription required"
@@ -108,23 +108,35 @@ def save_pos_connection(payload: SaveConnectionRequest, user_id: str):
         for idx, loc in enumerate(locations_data):
             external_location_id = loc["id"]
             location_name        = loc.get("name", f"Location {idx + 1}")
+            business_name        = loc.get("business_name") or location_name
             currency_code        = loc.get("currency", "USD")
             country_code         = loc.get("country", "US")
+            address_line         = loc.get("address_line")
+            city                 = loc.get("city")
+            region               = loc.get("state")
+            postal_code          = loc.get("postal_code")
+            timezone             = loc.get("timezone")
             entity_id            = next_entity_id + idx
             location_code        = f"{str(entity_id)}_{str(tenant_id)[:8].upper()}"
 
-            # 1. Upsert dim_location
+            # 1. Upsert dim_location with full address
             loc_result = db.execute(
                 text("""
                     INSERT INTO restaurant.dim_location (
                         entity_id,
                         location_code,
                         location_name,
+                        business_name,
                         tenant_id,
                         external_location_id,
                         primary_pos_provider,
                         currency_code,
                         country_code,
+                        address_line,
+                        city,
+                        region,
+                        postal_code,
+                        timezone,
                         is_active,
                         created_at
                     )
@@ -132,18 +144,30 @@ def save_pos_connection(payload: SaveConnectionRequest, user_id: str):
                         :entity_id,
                         :location_code,
                         :location_name,
+                        :business_name,
                         CAST(:tenant_id AS uuid),
                         :external_location_id,
                         :provider,
                         :currency_code,
                         :country_code,
+                        :address_line,
+                        :city,
+                        :region,
+                        :postal_code,
+                        :timezone,
                         true,
                         now()
                     )
                     ON CONFLICT (tenant_id, external_location_id)
                     DO UPDATE SET
                         location_name        = EXCLUDED.location_name,
+                        business_name        = EXCLUDED.business_name,
                         primary_pos_provider = EXCLUDED.primary_pos_provider,
+                        address_line         = EXCLUDED.address_line,
+                        city                 = EXCLUDED.city,
+                        region               = EXCLUDED.region,
+                        postal_code          = EXCLUDED.postal_code,
+                        timezone             = EXCLUDED.timezone,
                         is_active            = true
                     RETURNING location_id
                 """),
@@ -151,11 +175,17 @@ def save_pos_connection(payload: SaveConnectionRequest, user_id: str):
                     "entity_id":            entity_id,
                     "location_code":        location_code,
                     "location_name":        location_name,
+                    "business_name":        business_name,
                     "tenant_id":            tenant_id,
                     "external_location_id": external_location_id,
                     "provider":             provider,
                     "currency_code":        currency_code,
                     "country_code":         country_code,
+                    "address_line":         address_line,
+                    "city":                 city,
+                    "region":               region,
+                    "postal_code":          postal_code,
+                    "timezone":             timezone,
                 },
             )
             location_id = loc_result.scalar_one()
@@ -217,12 +247,14 @@ def save_pos_connection(payload: SaveConnectionRequest, user_id: str):
             saved_locations.append({
                 "location_id":          location_id,
                 "location_name":        location_name,
+                "city":                 city,
+                "region":               region,
                 "external_location_id": external_location_id,
             })
 
             logger.info(
-                "POS connection saved: tenant=%s provider=%s location=%s external=%s",
-                tenant_id, provider, location_id, external_location_id
+                "POS connection saved: tenant=%s provider=%s location=%s external=%s city=%s region=%s",
+                tenant_id, provider, location_id, external_location_id, city, region
             )
 
         # ── Mark tenant data_ready ──────────────────────────────────
@@ -277,6 +309,7 @@ def save_pos_connection(payload: SaveConnectionRequest, user_id: str):
 # ─────────────────────────────────────────────
 
 def _fetch_square_locations_detail(access_token: str, location_ids: list[str]) -> list[dict]:
+    """Fetch full location details from Square including address."""
     resp = requests.get(
         f"{SQUARE_BASE}/v2/locations",
         headers={
@@ -288,15 +321,22 @@ def _fetch_square_locations_detail(access_token: str, location_ids: list[str]) -
     resp.raise_for_status()
     all_locs = resp.json().get("locations", [])
     selected = [l for l in all_locs if l["id"] in location_ids]
-    return [
-        {
-            "id":       l["id"],
-            "name":     l.get("name", "Unnamed"),
-            "currency": l.get("currency", "USD"),
-            "country":  (l.get("address") or {}).get("country", "US"),
-        }
-        for l in selected
-    ]
+    result = []
+    for l in selected:
+        address = l.get("address") or {}
+        result.append({
+            "id":           l["id"],
+            "name":         l.get("name", "Unnamed"),
+            "business_name": l.get("business_name") or l.get("name", "Unnamed"),
+            "currency":     l.get("currency", "USD"),
+            "country":      address.get("country", "US"),
+            "address_line": address.get("address_line_1"),
+            "city":         address.get("locality"),
+            "state":        address.get("administrative_district_level_1"),
+            "postal_code":  address.get("postal_code"),
+            "timezone":     l.get("timezone"),
+        })
+    return result
 
 
 def _get_square_merchant_id(access_token: str) -> str | None:
@@ -317,6 +357,7 @@ def _get_square_merchant_id(access_token: str) -> str | None:
 
 
 def _fetch_clover_location_detail(api_key: str, merchant_id: str) -> list[dict]:
+    """Fetch full merchant/location details from Clover including address."""
     resp = requests.get(
         f"{CLOVER_BASE}/v3/merchants/{merchant_id}",
         headers={"Authorization": f"Bearer {api_key}"},
@@ -324,11 +365,18 @@ def _fetch_clover_location_detail(api_key: str, merchant_id: str) -> list[dict]:
     )
     resp.raise_for_status()
     m = resp.json()
+    address = m.get("address") or {}
     return [{
-        "id":       m["id"],
-        "name":     m.get("name", "Unnamed"),
-        "currency": "USD",
-        "country":  (m.get("address") or {}).get("country", "US"),
+        "id":           m["id"],
+        "name":         m.get("name", "Unnamed"),
+        "business_name": m.get("name", "Unnamed"),
+        "currency":     "USD",
+        "country":      address.get("country", "US"),
+        "address_line": address.get("address1"),
+        "city":         address.get("city"),
+        "state":        address.get("state"),
+        "postal_code":  address.get("zip"),
+        "timezone":     m.get("timezone"),
     }]
 
 

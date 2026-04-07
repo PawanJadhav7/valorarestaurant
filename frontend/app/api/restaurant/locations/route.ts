@@ -71,6 +71,7 @@ export async function GET() {
         dl.location_id,
         dl.location_code,
         dl.location_name,
+        dl.city,
         dl.region,
         dl.country_code,
         dl.currency_code

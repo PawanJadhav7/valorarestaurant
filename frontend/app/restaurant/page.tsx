@@ -19,6 +19,8 @@ type LocationOpt = {
   location_code?: string;
   location_name?: string;
   name?: string;
+  city?: string;
+  region?: string;
 };
 
 type OverviewApi = {
@@ -268,6 +270,8 @@ export default function RestaurantOverviewPage() {
           location_name:
             x.location_name != null ? String(x.location_name) : undefined,
           name: x.name != null ? String(x.name) : undefined,
+          city:   x.city   != null ? String(x.city)   : undefined,
+          region: x.region != null ? String(x.region) : undefined,
         }))
         .filter((x) => x.id);
 

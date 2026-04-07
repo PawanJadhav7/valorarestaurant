@@ -85,6 +85,9 @@ def _fetch_square_locations(access_token: str) -> dict:
                 "country":             address.get("country", "US"),
                 "currency":            loc.get("currency", "USD"),
                 "external_location_id": loc["id"],
+                "postal_code":         address.get("postal_code"),
+                "timezone":            loc.get("timezone"),
+                "business_name":       loc.get("business_name") or loc.get("name", "Unnamed"),
             })
 
         return {"ok": True, "provider": "square", "locations": result}
