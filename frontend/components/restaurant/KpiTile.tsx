@@ -34,7 +34,7 @@ function fmtUsd2(n: number) {
 }
 
 function fmtPct2(n: number) {
-  return `${n.toFixed(2)}%`;
+  return `${(n * 100).toFixed(2)}%`;
 }
 
 function fmtNumber(n: number) {

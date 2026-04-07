@@ -606,3 +606,11 @@ SSL SYSCALL error: Operation timed out
 [10:36:58] INFO   Next: Run ETL to process Bronze → Silver
 [10:36:58] INFO ============================================================
 ✅ Step 40 DONE — The Harbor Grille 2025 Q1
+[17:42:14] INFO ============================================================
+[17:42:14] INFO BRONZE GENERATOR — Q4 2024 (2024-10-01 → 2024-12-31)
+[17:42:14] INFO Days: 92 | Batch size: 50 | Layer: Bronze only
+[17:42:14] INFO Silver ETL will run separately after Bronze is complete.
+[17:42:14] INFO ============================================================
+[17:42:15] INFO Found 1 connection(s) to process
+[17:42:15] INFO ──────────────────────────────────────────────────
+[17:42:15] INFO Processing: Bella Napoli (square) [italian]
