@@ -419,7 +419,7 @@ export async function GET(req: Request) {
       const anchorRes = await client.query(
         `
         select coalesce(max(day), current_date)::date as anchor_day
-        from restaurant.f_location_daily_features
+        from analytics.v_gold_daily
         where tenant_id = $1::uuid
           and location_id = any($2::bigint[])
           and ($3::bigint is null or location_id = $3::bigint)
@@ -444,7 +444,7 @@ export async function GET(req: Request) {
             when coalesce(sum(revenue), 0) = 0 then 0
             else round((sum(gross_profit) / sum(revenue) * 100)::numeric, 2)
           end as gross_margin_pct
-        from restaurant.f_location_daily_features
+        from analytics.v_gold_daily
         where tenant_id = $1::uuid
           and day >= ${startSql}
           and day <= $4::date
@@ -479,7 +479,7 @@ export async function GET(req: Request) {
               when sum(revenue) = 0 then 0
               else round(sum(gross_profit) / sum(revenue) * 100, 2)
             end as gross_margin_pct
-          from restaurant.f_location_daily_features
+          from analytics.v_gold_daily
           where tenant_id = $1::uuid
             and day >= ${startSql}
             and day <= $4::date

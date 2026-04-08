@@ -1406,6 +1406,10 @@ export function SalesClient() {
   const [locations, setLocations] = React.useState<LocationRow[]>([]);
   const [aovBuckets, setAovBuckets] = React.useState<AovBucket[]>([]);
 
+  const [mlRisks, setMlRisks] = React.useState<any[]>([]);
+  const [mlBriefs, setMlBriefs] = React.useState<any[]>([]);
+  const [mlOpportunities, setMlOpportunities] = React.useState<any[]>([]);
+
   React.useEffect(() => {
     const nextLocationId =
       urlLocationId && urlLocationId.trim() ? urlLocationId : "all";
@@ -1589,6 +1593,40 @@ export function SalesClient() {
   React.useEffect(() => {
     load();
   }, [load]);
+
+  // Fetch ML insights
+  React.useEffect(() => {
+    if (!asOf.trim()) return;
+    const day = asOf.trim().slice(0, 10);
+    const qs = new URLSearchParams({ day, limit: "10" });
+    if (locationId !== "all") qs.set("location_id", locationId);
+    (async () => {
+      try {
+        const r = await fetch(`/api/dashboard/ml-insights?${qs.toString()}`, {
+          cache: "no-store",
+        });
+        if (!r.ok) return;
+        const j = await r.json();
+        setMlRisks(j?.risks ?? []);
+        setMlBriefs(j?.briefs ?? []);
+        setMlOpportunities(j?.opportunities ?? []);
+      } catch { }
+    })();
+  }, [asOf, locationId]);
+
+  // Fetch latest available date if no date in URL
+  React.useEffect(() => {
+    if (asOf.trim()) return; // already have date
+    (async () => {
+      try {
+        const r = await fetch("/api/dashboard/latest-date", { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        const latest = j?.latest_date ?? null;
+        if (latest) setAsOf(latest);
+      } catch { }
+    })();
+  }, []);
 
   React.useEffect(() => {
     updateSalesUrl(locationId, asOf);
@@ -1861,9 +1899,9 @@ export function SalesClient() {
               Critical alerts and exceptions across the business.
             </div>
 
-            {insights.alerts.length ? (
+            {mlRisks.length ? (
               <div className="space-y-3">
-                {insights.alerts.map((a, i) => (
+                {mlRisks.map((a, i) => (
                   <div
                     key={`${a.code}-${i}`}
                     className={`rounded-xl border p-3 ${severityCardClass(a.severity)}`}
@@ -1904,35 +1942,25 @@ export function SalesClient() {
               AI-driven actions prioritized for execution and impact.
             </div>
 
-            {insights.recommendations.length ? (
+            {mlBriefs.length ? (
               <div className="space-y-3">
-                {insights.recommendations.map((r, i) => (
-                  <div
-                    key={`${r.code}-${i}`}
-                    className="rounded-xl border border-border/60 bg-background/20 p-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-foreground">
-                          {r.title}
+                {mlBriefs.map((r, i) => {
+                  const actions = r.recommended_actions_json?.actions ?? [];
+                  const topAction = actions[0];
+                  return (
+                    <div key={i} className="rounded-xl border border-border/60 bg-background/20 p-3">
+                      <div className="text-sm font-semibold text-foreground">{r.headline}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{r.location_name}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{r.summary_text}</div>
+                      {topAction && (
+                        <div className="mt-2 text-xs text-emerald-400">
+                          → {topAction.title ?? topAction.action_code}
+                          {topAction.expected_roi && ` · +${(topAction.expected_roi * 100).toFixed(0)}% ROI`}
                         </div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {r.action}
-                        </div>
-                        <div className="mt-1 text-[11px] text-muted-foreground">
-                          {r.rationale}
-                        </div>
-                      </div>
-                      <span
-                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${priorityBadgeClass(
-                          r.priority
-                        )}`}
-                      >
-                        {r.priority}
-                      </span>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="rounded-xl border border-border/60 bg-background/20 p-4 text-sm text-muted-foreground">
@@ -1941,6 +1969,8 @@ export function SalesClient() {
             )}
           </div>
         </div>
+
+
       </SectionCard>
     ) : null;
 
