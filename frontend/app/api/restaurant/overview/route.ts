@@ -178,7 +178,8 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const locationIdParam = url.searchParams.get("location_id");
-
+  const dayParam = url.searchParams.get("day");
+  const rangeParam = url.searchParams.get("range") ?? "30d";
   let locationId: number | null = null;
   if (locationIdParam && locationIdParam.trim().toLowerCase() !== "all") {
     locationId = Number(locationIdParam);
@@ -192,7 +193,7 @@ export async function GET(req: Request) {
   async function bail(status: number, payload: any) {
     try {
       await client.query("rollback");
-    } catch {}
+    } catch { }
     return NextResponse.json(payload, { status });
   }
 
@@ -292,6 +293,10 @@ export async function GET(req: Request) {
     if (locationId !== null && !allowedIds.includes(locationId)) {
       return await bail(403, { ok: false, error: "Forbidden location" });
     }
+    const fnName = rangeParam === "7d"  ? "get_kpis_last_7d"  :
+               rangeParam === "90d" ? "get_kpis_last_90d" :
+               rangeParam === "ytd" ? "get_kpis_ytd"      :
+                                      "get_kpis_last_30d";
 
     const kpiRes = await client.query(
       `
@@ -299,11 +304,14 @@ export async function GET(req: Request) {
         select unnest($1::bigint[]) as location_id
       )
       select *
-      from analytics.get_executive_kpis_by_location(now())
+      from analytics.${fnName}(
+        COALESCE($2::date, CURRENT_DATE),
+        $3::uuid
+      )
       where location_id in (select location_id from allowed)
-        and ($2::bigint is null or location_id = $2::bigint)
+        and ($4::bigint is null or location_id = $4::bigint)
       `,
-      [allowedIds, locationId]
+      [allowedIds, dayParam ? dayParam : null, tenantId, locationId]
     );
 
     const rows = kpiRes.rows ?? [];
@@ -331,13 +339,14 @@ export async function GET(req: Request) {
         coalesce(avg(cash_conversion_cycle), 0)::numeric as cash_conversion_cycle
       from restaurant.f_location_daily_features
       where tenant_id = $2::uuid
-        and day >= current_date - interval '30 days'
+        and day >= COALESCE($4::date, current_date) - interval '30 days'
+        and day <= COALESCE($4::date, current_date)
         and location_id in (select location_id from allowed)
         and ($3::bigint is null or location_id = $3::bigint)
       group by 1
       order by 1
       `,
-      [allowedIds, tenantId, locationId]
+      [allowedIds, tenantId, locationId, dayParam ? new Date(dayParam) : null]
     );
 
     const daily = seriesRes.rows ?? [];
@@ -570,7 +579,7 @@ export async function GET(req: Request) {
   } catch (e: any) {
     try {
       await client.query("rollback");
-    } catch {}
+    } catch { }
 
     return NextResponse.json(
       { ok: false, error: e?.message ?? "Overview API failed" },

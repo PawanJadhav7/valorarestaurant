@@ -222,7 +222,7 @@ export default function RestaurantOverviewPage() {
     urlLocationId && urlLocationId.trim() ? urlLocationId : "all"
   );
   const [insightDate, setInsightDate] = React.useState<string | null>(null);
-
+  const [dateRange, setDateRange] = React.useState<string>("30d");
   const activeTenantId = data?.tenant_id;
 
   const insightDateLabel = insightDate
@@ -270,7 +270,7 @@ export default function RestaurantOverviewPage() {
           location_name:
             x.location_name != null ? String(x.location_name) : undefined,
           name: x.name != null ? String(x.name) : undefined,
-          city:   x.city   != null ? String(x.city)   : undefined,
+          city: x.city != null ? String(x.city) : undefined,
           region: x.region != null ? String(x.region) : undefined,
         }))
         .filter((x) => x.id);
@@ -291,10 +291,12 @@ export default function RestaurantOverviewPage() {
 
   const fetchOverview = React.useCallback(
     async (signal?: AbortSignal) => {
-      const qs =
-        locationId !== "all"
-          ? `?location_id=${encodeURIComponent(locationId)}`
-          : "";
+
+      const params = new URLSearchParams();
+      if (locationId !== "all") params.set("location_id", locationId);
+      if (insightDate) params.set("day", insightDate);
+      params.set("range", dateRange);
+      const qs = params.toString() ? `?${params.toString()}` : "";
 
       const res = await fetch(`/api/restaurant/overview${qs}`, {
         cache: "no-store",
@@ -314,7 +316,7 @@ export default function RestaurantOverviewPage() {
 
       setData(json);
     },
-    [locationId]
+    [locationId, insightDate, dateRange]
   );
 
   const fetchLatestInsightDate = React.useCallback(
@@ -618,7 +620,7 @@ export default function RestaurantOverviewPage() {
   ).length;
 
 
-  
+
 
   const HeaderCard = (
     <SectionCard
@@ -649,8 +651,19 @@ export default function RestaurantOverviewPage() {
           <select
             title="Select date range"
             aria-label="Select date range"
-            value="30d"
-            onChange={() => { }}
+            value={dateRange}
+            onChange={(e) => {
+              const range = e.target.value;
+              setDateRange(range);
+              // Calculate date based on range
+              const today = new Date();
+              let targetDate = new Date();
+              if (range === "7d") targetDate.setDate(today.getDate() - 7);
+              if (range === "30d") targetDate.setDate(today.getDate() - 30);
+              if (range === "90d") targetDate.setDate(today.getDate() - 90);
+              if (range === "ytd") targetDate = new Date(today.getFullYear(), 0, 1);
+              setInsightDate(targetDate.toISOString().slice(0, 10));
+            }}
             className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
           >
             <option value="7d">Last 7 Days</option>
@@ -664,7 +677,12 @@ export default function RestaurantOverviewPage() {
             title="Select insight date"
             aria-label="Select insight date"
             value={insightDate ? String(insightDate).slice(0, 10) : ""}
-            onChange={() => { }}
+            onChange={(e) => {
+              if (e.target.value) {
+                setInsightDate(e.target.value);
+                setDateRange("custom");
+              }
+            }}
             onKeyDown={(e) => e.preventDefault()}
             className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
           />
@@ -677,8 +695,8 @@ export default function RestaurantOverviewPage() {
           >
             <RefreshCcw
               className={`h-4 w-4 ${loading
-                  ? "animate-spin"
-                  : "transition-transform duration-300 group-hover:rotate-180"
+                ? "animate-spin"
+                : "transition-transform duration-300 group-hover:rotate-180"
                 }`}
             />
           </button>
@@ -691,53 +709,34 @@ export default function RestaurantOverviewPage() {
     return (
       <div className="space-y-4">
         {HeaderCard}
-
         <SectionCard
-          title="Get started"
-          subtitle="No KPI rows available for this selection yet."
+          title="No data available for this range"
+          subtitle={`No data found for the selected date range.${insightDate
+            ? ` Latest data available: ${new Date(insightDate).toLocaleDateString(
+              "en-US", { month: "long", day: "numeric", year: "numeric" }
+            )}`
+            : ""
+            }`}
         >
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Card className="rounded-2xl">
-              <CardContent className="p-4">
-                <div className="text-sm font-semibold text-foreground">
-                  1) Load data
-                </div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  Upload sales/labor/inventory or run ingestion.
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl">
-              <CardContent className="p-4">
-                <div className="text-sm font-semibold text-foreground">
-                  2) Validate
-                </div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  Confirm raw_daily has revenue/cogs/labor.
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-2xl">
-              <CardContent className="p-4">
-                <div className="text-sm font-semibold text-foreground">
-                  3) Re-check overview API
-                </div>
-                <div className="mt-1 text-sm text-muted-foreground">
-                  Ensure /api/restaurant/overview returns kpis[].
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="mt-4">
-            <Link
-              href="/restaurant/data"
-              className="text-sm font-semibold text-foreground hover:underline"
-            >
-              Open Data setup →
-            </Link>
+          <div className="flex flex-col gap-4">
+            <div className="rounded-2xl border border-border/50 bg-background/20 p-4 text-sm text-muted-foreground">
+              Try selecting a different date range or use the date picker
+              to navigate to a date with available data.
+            </div>
+            {insightDate && (
+              <button
+                onClick={() => {
+                  setDateRange("90d");
+                  setInsightDate(insightDate);
+                  refreshOverview();
+                }}
+                className="self-start rounded-xl border border-border/60 bg-background/40 px-4 py-2 text-sm font-semibold text-foreground hover:bg-background/60"
+              >
+                View latest available data ({new Date(insightDate).toLocaleDateString(
+                  "en-US", { month: "short", day: "numeric", year: "numeric" }
+                )}) →
+              </button>
+            )}
           </div>
         </SectionCard>
       </div>
