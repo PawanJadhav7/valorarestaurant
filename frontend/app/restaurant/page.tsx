@@ -11,7 +11,7 @@ import {
   RestaurantKpiTile,
   type Kpi as RestaurantKpi,
 } from "@/components/restaurant/KpiTile";
-import { RefreshCcw } from "lucide-react";
+import { DashboardFilters } from "@/components/restaurant/DashboardFilters";
 
 type LocationOpt = {
   id: string;
@@ -628,79 +628,20 @@ export default function RestaurantOverviewPage() {
       subtitle="Portfolio-level performance across revenue, cost, cash flow, and operating health."
     >
       <div className="pt-2">
-        <div className="flex flex-wrap items-center gap-4">
-          <select
-            title="Select location"
-            aria-label="Select location"
-            value={locationId}
-            onChange={(e) => {
-              const nextLocationId = e.target.value;
-              setLocationId(nextLocationId);
-              updateLocationInUrl(nextLocationId);
-            }}
-            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-          >
-            <option value="all">All Locations</option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {getLocationDisplayName(l)}
-              </option>
-            ))}
-          </select>
-
-          <select
-            title="Select date range"
-            aria-label="Select date range"
-            value={dateRange}
-            onChange={(e) => {
-              const range = e.target.value;
-              setDateRange(range);
-              // Calculate date based on range
-              const today = new Date();
-              let targetDate = new Date();
-              if (range === "7d") targetDate.setDate(today.getDate() - 7);
-              if (range === "30d") targetDate.setDate(today.getDate() - 30);
-              if (range === "90d") targetDate.setDate(today.getDate() - 90);
-              if (range === "ytd") targetDate = new Date(today.getFullYear(), 0, 1);
-              setInsightDate(targetDate.toISOString().slice(0, 10));
-            }}
-            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-          >
-            <option value="7d">Last 7 Days</option>
-            <option value="30d">Last 30 Days</option>
-            <option value="90d">Last 90 Days</option>
-            <option value="ytd">Year to Date</option>
-          </select>
-
-          <input
-            type="date"
-            title="Select insight date"
-            aria-label="Select insight date"
-            value={insightDate ? String(insightDate).slice(0, 10) : ""}
-            onChange={(e) => {
-              if (e.target.value) {
-                setInsightDate(e.target.value);
-                setDateRange("custom");
-              }
-            }}
-            onKeyDown={(e) => e.preventDefault()}
-            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-          />
-
-          <button
-            onClick={refreshOverview}
-            disabled={loading}
-            className="group flex h-10 items-center justify-center rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 disabled:opacity-50"
-            aria-label="Refresh business overview"
-          >
-            <RefreshCcw
-              className={`h-4 w-4 ${loading
-                ? "animate-spin"
-                : "transition-transform duration-300 group-hover:rotate-180"
-                }`}
-            />
-          </button>
-        </div>
+        <DashboardFilters
+          locations={locations}
+          locationId={locationId}
+          onLocationChange={(id) => {
+            setLocationId(id);
+            updateLocationInUrl(id);
+          }}
+          dateRange={dateRange as any}
+          onDateRangeChange={setDateRange}
+          insightDate={insightDate}
+          onDateChange={setInsightDate}
+          onRefresh={refreshOverview}
+          loading={loading}
+        />
       </div>
     </SectionCard>
   );

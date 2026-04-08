@@ -1,3 +1,4 @@
+//app/restaurant/sales/sales-client.tsx
 "use client";
 
 import * as React from "react";
@@ -10,7 +11,7 @@ import {
 import { useRefreshState } from "@/components/restaurant/useRefreshState";
 import { PageScaffold } from "@/components/restaurant/PageScaffold";
 import { ValoraIntelligence } from "@/components/restaurant/ValoraIntelligence";
-import { RefreshCcw } from "lucide-react";
+import { DashboardFilters } from "@/components/restaurant/DashboardFilters";
 
 /** ---------- Types ---------- */
 type Severity = "good" | "warn" | "risk";
@@ -1686,66 +1687,32 @@ export function SalesClient() {
       subtitle="Analyze sales performance, demand patterns, and revenue drivers."
     >
       <div className="space-y-3">
-        <div className="flex items-center gap-4 pt-2 flex-wrap">
-          <select
-            value={locationId}
-            onChange={(e) => {
-              const next = e.target.value;
-              setLocationId(next);
-              updateSalesUrl(next, asOf);
-            }}
-            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-          >
-            <option value="all">All Locations</option>
-            {locationsUnique.map((l) => (
-              <option key={l.location_id} value={l.location_id}>
-                {prettifyLocationLabel(
-                  l.location_name ||
-                  l.name ||
-                  l.location_code ||
-                  String(l.location_id)
-                )}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={windowCode}
-            onChange={(e) => {
-              const next = e.target.value as "7d" | "30d" | "90d" | "ytd";
-              setWindowCode(next);
-              updateSalesUrl(locationId, asOf, next);
-            }}
-            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-          >
-            <option value="7d">Last 7 Days</option>
-            <option value="30d">Last 30 Days</option>
-            <option value="90d">Last 90 Days</option>
-            <option value="ytd">Year to Date</option>
-          </select>
-
-          <input
-            type="date"
-            value={asOf ? asOf.split("T")[0] : ""}
-            onChange={(e) => {
-              const selected = e.target.value;
-              setAsOf(selected);
-              updateSalesUrl(locationId, selected);
-            }}
-            onKeyDown={(e) => e.preventDefault()}
-            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-          />
-
-          <button
-            onClick={load}
-            disabled={loading}
-            aria-label="Refresh sales dashboard"
-            className="group flex h-10 items-center justify-center rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 disabled:opacity-50"
-          >
-            <RefreshCcw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
-          </button>
-
-        </div>
+        <DashboardFilters
+          locations={locationsUnique.map((l) => ({
+            id: l.location_id,
+            location_id: l.location_id,
+            location_code: l.location_code,
+            location_name: l.location_name,
+            name: l.name,
+          }))}
+          locationId={locationId}
+          onLocationChange={(next) => {
+            setLocationId(next);
+            updateSalesUrl(next, asOf);
+          }}
+          dateRange={windowCode}
+          onDateRangeChange={(next) => {
+            setWindowCode(next);
+            updateSalesUrl(locationId, asOf, next);
+          }}
+          insightDate={asOf || null}
+          onDateChange={(selected) => {
+            setAsOf(selected);
+            updateSalesUrl(locationId, selected);
+          }}
+          onRefresh={load}
+          loading={loading}
+        />
 
         {!ok && data?.error ? (
           <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">

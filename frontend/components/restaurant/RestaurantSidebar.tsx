@@ -36,32 +36,20 @@ const CORE: NavItem[] = [
     href: "/restaurant/operations",
     icon: ClipboardList,
   },
-  {
-    label: "Cost Management",
-    href: "/restaurant/cost-control",
-    icon: BadgeDollarSign,
-  },
-  { label: "Profitability", href: "/restaurant/profit", icon: DollarSign },
+  { label: "Cost Management", href: "/restaurant/cost-management", icon: BadgeDollarSign },
+  { label: "Profitability", href: "/restaurant/profitability", icon: DollarSign },
   {
     label: "Menu Optimization",
     href: "/restaurant/menu-optimization",
     icon: UtensilsCrossed,
   },
   { label: "Inventory Health", href: "/restaurant/inventory", icon: Boxes },
-  { label: "Workforce Performance", href: "/restaurant/labor", icon: Users },
+  { label: "Workforce Performance", href: "/restaurant/workforce", icon: Users },
 ];
 
 const INTELLIGENCE: NavItem[] = [
-  {
-    label: "Attention Required",
-    href: "/restaurant/insights/alerts",
-    icon: Bell,
-  },
-  {
-    label: "Recommended Actions",
-    href: "/restaurant/insights/actions",
-    icon: Sparkles,
-  },
+  { label: "Attention Required", href: "/restaurant/valora-intelligence/alerts", icon: Bell },
+  { label: "Recommended Actions", href: "/restaurant/valora-intelligence/actions", icon: Sparkles },
 ];
 
 const ADMIN: NavItem[] = [
@@ -170,7 +158,7 @@ function GlassAccordion({
           "hover:bg-background/25 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]",
           "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
         ].join(" ")}
-        aria-expanded={open}
+        // aria-expanded={open ? "true" : "false"}
       >
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">{title}</span>
