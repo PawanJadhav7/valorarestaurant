@@ -14,6 +14,7 @@ import {
 } from "@/components/restaurant/OpsDriversPanel";
 import { SeverityBadge } from "@/components/ui/SeverityBadge";
 import { RefreshCcw } from "lucide-react";
+import { DashboardFilters } from "@/components/restaurant/DashboardFilters";
 
 type Severity = "good" | "warn" | "risk";
 type Unit = "usd" | "pct" | "days" | "ratio" | "count" | "hours";
@@ -403,6 +404,9 @@ export default function OpsDashboardPage() {
   const [invDrivers, setInvDrivers] = React.useState<OpsDriver[]>([]);
   const [driversLoading, setDriversLoading] = React.useState<boolean>(true);
 
+  const [mlRisks, setMlRisks] = React.useState<any[]>([]);
+  const [mlBriefs, setMlBriefs] = React.useState<any[]>([]);
+
   React.useEffect(() => {
     (async () => {
       try {
@@ -511,6 +515,35 @@ export default function OpsDashboardPage() {
     load();
   }, [load]);
 
+  // Fetch latest date if none in URL
+  React.useEffect(() => {
+    if (asOf.trim()) return;
+    (async () => {
+      try {
+        const r = await fetch("/api/dashboard/latest-date", { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (j?.latest_date) setAsOf(j.latest_date);
+      } catch { }
+    })();
+  }, []);
+
+  React.useEffect(() => {
+    if (!asOf.trim()) return;
+    const day = asOf.trim().slice(0, 10);
+    const qs = new URLSearchParams({ day, limit: "10" });
+    if (locationId !== "all") qs.set("location_id", locationId);
+    (async () => {
+      try {
+        const r = await fetch(`/api/dashboard/ml-insights?${qs.toString()}`, { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        setMlRisks(j?.risks ?? []);
+        setMlBriefs(j?.briefs ?? []);
+      } catch { }
+    })();
+  }, [asOf, locationId]);
+
   const ok = Boolean(data?.ok);
   const kpis = data?.kpis ?? [];
   const series = (data?.series ?? {}) as Record<string, any[]>;
@@ -570,65 +603,21 @@ export default function OpsDashboardPage() {
         subtitle="Track labor, inventory, alerts, and recommended actions across your operating footprint."
       >
         <div className="space-y-3">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-col">
-              {/* <label className="mb-1 text-xs font-medium text-muted-foreground">
-                Location
-              </label> */}
-              <select
-                className="h-10 min-w-[220px] rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 focus:outline-none focus:ring-2 focus:ring-foreground/20"
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-              >
-                <option value="all">All Locations</option>
-                {locationsUnique.map((l) => (
-                  <option key={l.location_id} value={l.location_id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col">
-              {/* <label className="mb-1 text-xs font-medium text-muted-foreground">
-                Window
-              </label> */}
-              <select
-                className="h-10 min-w-[130px] rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 focus:outline-none focus:ring-2 focus:ring-foreground/20"
-                value={windowCode}
-                onChange={(e) => setWindowCode(e.target.value as any)}
-              >
-                <option value="7d">7D</option>
-                <option value="30d">30D</option>
-                <option value="90d">90D</option>
-                <option value="ytd">YTD</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col">
-              {/* <label className="mb-1 text-xs font-medium text-muted-foreground">
-                Snapshot Date
-              </label> */}
-              <input
-                type="date"
-                value={asOf ? asOf.split("T")[0] : ""}
-                onChange={(e) => {
-                  setAsOf(e.target.value);
-                }}
-                onKeyDown={(e) => e.preventDefault()}
-                className="h-10 min-w-[180px] rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 focus:outline-none focus:ring-2 focus:ring-foreground/20"
-              />
-            </div>
-
-            <button
-              className="group flex h-10 items-center justify-center rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 disabled:opacity-50"
-              onClick={load}
-              disabled={loading}
-              aria-label="Refresh operations dashboard"
-            >
-              <RefreshCcw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
-            </button>
-          </div>
+          <DashboardFilters
+            locations={locationsUnique.map((l) => ({
+              id: l.location_id,
+              location_id: l.location_id,
+              location_name: l.name,
+            }))}
+            locationId={locationId}
+            onLocationChange={setLocationId}
+            dateRange={windowCode as any}
+            onDateRangeChange={(v) => setWindowCode(v as any)}
+            insightDate={asOf || null}
+            onDateChange={setAsOf}
+            onRefresh={load}
+            loading={loading}
+          />
 
           {!ok && data?.error ? (
             <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
@@ -733,30 +722,26 @@ export default function OpsDashboardPage() {
                 </div>
 
                 <Link
-                  href="/restaurant/insights/alerts"
+                  href="/restaurant/valora-intelligence/alerts"
                   className="text-xs font-semibold text-foreground hover:underline"
                 >
                   View all alerts →
                 </Link>
               </div>
 
-              {alerts.length ? (
+              {mlRisks.length ? (
                 <div className="space-y-2">
-                  {alerts.slice(0, 8).map((a) => (
-                    <div
-                      key={a.id!}
-                      className="rounded-xl border border-border bg-background/40 p-3"
-                    >
+                  {mlRisks.slice(0, 5).map((a, i) => (
+                    <div key={i} className="rounded-xl border border-border bg-background/40 p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-foreground">
-                            {a.title}
+                            {a.location_name} — {a.risk_type?.split("_").map((w: string) => w[0].toUpperCase() + w.slice(1)).join(" ")}
                           </div>
                           <div className="mt-1 text-xs text-muted-foreground">
-                            {a.detail ?? ""}
+                            Impact: ${Number(a.impact_estimate ?? 0).toFixed(0)} · Severity: {a.severity_band}
                           </div>
                         </div>
-                        <SeverityBadge severity={a.severity} />
                       </div>
                     </div>
                   ))}
@@ -778,38 +763,24 @@ export default function OpsDashboardPage() {
                 </div>
               </div>
 
-              {actions.length ? (
+              {mlBriefs.length ? (
                 <div className="space-y-2">
-                  {actions.slice(0, 3).map((a) => (
-                    <div
-                      key={a.id!}
-                      className={`rounded-xl border p-3 ${a.priority === 1
-                        ? "border-red-500/25 bg-red-500/8"
-                        : a.priority === 2
-                          ? "border-amber-500/25 bg-amber-500/8"
-                          : "border-border bg-background/40"
-                        }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-foreground">
-                            <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-border bg-background text-xs">
-                              {a.priority}
-                            </span>
-                            {a.title}
+                  {mlBriefs.slice(0, 3).map((b, i) => {
+                    const actions = b.recommended_actions_json?.actions ?? [];
+                    const topAction = actions[0];
+                    return (
+                      <div key={i} className="rounded-xl border border-border/60 bg-background/20 p-3">
+                        <div className="text-sm font-semibold text-foreground">{b.headline}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{b.summary_text}</div>
+                        {topAction && (
+                          <div className="mt-2 text-xs text-emerald-400">
+                            → {topAction.title ?? topAction.action_code}
+                            {topAction.expected_roi && ` · +${(topAction.expected_roi * 100).toFixed(0)}% ROI`}
                           </div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {a.rationale}
-                          </div>
-                        </div>
-                        {a.owner ? (
-                          <span className="shrink-0 rounded-xl border border-border/30 bg-background/30 px-2 py-1 text-[11px] text-muted-foreground">
-                            {a.owner}
-                          </span>
-                        ) : null}
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="rounded-xl border border-border bg-background/40 p-4 text-sm text-muted-foreground">
