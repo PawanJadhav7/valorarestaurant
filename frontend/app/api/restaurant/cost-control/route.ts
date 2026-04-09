@@ -1,4 +1,4 @@
-//frontend/app/api/restaurant/cost-control/route.ts
+// frontend/app/api/restaurant/cost-control/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
@@ -6,524 +6,263 @@ import { getSessionUser } from "@/lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Severity = "good" | "warn" | "risk";
-type Unit = "usd" | "pct" | "days" | "ratio" | "count";
-
-type Kpi = {
-  code: string;
-  label: string;
-  value: number | null;
-  unit: Unit;
-  delta?: number | null;
-  severity?: Severity;
-  hint?: string;
-};
-
-type Alert = {
-  id: string;
-  severity: Severity;
-  title: string;
-  detail: string;
-};
-
-type Action = {
-  id: string;
-  priority: 1 | 2 | 3;
-  title: string;
-  rationale: string;
-  owner?: string;
-};
-
-function parseAsOf(sp: URLSearchParams): string | null {
-  const raw = sp.get("as_of");
-  if (!raw) return null;
-  const t = raw.trim();
-  return t.length ? t : null;
-}
-
-function parseWindow(sp: URLSearchParams): "7d" | "30d" | "90d" | "ytd" {
-  const w = (sp.get("window") ?? "30d").toLowerCase();
-  return (["7d", "30d", "90d", "ytd"].includes(w) ? w : "30d") as
-    | "7d"
-    | "30d"
-    | "90d"
-    | "ytd";
-}
-
-function parseLocationId(sp: URLSearchParams): number | null {
-  const raw = sp.get("location_id");
-  if (!raw || raw.trim() === "" || raw.trim().toLowerCase() === "all") return null;
-  const n = Number(raw.trim());
-  return Number.isInteger(n) ? n : null;
-}
-
-function toNum(v: any): number | null {
+function toNum(v: unknown): number | null {
   if (v === null || v === undefined) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+  const x = Number(v);
+  return Number.isFinite(x) ? x : null;
 }
 
-function avg(nums: number[]) {
-  if (!nums.length) return null;
-  return nums.reduce((a, b) => a + b, 0) / nums.length;
+function parseWindow(w: string): string {
+  if (w === "7d" || w === "30d" || w === "90d" || w === "ytd") return w;
+  return "30d";
 }
 
-function pctMaybe(v: number | null): number | null {
-  if (v === null) return null;
-  return v <= 1 ? v * 100 : v;
+function windowInterval(w: string): string {
+  if (w === "7d")  return "6 days";
+  if (w === "30d") return "29 days";
+  if (w === "90d") return "89 days";
+  return "364 days";
 }
 
-function deltaPoints(curr: number | null, prev: number | null): number | null {
-  if (curr === null || prev === null) return null;
-  return curr - prev;
-}
-
-function windowDays(windowCode: "7d" | "30d" | "90d" | "ytd", asOfDay: Date): number {
-  if (windowCode === "7d") return 7;
-  if (windowCode === "30d") return 30;
-  if (windowCode === "90d") return 90;
-  const start = new Date(Date.UTC(asOfDay.getUTCFullYear(), 0, 1));
-  return Math.floor((asOfDay.getTime() - start.getTime()) / 86400000) + 1;
-}
-
-function sevFoodCost(v: number | null): Severity {
-  if (v === null) return "good";
-  if (v >= 34) return "risk";
-  if (v >= 30) return "warn";
-  return "good";
-}
-
-function sevLabor(v: number | null): Severity {
-  if (v === null) return "good";
-  if (v >= 32) return "risk";
-  if (v >= 28) return "warn";
-  return "good";
-}
-
-function sevPrime(v: number | null): Severity {
-  if (v === null) return "good";
-  if (v >= 65) return "risk";
-  if (v >= 60) return "warn";
-  return "good";
-}
-
-function sevWaste(v: number | null): Severity {
-  if (v === null) return "good";
-  if (v >= 4) return "risk";
-  if (v >= 2.5) return "warn";
-  return "good";
-}
-
-function toDateOnly(v: unknown): string {
-  const d = new Date(v as any);
-  if (Number.isNaN(d.getTime())) {
-    throw new Error(`Invalid asOfTs value: ${String(v)}`);
+function severity(code: string, value: number | null): "good" | "warn" | "risk" {
+  if (value === null) return "good";
+  switch (code) {
+    case "CC_FOOD_COST_PCT":
+      if (value > 0.35) return "risk";
+      if (value > 0.32) return "warn";
+      return "good";
+    case "CC_LABOR_COST_PCT":
+      if (value > 0.35) return "risk";
+      if (value > 0.32) return "warn";
+      return "good";
+    case "CC_PRIME_COST_PCT":
+      if (value > 0.65) return "risk";
+      if (value > 0.62) return "warn";
+      return "good";
+    case "CC_WASTE_PCT":
+      if (value > 0.05) return "risk";
+      if (value > 0.03) return "warn";
+      return "good";
+    case "CC_DISCOUNT_PCT":
+      if (value > 0.10) return "risk";
+      if (value > 0.05) return "warn";
+      return "good";
+    default:
+      return "good";
   }
-  return d.toISOString().slice(0, 10);
 }
 
 export async function GET(req: Request) {
-  const refreshedAt = new Date().toISOString();
-
   try {
     const user = await getSessionUser();
-
-    if (!user) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    if (!user?.user_id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const url       = new URL(req.url);
+    const window    = parseWindow(url.searchParams.get("window") ?? "30d");
+    const dayParam  = url.searchParams.get("day") ?? url.searchParams.get("as_of");
+    const locParam  = url.searchParams.get("location_id");
+    const locationId = locParam ? parseInt(locParam) : null;
+
+    // Resolve tenant
     const tenantRes = await pool.query(
-      `
-      select tenant_id
-      from app.tenant_user
-      where user_id = $1::uuid
-      order by created_at asc
-      limit 1
-      `,
+      `SELECT tenant_id FROM app.tenant_user
+       WHERE user_id = $1::uuid ORDER BY created_at ASC LIMIT 1`,
       [user.user_id]
     );
-
-    const tenantId = tenantRes.rows?.[0]?.tenant_id;
-
+    const tenantId = tenantRes.rows[0]?.tenant_id ?? null;
     if (!tenantId) {
-      return NextResponse.json(
-        {
-          ok: true,
-          as_of: null,
-          refreshed_at: refreshedAt,
-          window: "30d",
-          location: { id: "all", name: "All Locations" },
-          kpis: [],
-          series: {},
-          alerts: [],
-          actions: [],
-        },
-        { headers: { "Cache-Control": "no-store" } }
-      );
+      return NextResponse.json({ error: "Tenant not resolved" }, { status: 403 });
     }
 
-    const url = new URL(req.url);
-    const asOfParam = parseAsOf(url.searchParams);
-    const windowCode = parseWindow(url.searchParams);
-    const locationId = parseLocationId(url.searchParams);
-
-    let asOfTs: string | null = asOfParam;
-
-    if (!asOfTs) {
-      const anchorSql = locationId
-        ? `
-          SELECT MAX(day)::timestamptz AS as_of_ts
-          FROM restaurant.f_location_daily_features
-          WHERE tenant_id = $1::uuid
-            AND location_id = $2::bigint
-        `
-        : `
-          SELECT MAX(day)::timestamptz AS as_of_ts
-          FROM restaurant.f_location_daily_features
-          WHERE tenant_id = $1::uuid
-        `;
-
-      const anchorRes = await pool.query(
-        anchorSql,
-        locationId ? [tenantId, locationId] : [tenantId]
-      );
-
-      asOfTs = anchorRes.rows?.[0]?.as_of_ts ?? null;
-    }
-
-    if (!asOfTs) {
-      return NextResponse.json(
-        {
-          ok: true,
-          as_of: null,
-          refreshed_at: refreshedAt,
-          window: windowCode,
-          location: {
-            id: locationId ?? "all",
-            name: locationId ? `Location ${locationId}` : "All Locations",
-          },
-          kpis: [],
-          series: {},
-          alerts: [],
-          actions: [],
-          raw: { anchor_missing: true },
-        },
-        { headers: { "Cache-Control": "no-store" } }
-      );
-    }
-
-    const sql = `
-      WITH params AS (
-        SELECT
-          $1::date AS as_of_day,
-          $2::int AS n_days,
-          $3::bigint AS p_location
-      ),
-      curr AS (
-        SELECT f.*
-        FROM restaurant.f_location_daily_features f
-        CROSS JOIN params p
-        WHERE f.tenant_id = $4::uuid
-          AND f.day BETWEEN (p.as_of_day - (p.n_days - 1)) AND p.as_of_day
-          AND (p.p_location IS NULL OR f.location_id = p.p_location)
-      ),
-      prev AS (
-        SELECT f.*
-        FROM restaurant.f_location_daily_features f
-        CROSS JOIN params p
-        WHERE f.tenant_id = $4::uuid
-          AND f.day BETWEEN (p.as_of_day - ((p.n_days * 2) - 1)) AND (p.as_of_day - p.n_days)
-          AND (p.p_location IS NULL OR f.location_id = p.p_location)
-      )
-      SELECT
-        'curr' AS bucket,
-        day,
-        tenant_id,
-        location_id,
-        location_name,
-        revenue,
-        cogs,
-        labor,
-        orders,
-        customers,
-        food_cost_pct,
-        labor_cost_pct,
-        prime_cost,
-        prime_cost_pct,
-        waste_pct,
-        waste_amount,
-        stockout_count,
-        discount_pct,
-        void_pct,
-        refund_pct
-      FROM curr
-
-      UNION ALL
-
-      SELECT
-        'prev' AS bucket,
-        day,
-        tenant_id,
-        location_id,
-        location_name,
-        revenue,
-        cogs,
-        labor,
-        orders,
-        customers,
-        food_cost_pct,
-        labor_cost_pct,
-        prime_cost,
-        prime_cost_pct,
-        waste_pct,
-        waste_amount,
-        stockout_count,
-        discount_pct,
-        void_pct,
-        refund_pct
-      FROM prev
-
-      ORDER BY bucket, day;
-    `;
-
-    const asOfDateStr = toDateOnly(asOfTs);
-    const asOfDay = new Date(`${asOfDateStr}T00:00:00.000Z`);
-    const days = windowDays(windowCode, asOfDay);
-
-    const res = await pool.query(sql, [asOfDateStr, days, locationId, tenantId]);
-
-    const rows = res.rows ?? [];
-    const currRows = rows.filter((r) => r.bucket === "curr");
-    const prevRows = rows.filter((r) => r.bucket === "prev");
-
-    const locName =
-      locationId === null
-        ? "All Locations"
-        : currRows[0]?.location_name ?? `Location ${locationId}`;
-
-    const currFood = avg(currRows.map((r) => pctMaybe(toNum(r.food_cost_pct))).filter((x): x is number => x !== null));
-    const prevFood = avg(prevRows.map((r) => pctMaybe(toNum(r.food_cost_pct))).filter((x): x is number => x !== null));
-
-    const currLabor = avg(currRows.map((r) => pctMaybe(toNum(r.labor_cost_pct))).filter((x): x is number => x !== null));
-    const prevLabor = avg(prevRows.map((r) => pctMaybe(toNum(r.labor_cost_pct))).filter((x): x is number => x !== null));
-
-    const currPrime = avg(currRows.map((r) => pctMaybe(toNum(r.prime_cost_pct))).filter((x): x is number => x !== null));
-    const prevPrime = avg(prevRows.map((r) => pctMaybe(toNum(r.prime_cost_pct))).filter((x): x is number => x !== null));
-
-    const currWaste = avg(currRows.map((r) => pctMaybe(toNum(r.waste_pct))).filter((x): x is number => x !== null));
-    const prevWaste = avg(prevRows.map((r) => pctMaybe(toNum(r.waste_pct))).filter((x): x is number => x !== null));
-
-    const currDiscount = avg(currRows.map((r) => pctMaybe(toNum(r.discount_pct))).filter((x): x is number => x !== null));
-    const prevDiscount = avg(prevRows.map((r) => pctMaybe(toNum(r.discount_pct))).filter((x): x is number => x !== null));
-
-    const currVoid = avg(currRows.map((r) => pctMaybe(toNum(r.void_pct))).filter((x): x is number => x !== null));
-    const prevVoid = avg(prevRows.map((r) => pctMaybe(toNum(r.void_pct))).filter((x): x is number => x !== null));
-
-    const currRefund = avg(currRows.map((r) => pctMaybe(toNum(r.refund_pct))).filter((x): x is number => x !== null));
-    const prevRefund = avg(prevRows.map((r) => pctMaybe(toNum(r.refund_pct))).filter((x): x is number => x !== null));
-
-    const wasteAmount = currRows.reduce((s, r) => s + (toNum(r.waste_amount) ?? 0), 0);
-    const stockouts = currRows.reduce((s, r) => s + (Number(r.stockout_count) || 0), 0);
-
-    const day = currRows.map((r) => String(r.day));
-    const FOOD_COST_PCT = currRows.map((r) => pctMaybe(toNum(r.food_cost_pct)));
-    const LABOR_COST_PCT = currRows.map((r) => pctMaybe(toNum(r.labor_cost_pct)));
-    const PRIME_COST_PCT = currRows.map((r) => pctMaybe(toNum(r.prime_cost_pct)));
-    const WASTE_PCT = currRows.map((r) => pctMaybe(toNum(r.waste_pct)));
-    const DISCOUNT_PCT = currRows.map((r) => pctMaybe(toNum(r.discount_pct)));
-
-    const kpis: Kpi[] = [
-      {
-        code: "CC_FOOD_COST_PCT",
-        label: "Food Cost %",
-        value: currFood,
-        unit: "pct",
-        delta: deltaPoints(currFood, prevFood),
-        severity: sevFoodCost(currFood),
-        hint: "Average food cost % for selected window.",
-      },
-      {
-        code: "CC_LABOR_COST_PCT",
-        label: "Labor Cost %",
-        value: currLabor,
-        unit: "pct",
-        delta: deltaPoints(currLabor, prevLabor),
-        severity: sevLabor(currLabor),
-        hint: "Average labor cost % for selected window.",
-      },
-      {
-        code: "CC_PRIME_COST_PCT",
-        label: "Prime Cost %",
-        value: currPrime,
-        unit: "pct",
-        delta: deltaPoints(currPrime, prevPrime),
-        severity: sevPrime(currPrime),
-        hint: "Food cost % + labor cost %.",
-      },
-      {
-        code: "CC_WASTE_PCT",
-        label: "Waste %",
-        value: currWaste,
-        unit: "pct",
-        delta: deltaPoints(currWaste, prevWaste),
-        severity: sevWaste(currWaste),
-        hint: "Average waste % for selected window.",
-      },
-      {
-        code: "CC_STOCKOUTS",
-        label: "Stockouts",
-        value: stockouts,
-        unit: "count",
-        delta: null,
-        severity: stockouts >= 20 ? "risk" : stockouts >= 8 ? "warn" : "good",
-        hint: "Total stockout count for selected window.",
-      },
-      {
-        code: "CC_WASTE_AMOUNT",
-        label: "Waste Amount",
-        value: wasteAmount,
-        unit: "usd",
-        delta: null,
-        severity: wasteAmount >= 5000 ? "risk" : wasteAmount >= 2000 ? "warn" : "good",
-        hint: "Total waste amount for selected window.",
-      },
-      {
-        code: "CC_DISCOUNT_PCT",
-        label: "Discount %",
-        value: currDiscount,
-        unit: "pct",
-        delta: deltaPoints(currDiscount, prevDiscount),
-        severity:
-          currDiscount !== null && currDiscount >= 6
-            ? "risk"
-            : currDiscount !== null && currDiscount >= 3
-            ? "warn"
-            : "good",
-        hint: "Average discount % for selected window.",
-      },
-      {
-        code: "CC_VOID_PCT",
-        label: "Void %",
-        value: currVoid,
-        unit: "pct",
-        delta: deltaPoints(currVoid, prevVoid),
-        severity:
-          currVoid !== null && currVoid >= 1.5
-            ? "risk"
-            : currVoid !== null && currVoid >= 0.75
-            ? "warn"
-            : "good",
-        hint: "Average void % for selected window.",
-      },
-      {
-        code: "CC_REFUND_PCT",
-        label: "Refund %",
-        value: currRefund,
-        unit: "pct",
-        delta: deltaPoints(currRefund, prevRefund),
-        severity:
-          currRefund !== null && currRefund >= 1.5
-            ? "risk"
-            : currRefund !== null && currRefund >= 0.75
-            ? "warn"
-            : "good",
-        hint: "Average refund % for selected window.",
-      },
-    ];
-
-    const alerts: Alert[] = [];
-    const actions: Action[] = [];
-
-    if (currPrime !== null && currPrime >= 60) {
-      alerts.push({
-        id: "alert_prime_cost",
-        severity: currPrime >= 65 ? "risk" : "warn",
-        title: "Prime cost above target",
-        detail: `Prime cost is ${currPrime.toFixed(1)}% for the selected window.`,
-      });
-      actions.push({
-        id: "act_prime_cost",
-        priority: 1,
-        title: "Reduce prime cost",
-        rationale: "Review food and labor together; trim overtime, re-check prep yields, and tighten purchasing.",
-        owner: "Operations",
-      });
-    }
-
-    if (currFood !== null && currFood >= 30) {
-      alerts.push({
-        id: "alert_food_cost",
-        severity: currFood >= 34 ? "risk" : "warn",
-        title: "Food cost pressure detected",
-        detail: `Food cost is ${currFood.toFixed(1)}%, above normal operating range.`,
-      });
-      actions.push({
-        id: "act_food_cost",
-        priority: 2,
-        title: "Tighten food cost controls",
-        rationale: "Review top COGS items, portioning, vendor pricing, and menu mix.",
-        owner: "Kitchen / Purchasing",
-      });
-    }
-
-    if (currWaste !== null && currWaste >= 2.5) {
-      alerts.push({
-        id: "alert_waste",
-        severity: currWaste >= 4 ? "risk" : "warn",
-        title: "Waste is elevated",
-        detail: `Waste is averaging ${currWaste.toFixed(2)}% of sales.`,
-      });
-      actions.push({
-        id: "act_waste",
-        priority: 3,
-        title: "Reduce waste",
-        rationale: "Audit prep waste, spoilage, and dead stock; adjust pars and prep cadence.",
-        owner: "Kitchen",
-      });
-    }
-
-    if (currDiscount !== null && currDiscount >= 3) {
-      alerts.push({
-        id: "alert_discount",
-        severity: currDiscount >= 6 ? "risk" : "warn",
-        title: "Discount leakage detected",
-        detail: `Discount % is averaging ${currDiscount.toFixed(2)}%.`,
-      });
-    }
-
-    return NextResponse.json(
-      {
-        ok: true,
-        as_of: asOfTs,
-        refreshed_at: refreshedAt,
-        window: windowCode,
-        location: {
-          id: locationId ?? "all",
-          name: locName,
-        },
-        kpis,
-        series: {
-          day,
-          FOOD_COST_PCT,
-          LABOR_COST_PCT,
-          PRIME_COST_PCT,
-          WASTE_PCT,
-          DISCOUNT_PCT,
-        },
-        alerts: alerts.slice(0, 8),
-        actions: actions.slice(0, 3),
-        raw: {
-          rows_curr: currRows.length,
-          rows_prev: prevRows.length,
-          days,
-        },
-      },
-      { headers: { "Cache-Control": "no-store" } }
+    // Resolve allowed locations
+    const allowedRes = await pool.query(
+      `SELECT DISTINCT dl.location_id
+       FROM restaurant.dim_location dl
+       JOIN app.tenant_location tl ON tl.location_id = dl.location_id
+       WHERE dl.tenant_id = $1::uuid AND dl.is_active = true`,
+      [tenantId]
     );
-  } catch (e: any) {
-    console.error("GET /api/restaurant/cost-control failed:", e);
+    const allowedIds = allowedRes.rows.map((r: any) => r.location_id);
+    if (!allowedIds.length) {
+      return NextResponse.json({ ok: true, kpis: [], series: {} });
+    }
+
+    // Anchor date
+    const anchorRes = await pool.query(
+      `SELECT COALESCE(MAX(day), CURRENT_DATE)::date AS anchor_day
+       FROM analytics.v_gold_daily
+       WHERE tenant_id = $1::uuid
+         AND location_id = ANY($2::bigint[])
+         AND ($3::bigint IS NULL OR location_id = $3::bigint)`,
+      [tenantId, allowedIds, locationId]
+    );
+    const anchorDay = dayParam?.slice(0, 10) ??
+      anchorRes.rows[0]?.anchor_day?.toISOString?.()?.slice(0, 10) ??
+      new Date().toISOString().slice(0, 10);
+
+    const interval = windowInterval(window);
+
+    // ── Aggregate KPIs ────────────────────────────────────────
+    const aggRes = await pool.query(
+      `
+      SELECT
+        -- Cost ratios
+        CASE WHEN SUM(revenue) > 0
+             THEN ROUND(SUM(cogs) / SUM(revenue), 4) END              AS food_cost_pct,
+        CASE WHEN SUM(revenue) > 0
+             THEN ROUND(SUM(labor) / SUM(revenue), 4) END             AS labor_cost_pct,
+        CASE WHEN SUM(revenue) > 0
+             THEN ROUND((SUM(cogs)+SUM(labor)) / SUM(revenue), 4) END AS prime_cost_pct,
+        CASE WHEN SUM(revenue) > 0
+             THEN ROUND(SUM(fixed_costs) / SUM(revenue), 4) END       AS fixed_cost_pct,
+        -- Absolute costs
+        ROUND(SUM(cogs), 2)                                            AS total_cogs,
+        ROUND(SUM(labor), 2)                                          AS total_labor,
+        ROUND(SUM(fixed_costs), 2)                                    AS total_fixed,
+        ROUND(SUM(cogs) + SUM(labor), 2)                              AS total_prime_cost,
+        -- Waste estimate 2%
+        0.02                                                          AS waste_pct,
+        -- Discount (not in Gold — default 0)
+        0.0                                                           AS discount_pct,
+        0                                                             AS stockouts,
+        0.0                                                           AS void_pct,
+        0.0                                                           AS comp_pct,
+        -- Cost per order
+        CASE WHEN SUM(orders) > 0
+             THEN ROUND(SUM(cogs) / SUM(orders), 2) END              AS cogs_per_order,
+        CASE WHEN SUM(orders) > 0
+             THEN ROUND(SUM(labor) / SUM(orders), 2) END             AS labor_per_order
+      FROM analytics.v_gold_daily
+      WHERE tenant_id = $1::uuid
+        AND day BETWEEN ($2::date - $3::interval) AND $2::date
+        AND location_id = ANY($4::bigint[])
+        AND ($5::bigint IS NULL OR location_id = $5::bigint)
+      `,
+      [tenantId, anchorDay, interval, allowedIds, locationId]
+    );
+    const agg = aggRes.rows[0] ?? {};
+
+    // ── Series ────────────────────────────────────────────────
+    const seriesRes = await pool.query(
+      `
+      SELECT
+        day,
+        CASE WHEN SUM(revenue) > 0
+             THEN ROUND(SUM(cogs) / SUM(revenue), 4) END              AS food_cost_pct,
+        CASE WHEN SUM(revenue) > 0
+             THEN ROUND(SUM(labor) / SUM(revenue), 4) END             AS labor_cost_pct,
+        CASE WHEN SUM(revenue) > 0
+             THEN ROUND((SUM(cogs)+SUM(labor)) / SUM(revenue), 4) END AS prime_cost_pct,
+        CASE WHEN SUM(revenue) > 0
+             THEN ROUND(SUM(fixed_costs) / SUM(revenue), 4) END       AS fixed_cost_pct,
+        ROUND(SUM(cogs), 2)                                            AS total_cogs,
+        ROUND(SUM(labor), 2)                                          AS total_labor,
+        0.02                                                          AS waste_pct,
+        0.0                                                           AS discount_pct
+      FROM analytics.v_gold_daily
+      WHERE tenant_id = $1::uuid
+        AND day BETWEEN ($2::date - $3::interval) AND $2::date
+        AND location_id = ANY($4::bigint[])
+        AND ($5::bigint IS NULL OR location_id = $5::bigint)
+      GROUP BY day
+      ORDER BY day ASC
+      `,
+      [tenantId, anchorDay, interval, allowedIds, locationId]
+    );
+    const seriesRows = seriesRes.rows ?? [];
+
+    const series = {
+      day:            seriesRows.map((r: any) => r.day?.toISOString?.()?.slice(0, 10) ?? String(r.day)),
+      FOOD_COST_PCT:  seriesRows.map((r: any) => toNum(r.food_cost_pct) ?? 0),
+      LABOR_COST_PCT: seriesRows.map((r: any) => toNum(r.labor_cost_pct) ?? 0),
+      PRIME_COST_PCT: seriesRows.map((r: any) => toNum(r.prime_cost_pct) ?? 0),
+      FIXED_COST_PCT: seriesRows.map((r: any) => toNum(r.fixed_cost_pct) ?? 0),
+      COGS:           seriesRows.map((r: any) => toNum(r.total_cogs) ?? 0),
+      LABOR:          seriesRows.map((r: any) => toNum(r.total_labor) ?? 0),
+      WASTE_PCT:      seriesRows.map((r: any) => 0.02),
+      DISCOUNT_PCT:   seriesRows.map((r: any) => 0),
+    };
+
+    // ── KPIs ──────────────────────────────────────────────────
+    const kpis = [
+      { code: "CC_FOOD_COST_PCT",   label: "Food Cost %",      value: toNum(agg.food_cost_pct),   unit: "pct"   },
+      { code: "CC_LABOR_COST_PCT",  label: "Labor Cost %",     value: toNum(agg.labor_cost_pct),  unit: "pct"   },
+      { code: "CC_PRIME_COST_PCT",  label: "Prime Cost %",     value: toNum(agg.prime_cost_pct),  unit: "pct"   },
+      { code: "CC_WASTE_PCT",       label: "Waste %",          value: toNum(agg.waste_pct),       unit: "pct"   },
+      { code: "CC_TOTAL_COGS",      label: "Total COGS",       value: toNum(agg.total_cogs),      unit: "usd"   },
+      { code: "CC_TOTAL_LABOR",     label: "Total Labor",      value: toNum(agg.total_labor),     unit: "usd"   },
+      { code: "CC_TOTAL_FIXED",     label: "Fixed Costs",      value: toNum(agg.total_fixed),     unit: "usd"   },
+      { code: "CC_PRIME_COST_ABS",  label: "Prime Cost $",     value: toNum(agg.total_prime_cost),unit: "usd"   },
+      { code: "CC_DISCOUNT_PCT",    label: "Discount Rate",    value: toNum(agg.discount_pct),    unit: "pct"   },
+      { code: "CC_STOCKOUTS",       label: "Stockouts",        value: toNum(agg.stockouts),       unit: "count" },
+      { code: "CC_VOID_PCT",        label: "Void Rate",        value: toNum(agg.void_pct),        unit: "pct"   },
+      { code: "CC_COMP_PCT",        label: "Comp Rate",        value: toNum(agg.comp_pct),        unit: "pct"   },
+      { code: "CC_COGS_PER_ORDER",  label: "COGS / Order",     value: toNum(agg.cogs_per_order),  unit: "usd"   },
+      { code: "CC_LABOR_PER_ORDER", label: "Labor / Order",    value: toNum(agg.labor_per_order), unit: "usd"   },
+      { code: "CC_FIXED_COST_PCT",  label: "Fixed Cost %",     value: toNum(agg.fixed_cost_pct),  unit: "pct"   },
+    ].map((k) => ({ ...k, severity: severity(k.code, k.value), delta: null }));
+
+    // ── Insights ──────────────────────────────────────────────
+    const insights = [];
+    const foodCost  = toNum(agg.food_cost_pct) ?? 0;
+    const laborCost = toNum(agg.labor_cost_pct) ?? 0;
+    const primeCost = toNum(agg.prime_cost_pct) ?? 0;
+
+    if (foodCost > 0.32) {
+      insights.push({
+        code: "food_cost_elevated",
+        title: "Food cost above benchmark",
+        message: `Food cost of ${(foodCost * 100).toFixed(1)}% exceeds the 30% target. Review supplier pricing and portion controls.`,
+        severity: foodCost > 0.35 ? "risk" : "warn",
+      });
+    }
+    if (laborCost > 0.32) {
+      insights.push({
+        code: "labor_cost_elevated",
+        title: "Labor cost pressure detected",
+        message: `Labor cost of ${(laborCost * 100).toFixed(1)}% is above the 30% benchmark. Review scheduling and overtime.`,
+        severity: laborCost > 0.35 ? "risk" : "warn",
+      });
+    }
+    if (primeCost > 0.62) {
+      insights.push({
+        code: "prime_cost_high",
+        title: "Prime cost exceeds target",
+        message: `Combined food and labor cost of ${(primeCost * 100).toFixed(1)}% exceeds the 60% target.`,
+        severity: primeCost > 0.65 ? "risk" : "warn",
+      });
+    }
+    if (insights.length === 0) {
+      insights.push({
+        code: "costs_healthy",
+        title: "Cost structure is healthy",
+        message: "Food cost, labor, and prime cost are all within target ranges.",
+        severity: "good",
+      });
+    }
+
+    return NextResponse.json({
+      ok:           true,
+      as_of:        new Date().toISOString(),
+      refreshed_at: new Date().toISOString(),
+      window,
+      anchor_day:   anchorDay,
+      location:     { id: locationId ? String(locationId) : "all", name: "Cost Management" },
+      kpis,
+      series,
+      insights: {
+        kpi_insights:   insights,
+        chart_insights: [],
+        alerts:         [],
+        recommendations: [],
+      },
+    });
+
+  } catch (error: any) {
     return NextResponse.json(
-      { ok: false, error: e?.message ?? String(e), kpis: [], series: {}, alerts: [], actions: [] },
+      { error: error?.message ?? "Failed to fetch cost management data" },
       { status: 500 }
     );
   }

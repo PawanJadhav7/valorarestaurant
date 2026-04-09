@@ -214,3 +214,31 @@ body,
     opacity: 0.6;
   }
 }
+
+/* =========================
+   Background Gradient Layer
+   ========================= */
+
+.background-gradients {
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(99, 102, 241, 0.12), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 80% 10%, rgba(168, 85, 247, 0.10), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(59, 130, 246, 0.08), transparent 70%);
+}
+
+:root[data-theme="dark"] .background-gradients {
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(99, 102, 241, 0.18), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 80% 10%, rgba(168, 85, 247, 0.15), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(59, 130, 246, 0.12), transparent 70%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .background-gradients,
+  :root[data-theme="system"] .background-gradients {
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 0%, rgba(99, 102, 241, 0.18), transparent 70%),
+      radial-gradient(ellipse 60% 50% at 80% 10%, rgba(168, 85, 247, 0.15), transparent 70%),
+      radial-gradient(ellipse 50% 40% at 50% 100%, rgba(59, 130, 246, 0.12), transparent 70%);
+  }
+}

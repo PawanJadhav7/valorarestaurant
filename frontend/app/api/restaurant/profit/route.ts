@@ -164,13 +164,13 @@ export async function GET(req: Request) {
       const anchorSql = locationId
         ? `
           SELECT MAX(day)::timestamptz AS as_of_ts
-          FROM restaurant.f_location_daily_features
+          FROM analytics.v_gold_daily
           WHERE tenant_id = $1::uuid
             AND location_id = $2::bigint
         `
         : `
           SELECT MAX(day)::timestamptz AS as_of_ts
-          FROM restaurant.f_location_daily_features
+          FROM analytics.v_gold_daily
           WHERE tenant_id = $1::uuid
         `;
 
@@ -216,7 +216,7 @@ export async function GET(req: Request) {
       ),
       curr_raw AS (
         SELECT f.*
-        FROM restaurant.f_location_daily_features f
+        FROM analytics.v_gold_daily f
         CROSS JOIN params p
         WHERE f.day BETWEEN (p.as_of_day - (p.n_days - 1)) AND p.as_of_day
           AND f.tenant_id = $4::uuid
@@ -224,7 +224,7 @@ export async function GET(req: Request) {
       ),
       prev_raw AS (
         SELECT f.*
-        FROM restaurant.f_location_daily_features f
+        FROM analytics.v_gold_daily f
         CROSS JOIN params p
         WHERE f.day BETWEEN (p.as_of_day - ((p.n_days * 2) - 1)) AND (p.as_of_day - p.n_days)
           AND f.tenant_id = $4::uuid
@@ -246,10 +246,10 @@ export async function GET(req: Request) {
           SUM(ebit) AS ebit,
           SUM(gross_profit) AS gross_profit,
           CASE WHEN SUM(revenue) = 0 THEN NULL ELSE (SUM(gross_profit) / SUM(revenue)) * 100 END AS gross_margin,
-          SUM(contribution_margin) AS contribution_margin,
-          CASE WHEN SUM(revenue) = 0 THEN NULL ELSE (SUM(contribution_margin) / SUM(revenue)) * 100 END AS contribution_margin_pct,
-          SUM(prime_cost) AS prime_cost,
-          CASE WHEN SUM(revenue) = 0 THEN NULL ELSE (SUM(prime_cost) / SUM(revenue)) * 100 END AS prime_cost_pct,
+          (SUM(revenue) - SUM(cogs) - SUM(labor)) AS contribution_margin,
+          CASE WHEN SUM(revenue) = 0 THEN NULL ELSE ((SUM(revenue) - SUM(cogs) - SUM(labor)) / SUM(revenue)) * 100 END AS contribution_margin_pct,
+          (SUM(cogs) + SUM(labor)) AS prime_cost,
+          CASE WHEN SUM(revenue) = 0 THEN NULL ELSE ((SUM(cogs) + SUM(labor)) / SUM(revenue)) * 100 END AS prime_cost_pct,
           SUM(orders) AS orders,
           SUM(customers) AS customers
         FROM curr_raw
@@ -271,10 +271,10 @@ export async function GET(req: Request) {
           SUM(ebit) AS ebit,
           SUM(gross_profit) AS gross_profit,
           CASE WHEN SUM(revenue) = 0 THEN NULL ELSE (SUM(gross_profit) / SUM(revenue)) * 100 END AS gross_margin,
-          SUM(contribution_margin) AS contribution_margin,
-          CASE WHEN SUM(revenue) = 0 THEN NULL ELSE (SUM(contribution_margin) / SUM(revenue)) * 100 END AS contribution_margin_pct,
-          SUM(prime_cost) AS prime_cost,
-          CASE WHEN SUM(revenue) = 0 THEN NULL ELSE (SUM(prime_cost) / SUM(revenue)) * 100 END AS prime_cost_pct,
+          (SUM(revenue) - SUM(cogs) - SUM(labor)) AS contribution_margin,
+          CASE WHEN SUM(revenue) = 0 THEN NULL ELSE ((SUM(revenue) - SUM(cogs) - SUM(labor)) / SUM(revenue)) * 100 END AS contribution_margin_pct,
+          (SUM(cogs) + SUM(labor)) AS prime_cost,
+          CASE WHEN SUM(revenue) = 0 THEN NULL ELSE ((SUM(cogs) + SUM(labor)) / SUM(revenue)) * 100 END AS prime_cost_pct,
           SUM(orders) AS orders,
           SUM(customers) AS customers
         FROM prev_raw

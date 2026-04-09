@@ -2,15 +2,14 @@
 "use client";
 
 import * as React from "react";
-import { RefreshCcw } from "lucide-react";
+import Link from "next/link";
 import { SectionCard } from "@/components/valora/SectionCard";
 import { PageScaffold } from "@/components/restaurant/PageScaffold";
-import { KpiGroup } from "@/components/restaurant/KpiGroup";
-
 import {
   RestaurantKpiTile,
   type Kpi as RestaurantKpi,
 } from "@/components/restaurant/KpiTile";
+import { DashboardFilters } from "@/components/restaurant/DashboardFilters";
 
 type Unit = "usd" | "pct" | "days" | "ratio" | "count" | "hours";
 type Severity = "good" | "warn" | "risk";
@@ -45,21 +44,6 @@ type LaborResponse = {
 
 type ChartTone = "labor" | "overtime" | "productivity" | "hours";
 
-function prettifyWindowLabel(windowCode: string) {
-  switch (windowCode) {
-    case "7d":
-      return "Last 7 Days";
-    case "30d":
-      return "Last 30 Days";
-    case "90d":
-      return "Last 90 Days";
-    case "ytd":
-      return "Year to Date";
-    default:
-      return windowCode.toUpperCase();
-  }
-}
-
 function toneClass(tone: ChartTone) {
   switch (tone) {
     case "labor":
@@ -87,24 +71,18 @@ function fmtNum0(n: number) {
   return n.toFixed(0);
 }
 
-function SkeletonTiles({ n = 4 }: { n?: number }) {
+function SkeletonGroup({ title }: { title: string }) {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      {Array.from({ length: n }).map((_, i) => (
-        <div key={i} className="rounded-2xl border border-border bg-card p-4">
-          <div className="h-5 w-40 animate-pulse rounded bg-muted/30" />
-          <div className="mt-2 h-4 w-56 animate-pulse rounded bg-muted/20" />
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            {Array.from({ length: 4 }).map((__, j) => (
-              <div
-                key={j}
-                className="h-28 animate-pulse rounded-2xl border border-border bg-muted/20"
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
+    <SectionCard title={title}>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-32 animate-pulse rounded-2xl border border-border bg-muted/30"
+          />
+        ))}
+      </div>
+    </SectionCard>
   );
 }
 
@@ -278,68 +256,96 @@ function LineChart({
   );
 }
 
+function placeholderKpi(
+  code: string,
+  label: string,
+  unit: Unit
+): RestaurantKpi {
+  return {
+    code,
+    label,
+    unit,
+    value: null,
+    delta: null,
+    severity: undefined,
+  };
+}
+
 function buildLaborKpiSections(tileKpisAll: RestaurantKpi[]) {
   const byCode = new Map(tileKpisAll.map((k) => [k.code, k]));
-
-  const preferredOrder = [
-    "LABOR_COST",
-    "LABOR_COST_RATIO",
-    "LABOR_HOURS",
-    "OVERTIME_HOURS",
-
-    "OVERTIME_PCT",
-    "SALES_PER_LABOR_HOUR",
-    "REVENUE_PER_LABOR_HOUR",
-    "PRODUCTIVITY_INDEX",
-
-    "SCHEDULED_HOURS",
-    "ACTUAL_HOURS",
-    "LABOR_VARIANCE_HOURS",
-    "HEADCOUNT",
-
-    "AVG_HOURLY_RATE",
-    "LABOR_COST_PER_ORDER",
-    "LABOR_COST_PER_CUSTOMER",
-    "ABSENCE_RATE",
-  ];
-
-  const selected: RestaurantKpi[] = [];
-  const used = new Set<string>();
-
-  for (const code of preferredOrder) {
-    const item = byCode.get(code);
-    if (item && !used.has(item.code)) {
-      selected.push(item);
-      used.add(item.code);
-    }
-  }
-
-  for (const item of tileKpisAll) {
-    if (selected.length >= 16) break;
-    if (!used.has(item.code)) {
-      selected.push(item);
-      used.add(item.code);
-    }
-  }
 
   return [
     {
       title: "Labor Cost Control",
-      items: selected.slice(0, 4),
+      items: [
+        byCode.get("LABOR_COST") ??
+        placeholderKpi("LABOR_COST", "LABOR COST", "usd"),
+        byCode.get("LABOR_COST_RATIO") ??
+        byCode.get("LABOR_PCT") ??
+        placeholderKpi("LABOR_COST_RATIO", "LABOR COST %", "pct"),
+        byCode.get("LABOR_HOURS") ??
+        placeholderKpi("LABOR_HOURS", "LABOR HOURS", "hours"),
+        byCode.get("OVERTIME_HOURS") ??
+        placeholderKpi("OVERTIME_HOURS", "OVERTIME HOURS", "hours"),
+      ],
     },
     {
       title: "Productivity & Efficiency",
-      items: selected.slice(4, 8),
+      items: [
+        byCode.get("OVERTIME_PCT") ??
+        placeholderKpi("OVERTIME_PCT", "OVERTIME %", "pct"),
+        byCode.get("SALES_PER_LABOR_HOUR") ??
+        byCode.get("SPLH") ??
+        placeholderKpi(
+          "SALES_PER_LABOR_HOUR",
+          "SALES PER LABOR HOUR",
+          "ratio"
+        ),
+        byCode.get("REVENUE_PER_LABOR_HOUR") ??
+        placeholderKpi(
+          "REVENUE_PER_LABOR_HOUR",
+          "REVENUE PER LABOR HOUR",
+          "ratio"
+        ),
+        byCode.get("PRODUCTIVITY_INDEX") ??
+        placeholderKpi("PRODUCTIVITY_INDEX", "PRODUCTIVITY INDEX", "ratio"),
+      ],
     },
     {
       title: "Coverage & Utilization",
-      items: selected.slice(8, 12),
+      items: [
+        byCode.get("SCHEDULED_HOURS") ??
+        placeholderKpi("SCHEDULED_HOURS", "SCHEDULED HOURS", "hours"),
+        byCode.get("ACTUAL_HOURS") ??
+        placeholderKpi("ACTUAL_HOURS", "ACTUAL HOURS", "hours"),
+        byCode.get("LABOR_VARIANCE_HOURS") ??
+        placeholderKpi(
+          "LABOR_VARIANCE_HOURS",
+          "LABOR VARIANCE HOURS",
+          "hours"
+        ),
+        byCode.get("HEADCOUNT") ??
+        placeholderKpi("HEADCOUNT", "HEADCOUNT", "count"),
+      ],
     },
     {
       title: "Rate & Workforce Health",
-      items: selected.slice(12, 16),
+      items: [
+        byCode.get("AVG_HOURLY_RATE") ??
+        placeholderKpi("AVG_HOURLY_RATE", "AVG HOURLY RATE", "usd"),
+        byCode.get("LABOR_COST_PER_ORDER") ??
+        placeholderKpi("LABOR_COST_PER_ORDER", "LABOR COST PER ORDER", "usd"),
+        byCode.get("LABOR_COST_PER_CUSTOMER") ??
+        placeholderKpi(
+          "LABOR_COST_PER_CUSTOMER",
+          "LABOR COST PER CUSTOMER",
+          "usd"
+        ),
+        byCode.get("ABSENCE_RATE") ??
+        placeholderKpi("ABSENCE_RATE", "ABSENCE RATE", "pct"),
+      ],
     },
-  ].filter((group) => group.items.length > 0);
+  ];
 }
 
 export default function LaborPage() {
@@ -352,6 +358,8 @@ export default function LaborPage() {
   const [data, setData] = React.useState<LaborResponse | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [locations, setLocations] = React.useState<LocationRow[]>([]);
+  const [mlRisks, setMlRisks] = React.useState<any[]>([])
+  const [mlBriefs, setMlBriefs] = React.useState<any[]>([]);
 
   React.useEffect(() => {
     (async () => {
@@ -432,6 +440,34 @@ export default function LaborPage() {
     load();
   }, [load]);
 
+  React.useEffect(() => {
+    if (asOf.trim()) return;
+    (async () => {
+      try {
+        const r = await fetch("/api/dashboard/latest-date", { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (j?.latest_date) setAsOf(j.latest_date);
+      } catch { }
+    })();
+  }, []);
+
+  React.useEffect(() => {
+    if (!asOf.trim()) return;
+    const day = asOf.trim().slice(0, 10);
+    const qs = new URLSearchParams({ day, limit: "10" });
+    if (locationId !== "all") qs.set("location_id", locationId);
+    (async () => {
+      try {
+        const r = await fetch(`/api/dashboard/ml-insights?${qs.toString()}`, { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        setMlRisks(j?.risks ?? []);
+        setMlBriefs(j?.briefs ?? []);
+      } catch { }
+    })();
+  }, [asOf, locationId]);
+
   const ok = Boolean(data?.ok);
   const kpis = data?.kpis ?? [];
   const series = (data?.series ?? {}) as Record<string, number[]>;
@@ -450,6 +486,10 @@ export default function LaborPage() {
   const kpiSections = React.useMemo(
     () => buildLaborKpiSections(tileKpis),
     [tileKpis]
+  );
+  const kpiSectionsByTitle = React.useMemo(
+    () => new Map(kpiSections.map((section) => [section.title, section.items])),
+    [kpiSections]
   );
 
   const dayLabels = pickDayLabels(series);
@@ -482,66 +522,24 @@ export default function LaborPage() {
       subtitle="Track labor cost, overtime pressure, staffing utilization, and workforce productivity."
     >
       <div className="space-y-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col">
-            <label className="mb-1 text-xs font-medium text-muted-foreground">
-              Location
-            </label>
-            <select
-              className="h-10 min-w-[220px] rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 focus:outline-none focus:ring-2 focus:ring-foreground/20"
-              value={locationId}
-              onChange={(e) => setLocationId(e.target.value)}
-            >
-              <option value="all">All Locations</option>
-              {locationsUnique.map((l) => (
-                <option key={l.location_id} value={l.location_id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        <DashboardFilters
+          locations={locationsUnique.map((l) => ({
+            id: l.location_id,
+            location_id: l.location_id,
+            location_name: l.name,
+          }))}
+          locationId={locationId}
+          onLocationChange={setLocationId}
+          dateRange={windowCode as any}
+          onDateRangeChange={(v) => setWindowCode(v as any)}
+          insightDate={asOf || null}
+          onDateChange={setAsOf}
+          onRefresh={load}
+          loading={loading}
+        />
 
-          <div className="flex flex-col">
-            <label className="mb-1 text-xs font-medium text-muted-foreground">
-              Window
-            </label>
-            <select
-              className="h-10 min-w-[130px] rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 focus:outline-none focus:ring-2 focus:ring-foreground/20"
-              value={windowCode}
-              onChange={(e) => setWindowCode(e.target.value as any)}
-            >
-              <option value="7d">7D</option>
-              <option value="30d">30D</option>
-              <option value="90d">90D</option>
-              <option value="ytd">YTD</option>
-            </select>
-          </div>
-
-          <div className="flex flex-col">
-            <label className="mb-1 text-xs font-medium text-muted-foreground">
-              Snapshot Date
-            </label>
-            <input
-              type="date"
-              value={asOf ? asOf.split("T")[0] : ""}
-              onChange={(e) => setAsOf(e.target.value)}
-              onKeyDown={(e) => e.preventDefault()}
-              className="h-10 min-w-[180px] rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 focus:outline-none focus:ring-2 focus:ring-foreground/20"
-            />
-          </div>
-
-          <button
-            className="group flex h-10 items-center justify-center rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 disabled:opacity-50"
-            onClick={load}
-            disabled={loading}
-            aria-label="Refresh labor dashboard"
-          >
-            <RefreshCcw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
-          </button>
-        </div>
-        
         {!ok && data?.error ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
             <div className="font-medium">Labor API Error</div>
             <div className="mt-1 text-xs text-muted-foreground">
               {data.error}
@@ -553,25 +551,63 @@ export default function LaborPage() {
   );
 
   const kpiSection = loading ? (
-    <SkeletonTiles />
-  ) : tileKpis.length ? (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      {kpiSections.map((section) => (
-        <KpiGroup key={section.title} title={section.title}>
-          ...
-        </KpiGroup>
-      ))}
+      <SkeletonGroup title="Labor Cost Control" />
+      <SkeletonGroup title="Productivity & Efficiency" />
+      <SkeletonGroup title="Coverage & Utilization" />
+      <SkeletonGroup title="Rate & Workforce Health" />
     </div>
   ) : (
-    <SectionCard
-      title="No labor data yet"
-      subtitle="Connect a labor source to populate workforce metrics."
-    >
-      <div className="text-sm text-muted-foreground">
-        {data?.notes ??
-          "Upload labor cost and hours data first. After that, we can expand this page with staffing adherence, overtime alerts, and productivity insights."}
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {[
+          {
+            title: "Labor Cost Control",
+            subtitle: "Core labor spend, rate pressure, and overtime load for the selected window.",
+          },
+          {
+            title: "Productivity & Efficiency",
+            subtitle: "Output per labor hour and overtime efficiency signals that affect margin.",
+          },
+          {
+            title: "Coverage & Utilization",
+            subtitle: "Scheduled versus actual deployment and staffing coverage posture.",
+          },
+          {
+            title: "Rate & Workforce Health",
+            subtitle: "Compensation pressure and workforce reliability indicators.",
+          },
+        ].map((section) => (
+          <SectionCard
+            key={section.title}
+            title={section.title}
+            subtitle={section.subtitle}
+          >
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {(kpiSectionsByTitle.get(section.title) ?? []).map((k) => (
+                <RestaurantKpiTile
+                  key={k.code}
+                  kpi={k}
+                  series={(series as any)[k.code] ?? []}
+                />
+              ))}
+            </div>
+          </SectionCard>
+        ))}
       </div>
-    </SectionCard>
+
+      {!tileKpis.length ? (
+        <SectionCard
+          title="No labor data yet"
+          subtitle="Connect a labor source to populate workforce metrics."
+        >
+          <div className="text-sm text-muted-foreground">
+            {data?.notes ??
+              "Upload labor cost and hours data first. After that, we can expand this page with staffing adherence, overtime alerts, and productivity insights."}
+          </div>
+        </SectionCard>
+      ) : null}
+    </div>
   );
 
   const charts = !loading && hasAnyCharts ? (
@@ -623,89 +659,116 @@ export default function LaborPage() {
   ) : null;
 
   const intelligence =
-  !loading ? (
-    <SectionCard
-      title="Valora Intelligence"
-      subtitle="What needs attention and what actions to take."
-    >
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="space-y-3">
-          <div className="text-sm font-semibold text-foreground">
-            Attention Required
+    !loading ? (
+      <SectionCard
+        title="Valora Intelligence"
+        subtitle="What needs attention and what actions to take."
+      >
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <div className="space-y-3">
+            <div className="text-sm font-semibold text-foreground">Attention Required</div>
+            <div className="text-xs text-muted-foreground">Labor cost exceptions, overtime pressure, and staffing risks.</div>
+            {mlRisks.length ? (
+              <div className="space-y-3">
+                {mlRisks.slice(0, 5).map((a: any, i: number) => (
+                  <div key={i} className={`rounded-xl border p-3 ${a.severity_band === "critical" ? "border-red-500/30 bg-red-500/10" : "border-amber-500/30 bg-amber-500/10"}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-foreground">
+                          {a.location_name} — {(a.risk_type ?? "").split("_").map((w: string) => w[0]?.toUpperCase() + w.slice(1)).join(" ")}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Impact: ${Number(a.impact_estimate ?? 0).toFixed(0)} · Severity: {a.severity_band}
+                        </div>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${a.severity_band === "critical" ? "border-red-500/20 bg-red-500/10" : "border-amber-500/20 bg-amber-500/10"}`}>
+                        {a.severity_band}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex justify-end">
+                  <Link href={`/restaurant/valora-intelligence/alerts?source=workforce${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""}&day=${encodeURIComponent(asOf ?? "")}`} className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50">
+                    View all alerts →
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border/60 bg-background/20 p-4 text-sm text-muted-foreground">
+                No labor issues detected for this window.
+              </div>
+            )}
           </div>
-          <div className="text-xs text-muted-foreground">
-            Labor cost exceptions, overtime pressure, and staffing risks.
-          </div>
-
-          <div className="rounded-xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
-            Labor-specific alerts will flow here next, including overtime spikes,
-            labor cost breaches, and staffing variance exceptions.
-          </div>
-        </div>
-
-        <div className="space-y-3 xl:border-l xl:border-border/40 xl:pl-6">
-          <div className="text-sm font-semibold text-foreground">
-            Recommended Actions
-          </div>
-          <div className="text-xs text-muted-foreground">
-            AI-driven next steps to improve labor efficiency and control.
-          </div>
-
-          <div className="rounded-xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
-            Recommended labor actions will appear here next, including schedule
-            rebalancing, staffing adjustments, and overtime reduction steps.
-          </div>
-        </div>
-      </div>
-    </SectionCard>
-  ) : null;
-
-  const drilldown = (
-    <SectionCard
-      title="Explore Workforce Intelligence"
-      subtitle="Next enhancements planned for workforce analytics."
-    >
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-background/30 p-4">
-          <div className="text-sm font-semibold text-foreground">
-            Staffing Variance
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">
-            Compare scheduled hours versus actual worked hours to identify
-            under- and over-staffing.
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-background/30 p-4">
-          <div className="text-sm font-semibold text-foreground">
-            Overtime Alerts
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">
-            Highlight locations or days where overtime crosses defined control
-            thresholds.
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-background/30 p-4">
-          <div className="text-sm font-semibold text-foreground">
-            Productivity Drivers
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">
-            Explain labor productivity changes using demand, staffing mix, and
-            peak-hour pressure.
+          <div className="space-y-3 xl:border-l xl:border-border/40 xl:pl-6">
+            <div className="text-sm font-semibold text-foreground">Recommended Actions</div>
+            <div className="text-xs text-muted-foreground">AI-driven steps to improve labor efficiency.</div>
+            {mlBriefs.length ? (
+              <div className="space-y-3">
+                {mlBriefs.slice(0, 1).map((b: any, i: number) => (
+                  <div key={i} className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                    <div className="text-sm font-semibold text-foreground">{b.headline}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{b.location_name}</div>
+                    <div className="mt-2 line-clamp-3 text-sm text-muted-foreground">{b.summary_text}</div>
+                    {b.model_name && <div className="mt-2 text-[10px] text-muted-foreground/60">Generated by {b.model_name}</div>}
+                  </div>
+                ))}
+                <div className="flex justify-end">
+                  <Link href={`/restaurant/valora-intelligence/actions?source=workforce${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""}&day=${encodeURIComponent(asOf ?? "")}`} className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50">
+                    View all actions →
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border/60 bg-background/20 p-4 text-sm text-muted-foreground">
+                No recommended actions available yet.
+              </div>
+            )}
           </div>
         </div>
-      </div>
-    </SectionCard>
-  );
+      </SectionCard>
+    ) : null;
+
+  const performanceInsights =
+    !loading ? (
+      <SectionCard
+        title="Performance Insights"
+        subtitle="What changed across labor cost, overtime, and workforce productivity."
+      >
+        {(() => {
+          const insights = [];
+          const kpis = data?.kpis ?? [];
+          const laborRatio = kpis.find((k: any) => k.code === "LABOR_LABOR_RATIO" || k.code === "LABOR_PCT");
+          const overtime = kpis.find((k: any) => k.code === "LABOR_OVERTIME_PCT");
+          if (laborRatio && Number(laborRatio.value) > 0.32) {
+            insights.push({ title: "Labor cost above target", message: `Labor ratio of ${(Number(laborRatio.value) * 100).toFixed(1)}% exceeds the 30% benchmark. Review scheduling and overtime.`, severity: "warn" });
+          }
+          if (overtime && Number(overtime.value) > 0.15) {
+            insights.push({ title: "Overtime pressure detected", message: `Overtime rate of ${(Number(overtime.value) * 100).toFixed(1)}% is elevated. Consider schedule rebalancing.`, severity: "warn" });
+          }
+          if (insights.length === 0) {
+            insights.push({ title: "Workforce running efficiently", message: "Labor cost and overtime are within healthy ranges for this period.", severity: "good" });
+          }
+          return (
+            <div className="space-y-3">
+              {insights.map((item: any, i: number) => (
+                <div key={i} className={`rounded-xl border p-3 ${item.severity === "risk" ? "border-red-500/30 bg-red-500/10" : item.severity === "warn" ? "border-amber-500/30 bg-amber-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}>
+                  <div className="text-sm font-semibold text-foreground">{item.title}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{item.message}</div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </SectionCard>
+    ) : null;
 
   return (
     <PageScaffold
       header={header}
       kpiSection={kpiSection}
       charts={charts}
+      performanceInsights={performanceInsights}
       intelligence={intelligence}
-      drilldown={drilldown}
     />
   );
 }

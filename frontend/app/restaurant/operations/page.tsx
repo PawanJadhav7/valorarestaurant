@@ -710,21 +710,15 @@ export default function OpsDashboardPage() {
           subtitle="Priority issues and operator-ready actions based on current labor and inventory signals."
         >
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+
+            {/* Attention Required */}
             <div>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-foreground">
-                    Attention Required
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Prioritized issues detected from current labor and inventory signals.
-                  </div>
+                  <div className="text-sm font-semibold text-foreground">Attention Required</div>
+                  <div className="mt-1 text-xs text-muted-foreground">Prioritized issues detected from current labor and inventory signals.</div>
                 </div>
-
-                <Link
-                  href="/restaurant/valora-intelligence/alerts"
-                  className="text-xs font-semibold text-foreground hover:underline"
-                >
+                <Link href={`/restaurant/valora-intelligence/alerts?source=operations${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""}&day=${encodeURIComponent(asOf ?? "")}`} className="text-xs font-semibold text-foreground hover:underline">
                   View all alerts →
                 </Link>
               </div>
@@ -732,7 +726,7 @@ export default function OpsDashboardPage() {
               {mlRisks.length ? (
                 <div className="space-y-2">
                   {mlRisks.slice(0, 5).map((a, i) => (
-                    <div key={i} className="rounded-xl border border-border bg-background/40 p-3">
+                    <div key={i} className={`rounded-xl border p-3 ${a.severity_band === "critical" ? "border-red-500/30 bg-red-500/10" : "border-amber-500/30 bg-amber-500/10"}`}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-sm font-semibold text-foreground">
@@ -742,6 +736,9 @@ export default function OpsDashboardPage() {
                             Impact: ${Number(a.impact_estimate ?? 0).toFixed(0)} · Severity: {a.severity_band}
                           </div>
                         </div>
+                        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${a.severity_band === "critical" ? "border-red-500/20 bg-red-500/10" : "border-amber-500/20 bg-amber-500/10"}`}>
+                          {a.severity_band}
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -753,34 +750,34 @@ export default function OpsDashboardPage() {
               )}
             </div>
 
+            {/* Recommended Actions */}
             <div>
               <div className="mb-3">
-                <div className="text-sm font-semibold text-foreground">
-                  Recommended Actions
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  Operator-ready next steps based on the strongest current signals.
-                </div>
+                <div className="text-sm font-semibold text-foreground">Recommended Actions</div>
+                <div className="mt-1 text-xs text-muted-foreground">Operator-ready next steps based on the strongest current signals.</div>
               </div>
 
               {mlBriefs.length ? (
                 <div className="space-y-2">
-                  {mlBriefs.slice(0, 3).map((b, i) => {
-                    const actions = b.recommended_actions_json?.actions ?? [];
-                    const topAction = actions[0];
-                    return (
-                      <div key={i} className="rounded-xl border border-border/60 bg-background/20 p-3">
-                        <div className="text-sm font-semibold text-foreground">{b.headline}</div>
-                        <div className="mt-1 text-xs text-muted-foreground">{b.summary_text}</div>
-                        {topAction && (
-                          <div className="mt-2 text-xs text-emerald-400">
-                            → {topAction.title ?? topAction.action_code}
-                            {topAction.expected_roi && ` · +${(topAction.expected_roi * 100).toFixed(0)}% ROI`}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {/* AI Brief */}
+                  {mlBriefs.slice(0, 1).map((b: any, i: number) => (
+                    <div key={i} className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                      <div className="text-sm font-semibold text-foreground">{b.headline}</div>
+                      <div className="mt-1 text-xs text-muted-foreground">{b.location_name}</div>
+                      <div className="mt-2 line-clamp-3 text-sm text-muted-foreground">{b.summary_text}</div>
+                      {b.model_name && (
+                        <div className="mt-2 text-[10px] text-muted-foreground/60">Generated by {b.model_name}</div>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex justify-end">
+                    <Link
+                      href={`/restaurant/valora-intelligence/actions?source=operations${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""}&day=${encodeURIComponent(asOf ?? "")}`}
+                      className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50"
+                    >
+                      View all actions →
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <div className="rounded-xl border border-border bg-background/40 p-4 text-sm text-muted-foreground">
@@ -788,6 +785,7 @@ export default function OpsDashboardPage() {
                 </div>
               )}
             </div>
+
           </div>
         </SectionCard>
       ) : null}
@@ -823,7 +821,7 @@ export default function OpsDashboardPage() {
             </Link>
 
             <Link
-              href="/restaurant/insights/alerts"
+              href="/restaurant/valora-intelligenc/alerts"
               className="rounded-2xl border border-border/60 bg-background/25 p-4 transition hover:bg-background/50"
             >
               <div className="text-sm font-semibold text-foreground">

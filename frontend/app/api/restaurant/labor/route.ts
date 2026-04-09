@@ -126,13 +126,13 @@ export async function GET(req: Request) {
       const anchorSql = locationId
         ? `
           select max(day)::timestamptz as as_of_ts
-          from restaurant.f_location_daily_features
+          from analytics.v_gold_daily
           where tenant_id = $1::uuid
             and location_id = $2::bigint
         `
         : `
           select max(day)::timestamptz as as_of_ts
-          from restaurant.f_location_daily_features
+          from analytics.v_gold_daily
           where tenant_id = $1::uuid
         `;
 
@@ -177,7 +177,7 @@ export async function GET(req: Request) {
       ),
       curr as (
         select f.*
-        from restaurant.f_location_daily_features f
+        from analytics.v_gold_daily f
         cross join params p
         where f.tenant_id = $4::uuid
           and f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
@@ -220,7 +220,7 @@ export async function GET(req: Request) {
       ),
       prev as (
         select f.*
-        from restaurant.f_location_daily_features f
+        from analytics.v_gold_daily f
         cross join prev_range p
         where f.tenant_id = $4::uuid
           and f.day between p.prev_start and p.prev_end
@@ -248,7 +248,7 @@ export async function GET(req: Request) {
       ),
       curr as (
         select f.*
-        from restaurant.f_location_daily_features f
+        from analytics.v_gold_daily f
         cross join params p
         where f.tenant_id = $4::uuid
           and f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day

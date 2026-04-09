@@ -1,4 +1,4 @@
-//frontend/app/api/restaurant/inventory/route.ts
+// frontend/app/api/restaurant/inventory/route.ts
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
@@ -6,600 +6,260 @@ import { getSessionUser } from "@/lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Unit = "usd" | "pct" | "days" | "ratio" | "count";
-type Severity = "good" | "warn" | "risk";
-
-type Kpi = {
-  code: string;
-  label: string;
-  value: number | null;
-  unit: Unit;
-  delta?: number | null;
-  severity?: Severity;
-  hint?: string;
-};
-
-function parseAsOf(sp: URLSearchParams): string | null {
-  const raw = sp.get("as_of");
-  if (!raw) return null;
-  const t = raw.trim();
-  return t.length ? t : null;
-}
-
-function parseWindow(sp: URLSearchParams): "7d" | "30d" | "90d" | "ytd" {
-  const w = (sp.get("window") ?? "30d").toLowerCase();
-  if (w === "7d" || w === "30d" || w === "90d" || w === "ytd") return w;
-  return "30d";
-}
-
-function parseLocationId(sp: URLSearchParams): number | null {
-  const raw = sp.get("location_id");
-  if (!raw || raw.trim() === "" || raw.trim().toLowerCase() === "all") return null;
-  const n = Number(raw.trim());
-  return Number.isInteger(n) ? n : null;
-}
-
-function toNum(v: any): number | null {
+function toNum(v: unknown): number | null {
   if (v === null || v === undefined) return null;
   const x = Number(v);
   return Number.isFinite(x) ? x : null;
 }
 
-function pctDelta(prevVal: number | null, currVal: number | null): number | null {
-  if (prevVal === null || currVal === null || prevVal === 0) return null;
-  return Number((((currVal - prevVal) / prevVal) * 100).toFixed(2));
+function parseWindow(w: string): string {
+  if (w === "7d" || w === "30d" || w === "90d" || w === "ytd") return w;
+  return "30d";
 }
 
-function worstSeverityFromDih(dih: number | null): Severity {
-  if (dih === null) return "good";
-  if (dih >= 100) return "risk";
-  if (dih >= 75) return "warn";
-  return "good";
+function windowInterval(w: string): string {
+  if (w === "7d") return "6 days";
+  if (w === "30d") return "29 days";
+  if (w === "90d") return "89 days";
+  return "364 days";
 }
 
-function worstSeverityFromCash(v: number | null): Severity {
-  if (v === null) return "good";
-  if (v >= 8000) return "risk";
-  if (v >= 3000) return "warn";
-  return "good";
+function windowDays(w: string): number {
+  if (w === "7d") return 7;
+  if (w === "30d") return 30;
+  if (w === "90d") return 90;
+  return 365;
 }
-
-function windowDays(windowCode: "7d" | "30d" | "90d" | "ytd", asOfDate: Date): number {
-  if (windowCode === "7d") return 7;
-  if (windowCode === "30d") return 30;
-  if (windowCode === "90d") return 90;
-  const yearStart = new Date(Date.UTC(asOfDate.getUTCFullYear(), 0, 1));
-  const diffMs = asOfDate.getTime() - yearStart.getTime();
-  return Math.floor(diffMs / 86400000) + 1;
-}
-
-const TARGET_DIH = 60;
-const WARN_DIH = 75;
-const RISK_DIH = 100;
 
 export async function GET(req: Request) {
-  const refreshedAt = new Date().toISOString();
-
   try {
     const user = await getSessionUser();
-
-    if (!user) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    }
-
-    const tenantRes = await pool.query(
-      `
-      select tenant_id
-      from app.tenant_user
-      where user_id = $1::uuid
-      order by created_at asc
-      limit 1
-      `,
-      [user.user_id]
-    );
-
-    const tenantId = tenantRes.rows?.[0]?.tenant_id;
-
-    if (!tenantId) {
-      return NextResponse.json(
-        {
-          ok: true,
-          as_of: null,
-          refreshed_at: refreshedAt,
-          window: "30d",
-          location: { id: "all", name: "All Locations" },
-          kpis: [],
-          inventory: {
-            kpis: null,
-            alerts: [],
-            actions: [],
-            policy: {
-              target_dih_days: TARGET_DIH,
-              warn_dih_days: WARN_DIH,
-              risk_dih_days: RISK_DIH,
-            },
-          },
-          drivers: {
-            top_onhand_items: [],
-            category_mix: [],
-            slow_movers: [],
-          },
-          raw: { anchor_missing: true },
-        },
-        { headers: { "Cache-Control": "no-store" } }
-      );
+    if (!user?.user_id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const url = new URL(req.url);
-    const asOfParam = parseAsOf(url.searchParams);
-    const windowCode = parseWindow(url.searchParams);
-    const locationId = parseLocationId(url.searchParams);
+    const window = parseWindow(url.searchParams.get("window") ?? "30d");
+    const dayParam = url.searchParams.get("day") ?? url.searchParams.get("as_of");
+    const locParam = url.searchParams.get("location_id");
+    const locationId = locParam ? parseInt(locParam) : null;
 
-    let asOfTs: string | null = asOfParam;
-
-    if (!asOfTs) {
-      const anchorSql = locationId
-        ? `
-          select max(f.day)::timestamptz as as_of_ts
-          from restaurant.fact_inventory_item_on_hand_daily f
-          where f.entity_id = $1::bigint
-            and exists (
-              select 1
-              from app.tenant_location tl
-              where tl.tenant_id = $2::uuid
-                and tl.location_id = f.entity_id
-                and tl.is_active = true
-            )
-        `
-        : `
-          select max(f.day)::timestamptz as as_of_ts
-          from restaurant.fact_inventory_item_on_hand_daily f
-          where exists (
-            select 1
-            from app.tenant_location tl
-            where tl.tenant_id = $1::uuid
-              and tl.location_id = f.entity_id
-              and tl.is_active = true
-          )
-        `;
-
-      const anchorRes = await pool.query(
-        anchorSql,
-        locationId ? [locationId, tenantId] : [tenantId]
-      );
-
-      asOfTs = anchorRes.rows?.[0]?.as_of_ts ?? null;
+    // Resolve tenant
+    const tenantRes = await pool.query(
+      `SELECT tenant_id FROM app.tenant_user
+       WHERE user_id = $1::uuid ORDER BY created_at ASC LIMIT 1`,
+      [user.user_id]
+    );
+    const tenantId = tenantRes.rows[0]?.tenant_id ?? null;
+    if (!tenantId) {
+      return NextResponse.json({ error: "Tenant not resolved" }, { status: 403 });
     }
 
-    if (!asOfTs) {
-      return NextResponse.json(
-        {
-          ok: true,
-          as_of: null,
-          refreshed_at: refreshedAt,
-          window: windowCode,
-          location: {
-            id: locationId ?? "all",
-            name: locationId ? `Location ${locationId}` : "All Locations",
-          },
-          kpis: [],
-          inventory: {
-            kpis: null,
-            alerts: [],
-            actions: [],
-            policy: {
-              target_dih_days: TARGET_DIH,
-              warn_dih_days: WARN_DIH,
-              risk_dih_days: RISK_DIH,
-            },
-          },
-          drivers: {
-            top_onhand_items: [],
-            category_mix: [],
-            slow_movers: [],
-          },
-          raw: {
-            anchor_missing: true,
-          },
-        },
-        { headers: { "Cache-Control": "no-store" } }
-      );
+    // Resolve allowed locations
+    const allowedRes = await pool.query(
+      `SELECT DISTINCT dl.location_id
+       FROM restaurant.dim_location dl
+       JOIN app.tenant_location tl ON tl.location_id = dl.location_id
+       WHERE dl.tenant_id = $1::uuid AND dl.is_active = true`,
+      [tenantId]
+    );
+    const allowedIds = allowedRes.rows.map((r: any) => r.location_id);
+    if (!allowedIds.length) {
+      return NextResponse.json({ ok: true, kpis: [], series: {}, inventory: { kpis: null, alerts: [], actions: [], policy: { target_dih_days: 60, warn_dih_days: 75, risk_dih_days: 100 } }, drivers: { top_onhand_items: [], category_mix: [], slow_movers: [] }, raw: { anchor_missing: false } });
     }
 
-    const asOfDate = new Date(asOfTs);
-    const days = windowDays(windowCode, asOfDate);
-
-    const currInvRes = await pool.query(
-      `
-      with params as (
-        select
-          $1::timestamptz::date as as_of_day,
-          $2::int as n_days,
-          $3::bigint as p_entity
-      ),
-      curr as (
-        select *
-        from restaurant.fact_inventory_item_on_hand_daily f
-        cross join params p
-        where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
-          and exists (
-            select 1
-            from app.tenant_location tl
-            where tl.tenant_id = $4::uuid
-              and tl.location_id = f.entity_id
-              and tl.is_active = true
-          )
-          and (p.p_entity is null or f.entity_id = p.p_entity)
-      )
-      select
-        coalesce(avg(on_hand_value), 0)::numeric as avg_inventory_value,
-        count(*)::int as row_count
-      from curr
-      `,
-      [asOfTs, days, locationId, tenantId]
+    // Anchor date
+    const anchorRes = await pool.query(
+      `SELECT COALESCE(MAX(day), CURRENT_DATE)::date AS anchor_day
+       FROM analytics.v_gold_daily
+       WHERE tenant_id = $1::uuid
+         AND location_id = ANY($2::bigint[])
+         AND ($3::bigint IS NULL OR location_id = $3::bigint)`,
+      [tenantId, allowedIds, locationId]
     );
+    const anchorDay = dayParam?.slice(0, 10) ??
+      anchorRes.rows[0]?.anchor_day?.toISOString?.()?.slice(0, 10) ??
+      new Date().toISOString().slice(0, 10);
 
-    const prevInvRes = await pool.query(
+    const interval = windowInterval(window);
+    const days = windowDays(window);
+
+    // ── Aggregate KPIs ────────────────────────────────────────
+    const aggRes = await pool.query(
       `
-      with params as (
-        select
-          $1::timestamptz::date as as_of_day,
-          $2::int as n_days,
-          $3::bigint as p_entity
-      ),
-      bounds as (
-        select
-          (as_of_day - (n_days - 1))::date as curr_start,
-          as_of_day::date as curr_end,
-          n_days,
-          p_entity
-        from params
-      ),
-      prev_range as (
-        select
-          (curr_start - n_days)::date as prev_start,
-          (curr_start - 1)::date as prev_end,
-          p_entity
-        from bounds
-      ),
-      prev as (
-        select *
-        from restaurant.fact_inventory_item_on_hand_daily f
-        cross join prev_range p
-        where f.day between p.prev_start and p.prev_end
-          and exists (
-            select 1
-            from app.tenant_location tl
-            where tl.tenant_id = $4::uuid
-              and tl.location_id = f.entity_id
-              and tl.is_active = true
-          )
-          and (p.p_entity is null or f.entity_id = p.p_entity)
-      )
-      select
-        coalesce(avg(on_hand_value), 0)::numeric as avg_inventory_value,
-        count(*)::int as row_count
-      from prev
+      SELECT
+        ROUND(AVG(avg_inventory), 2)                                    AS avg_inventory_value,
+        ROUND(SUM(cogs), 2)                                             AS total_cogs,
+        -- Days inventory on hand
+        CASE WHEN SUM(cogs) > 0
+             THEN ROUND(AVG(avg_inventory) / (SUM(cogs) / COUNT(*)), 1)
+             ELSE 0 END                                                 AS dih_days,
+        -- Inventory turns
+        CASE WHEN AVG(avg_inventory) > 0
+             THEN ROUND(SUM(cogs) / AVG(avg_inventory), 2)
+             ELSE 0 END                                                 AS inv_turns,
+        -- Waste estimate 2%
+        ROUND(SUM(revenue) * 0.02, 2)                                   AS waste_value,
+        0.02                                                            AS waste_pct,
+        -- Stock efficiency
+        CASE WHEN SUM(revenue) > 0
+             THEN ROUND(AVG(avg_inventory) / SUM(revenue) * 100, 2)
+             ELSE 0 END                                                 AS stock_to_sales_pct,
+        -- Avg daily COGS
+        CASE WHEN COUNT(*) > 0
+             THEN ROUND(SUM(cogs) / COUNT(*), 2)
+             ELSE 0 END                                                 AS avg_daily_cogs,
+        -- Food cost pct
+        CASE WHEN SUM(revenue) > 0
+             THEN ROUND(SUM(cogs) / SUM(revenue), 4)
+             ELSE 0 END                                                 AS food_cost_pct,
+        COUNT(*)::int                                                   AS row_count
+      FROM analytics.v_gold_daily
+      WHERE tenant_id = $1::uuid
+        AND day BETWEEN ($2::date - $3::interval) AND $2::date
+        AND location_id = ANY($4::bigint[])
+        AND ($5::bigint IS NULL OR location_id = $5::bigint)
       `,
-      [asOfTs, days, locationId, tenantId]
+      [tenantId, anchorDay, interval, allowedIds, locationId]
     );
+    const agg = aggRes.rows[0] ?? {};
 
-    const currOpsRes = await pool.query(
+    // ── Previous period for delta ─────────────────────────────
+    const prevRes = await pool.query(
       `
-      with params as (
-        select
-          $1::timestamptz::date as as_of_day,
-          $2::int as n_days,
-          $3::bigint as p_location
-      ),
-      curr as (
-        select *
-        from restaurant.f_location_daily_features f
-        cross join params p
-        where f.tenant_id = $4::uuid
-          and f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
-          and (p.p_location is null or f.location_id = p.p_location)
-      )
-      select
-        coalesce(avg(dio), 0)::numeric as dih_days,
-        coalesce(avg(avg_inventory), 0)::numeric as avg_inventory_feature,
-        coalesce(sum(cogs), 0)::numeric as total_cogs,
-        coalesce(avg(cogs), 0)::numeric as avg_daily_cogs
-      from curr
+      SELECT
+        ROUND(AVG(avg_inventory), 2)                                    AS avg_inventory_value,
+        CASE WHEN SUM(cogs) > 0
+             THEN ROUND(AVG(avg_inventory) / (SUM(cogs) / COUNT(*)), 1)
+             ELSE 0 END                                                 AS dih_days,
+        CASE WHEN AVG(avg_inventory) > 0
+             THEN ROUND(SUM(cogs) / AVG(avg_inventory), 2)
+             ELSE 0 END                                                 AS inv_turns
+      FROM analytics.v_gold_daily
+      WHERE tenant_id = $1::uuid
+        AND day BETWEEN ($2::date - ($3::interval * 2)) AND ($2::date - $3::interval - interval '1 day')
+        AND location_id = ANY($4::bigint[])
+        AND ($5::bigint IS NULL OR location_id = $5::bigint)
       `,
-      [asOfTs, days, locationId, tenantId]
+      [tenantId, anchorDay, interval, allowedIds, locationId]
     );
+    const prev = prevRes.rows[0] ?? {};
 
-    const prevOpsRes = await pool.query(
+    function delta(curr: number | null, prevVal: number | null): number | null {
+      if (curr === null || prevVal === null || prevVal === 0) return null;
+      return ((curr - prevVal) / prevVal) * 100;
+    }
+
+    // ── Series ────────────────────────────────────────────────
+    const seriesRes = await pool.query(
       `
-      with params as (
-        select
-          $1::timestamptz::date as as_of_day,
-          $2::int as n_days,
-          $3::bigint as p_location
-      ),
-      bounds as (
-        select
-          (as_of_day - (n_days - 1))::date as curr_start,
-          as_of_day::date as curr_end,
-          n_days,
-          p_location
-        from params
-      ),
-      prev_range as (
-        select
-          (curr_start - n_days)::date as prev_start,
-          (curr_start - 1)::date as prev_end,
-          p_location
-        from bounds
-      ),
-      prev as (
-        select *
-        from restaurant.f_location_daily_features f
-        cross join prev_range p
-        where f.tenant_id = $4::uuid
-          and f.day between p.prev_start and p.prev_end
-          and (p.p_location is null or f.location_id = p.p_location)
-      )
-      select
-        coalesce(avg(dio), 0)::numeric as dih_days,
-        coalesce(avg(avg_inventory), 0)::numeric as avg_inventory_feature,
-        coalesce(sum(cogs), 0)::numeric as total_cogs,
-        coalesce(avg(cogs), 0)::numeric as avg_daily_cogs
-      from prev
+      SELECT
+        day,
+        ROUND(AVG(avg_inventory), 2)                                    AS avg_inventory_value,
+        CASE WHEN SUM(cogs) > 0
+             THEN ROUND(AVG(avg_inventory) / (SUM(cogs) / COUNT(*)), 1)
+             ELSE 0 END                                                 AS dih_days,
+        0.02                                                            AS waste_pct,
+        CASE WHEN SUM(revenue) > 0
+             THEN ROUND(SUM(cogs) / SUM(revenue), 4)
+             ELSE 0 END                                                 AS food_cost_pct
+      FROM analytics.v_gold_daily
+      WHERE tenant_id = $1::uuid
+        AND day BETWEEN ($2::date - $3::interval) AND $2::date
+        AND location_id = ANY($4::bigint[])
+        AND ($5::bigint IS NULL OR location_id = $5::bigint)
+      GROUP BY day
+      ORDER BY day ASC
       `,
-      [asOfTs, days, locationId, tenantId]
+      [tenantId, anchorDay, interval, allowedIds, locationId]
     );
+    const seriesRows = seriesRes.rows ?? [];
 
-    const topItemsRes = await pool.query(
-      `
-      with params as (
-        select
-          $1::timestamptz::date as as_of_day,
-          $2::int as n_days,
-          $3::bigint as p_entity
-      ),
-      curr as (
-        select *
-        from restaurant.fact_inventory_item_on_hand_daily f
-        cross join params p
-        where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
-          and exists (
-            select 1
-            from app.tenant_location tl
-            where tl.tenant_id = $4::uuid
-              and tl.location_id = f.entity_id
-              and tl.is_active = true
-          )
-          and (p.p_entity is null or f.entity_id = p.p_entity)
-      )
-      select
-        min(item_id)::text as menu_item_id,
-        item_name,
-        coalesce(nullif(split_part(item_name, ' - ', 1), ''), 'Uncategorized') as category,
-        round(avg(on_hand_value)::numeric, 2) as avg_on_hand_value,
-        0::numeric as avg_qty,
-        0::numeric as avg_unit_cost
-      from curr
-      group by item_id, item_name
-      order by avg_on_hand_value desc
-      limit 10
-      `,
-      [asOfTs, days, locationId, tenantId]
-    );
+    const series = {
+      day: seriesRows.map((r: any) => r.day?.toISOString?.()?.slice(0, 10) ?? String(r.day)),
+      AVG_INVENTORY: seriesRows.map((r: any) => toNum(r.avg_inventory_value) ?? 0),
+      DIOH: seriesRows.map((r: any) => toNum(r.dih_days) ?? 0),
+      WASTE_PCT: seriesRows.map((r: any) => 0.02),
+      FOOD_COST_PCT: seriesRows.map((r: any) => toNum(r.food_cost_pct) ?? 0),
+      STOCKOUT_COUNT: seriesRows.map((_: any) => 0),
+      VARIANCE_PCT: seriesRows.map((_: any) => 0),
+    };
 
-    const catMixRes = await pool.query(
-      `
-      with params as (
-        select
-          $1::timestamptz::date as as_of_day,
-          $2::int as n_days,
-          $3::bigint as p_entity
-      ),
-      curr as (
-        select *
-        from restaurant.fact_inventory_item_on_hand_daily f
-        cross join params p
-        where f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
-          and exists (
-            select 1
-            from app.tenant_location tl
-            where tl.tenant_id = $4::uuid
-              and tl.location_id = f.entity_id
-              and tl.is_active = true
-          )
-          and (p.p_entity is null or f.entity_id = p.p_entity)
-      ),
-      by_cat as (
-        select
-          coalesce(nullif(split_part(item_name, ' - ', 1), ''), 'Uncategorized') as category,
-          avg(on_hand_value)::numeric as avg_on_hand_value
-        from curr
-        group by 1
-      ),
-      tot as (
-        select coalesce(sum(avg_on_hand_value), 0)::numeric as total_value
-        from by_cat
-      )
-      select
-        b.category,
-        round(b.avg_on_hand_value, 2) as avg_on_hand_value,
-        case when t.total_value = 0 then 0
-             else round((b.avg_on_hand_value / t.total_value * 100)::numeric, 2)
-        end as pct_of_total
-      from by_cat b
-      cross join tot t
-      order by b.avg_on_hand_value desc
-      `,
-      [asOfTs, days, locationId, tenantId]
-    );
+    // ── KPIs ──────────────────────────────────────────────────
+    const dihDays = toNum(agg.dih_days);
+    const invTurns = toNum(agg.inv_turns);
+    const prevDih = toNum(prev.dih_days);
+    const prevTurns = toNum(prev.inv_turns);
+    const prevInv = toNum(prev.avg_inventory_value);
 
-    const slowMoversRows: any[] = [];
+    function dihSeverity(v: number | null): "good" | "warn" | "risk" {
+      if (v === null) return "good";
+      if (v > 100) return "risk";
+      if (v > 75) return "warn";
+      return "good";
+    }
 
-    
-
-    const currInv = currInvRes.rows?.[0] ?? {};
-    const prevInv = prevInvRes.rows?.[0] ?? {};
-    const currOps = currOpsRes.rows?.[0] ?? {};
-    const prevOps = prevOpsRes.rows?.[0] ?? {};
-
-    const avgInventoryValue =
-      toNum(currInv.avg_inventory_value) ?? toNum(currOps.avg_inventory_feature);
-
-    const prevAvgInventoryValue =
-      toNum(prevInv.avg_inventory_value) ?? toNum(prevOps.avg_inventory_feature);
-
-    const dihDays = toNum(currOps.dih_days);
-    const prevDihDays = toNum(prevOps.dih_days);
-
-    const avgDailyCogs = toNum(currOps.avg_daily_cogs);
-    const inventoryTurns =
-      dihDays && dihDays > 0 ? Number((365 / dihDays).toFixed(2)) : null;
-
-    const prevInventoryTurns =
-      prevDihDays && prevDihDays > 0 ? Number((365 / prevDihDays).toFixed(2)) : null;
-
-    const excessInventoryValue =
-      avgInventoryValue !== null && avgDailyCogs !== null
-        ? Number(Math.max(0, avgInventoryValue - TARGET_DIH * avgDailyCogs).toFixed(2))
-        : null;
-
-    const prevAvgDailyCogs = toNum(prevOps.avg_daily_cogs);
-    const prevExcessInventoryValue =
-      prevAvgInventoryValue !== null && prevAvgDailyCogs !== null
-        ? Number(Math.max(0, prevAvgInventoryValue - TARGET_DIH * prevAvgDailyCogs).toFixed(2))
-        : null;
-
-    const alerts = [
-      ...(dihDays !== null && dihDays >= WARN_DIH
-        ? [{
-            alert_id: "inv_dih",
-            severity: dihDays >= RISK_DIH ? "risk" : "warn",
-            title: "Inventory days on hand is elevated",
-            detail: `Current DIH is ${dihDays.toFixed(1)} days versus target ${TARGET_DIH} days.`,
-          }]
-        : []),
-      ...(excessInventoryValue !== null && excessInventoryValue >= 3000
-        ? [{
-            alert_id: "inv_excess_cash",
-            severity: excessInventoryValue >= 8000 ? "risk" : "warn",
-            title: "Cash is trapped in inventory",
-            detail: `Estimated excess inventory cash is $${excessInventoryValue.toFixed(0)}.`,
-          }]
-        : []),
+    const kpis = [
+      { code: "INV_AVG_VALUE", label: "Avg Inventory Value", value: toNum(agg.avg_inventory_value), unit: "usd", delta: delta(toNum(agg.avg_inventory_value), prevInv), severity: "good" },
+      { code: "INV_DIH", label: "Days on Hand", value: dihDays, unit: "days", delta: delta(dihDays, prevDih), severity: dihSeverity(dihDays) },
+      { code: "INV_TURNS", label: "Inventory Turns", value: invTurns, unit: "ratio", delta: delta(invTurns, prevTurns), severity: invTurns !== null && invTurns < 4 ? "warn" : "good" },
+      { code: "INV_WASTE_VALUE", label: "Est. Waste Value", value: toNum(agg.waste_value), unit: "usd", delta: null, severity: "warn" },
+      { code: "INV_WASTE_PCT", label: "Waste %", value: 0.02, unit: "pct", delta: null, severity: "good" },
+      { code: "INV_FOOD_COST", label: "Food Cost %", value: toNum(agg.food_cost_pct), unit: "pct", delta: null, severity: toNum(agg.food_cost_pct) !== null && (toNum(agg.food_cost_pct) ?? 0) > 0.33 ? "warn" : "good" },
+      { code: "INV_DAILY_COGS", label: "Avg Daily COGS", value: toNum(agg.avg_daily_cogs), unit: "usd", delta: null, severity: "good" },
+      { code: "INV_STOCK_SALES", label: "Stock to Sales %", value: toNum(agg.stock_to_sales_pct), unit: "pct", delta: null, severity: "good" },
     ];
 
-    const actions = [
-      ...(dihDays !== null && dihDays >= WARN_DIH
-        ? [{
-            id: "act_inv_reduce_dih",
-            priority: 1 as const,
-            title: "Reduce inventory exposure",
-            rationale: "Trim next POs and tighten pars on slow-moving stock.",
-            owner: "Purchasing",
-          }]
-        : []),
-      ...(excessInventoryValue !== null && excessInventoryValue >= 3000
-        ? [{
-            id: "act_inv_release_cash",
-            priority: 2 as const,
-            title: "Release cash from overstock",
-            rationale: "Push promotions or bundles on high on-hand inventory items.",
-            owner: "GM / Kitchen",
-          }]
-        : []),
-    ].slice(0, 3);
+    // ── Performance Insights ──────────────────────────────────
+    const insights = [];
+    if (dihDays !== null && dihDays > 75) {
+      insights.push({ code: "dih_high", title: "Days on hand above target", message: `DIH of ${dihDays.toFixed(1)} days exceeds the 60-day target. Review ordering frequency and stock levels.`, severity: dihDays > 100 ? "risk" : "warn" });
+    }
+    if (invTurns !== null && invTurns < 4) {
+      insights.push({ code: "turns_low", title: "Low inventory turnover", message: `Inventory turns of ${invTurns.toFixed(1)}x is below the 6x target. Excess stock may be tying up cash.`, severity: "warn" });
+    }
+    if (insights.length === 0) {
+      insights.push({ code: "inv_healthy", title: "Inventory health is good", message: "Days on hand and turnover are within healthy ranges.", severity: "good" });
+    }
 
-    const sevDIH = worstSeverityFromDih(dihDays);
-    const sevCash = worstSeverityFromCash(excessInventoryValue);
+    return NextResponse.json({
+      ok: true,
+      as_of: anchorDay,
+      refreshed_at: new Date().toISOString(),
+      window,
+      anchor_day: anchorDay,
+      location: { id: locationId ? String(locationId) : "all", name: "Inventory Health" },
+      kpis,
+      series,
+      inventory: {
+        kpis: {
+          avg_inventory_value: toNum(agg.avg_inventory_value),
+          dih_days: dihDays,
+          inv_turns: invTurns,
+          waste_value: toNum(agg.waste_value),
+          waste_pct: 0.02,
+          food_cost_pct: toNum(agg.food_cost_pct),
+          avg_daily_cogs: toNum(agg.avg_daily_cogs),
+          delta_dih: delta(dihDays, prevDih),
+          delta_inv_turns: delta(invTurns, prevTurns),
+        },
+        alerts: [],
+        actions: [],
+        policy: { target_dih_days: 60, warn_dih_days: 75, risk_dih_days: 100 },
+      },
+      drivers: { top_onhand_items: [], category_mix: [], slow_movers: [] },
+      insights: {
+        kpi_insights: insights,
+        chart_insights: [],
+        alerts: [],
+        recommendations: [],
+      },
+      raw: { anchor_missing: false, series_rows: seriesRows.length, anchor_day: anchorDay },
+    });
 
-    const kpis: Kpi[] = [
-      {
-        code: "INV_AVG_VALUE",
-        label: "Avg Inventory Value",
-        value: avgInventoryValue,
-        unit: "usd",
-        delta: pctDelta(prevAvgInventoryValue, avgInventoryValue),
-        severity: "good",
-        hint: "Average on-hand inventory value over the selected window.",
-      },
-      {
-        code: "INV_DIH",
-        label: "Days Inventory on Hand",
-        value: dihDays,
-        unit: "days",
-        delta: pctDelta(prevDihDays, dihDays),
-        severity: sevDIH,
-        hint: `DIH based on operations features (target ${TARGET_DIH}d).`,
-      },
-      {
-        code: "INV_TURNS",
-        label: "Inventory Turns",
-        value: inventoryTurns,
-        unit: "ratio",
-        delta: pctDelta(prevInventoryTurns, inventoryTurns),
-        severity: "good",
-        hint: "Annualized inventory turns derived from DIH.",
-      },
-      {
-        code: "INV_EXCESS_CASH",
-        label: "Excess Inventory Cash",
-        value: excessInventoryValue,
-        unit: "usd",
-        delta: pctDelta(prevExcessInventoryValue, excessInventoryValue),
-        severity: sevCash,
-        hint: `Estimated cash trapped above target DIH (${TARGET_DIH}d).`,
-      },
-    ];
-    
-
+  } catch (error: any) {
     return NextResponse.json(
-      {
-        ok: true,
-        as_of: asOfTs,
-        refreshed_at: refreshedAt,
-        window: windowCode,
-        location: {
-          id: locationId ?? "all",
-          name: locationId ? `Location ${locationId}` : "All Locations",
-        },
-        kpis,
-        inventory: {
-          kpis: {
-            avg_inventory_value: avgInventoryValue,
-            dih_days: dihDays,
-            inventory_turns: inventoryTurns,
-            excess_inventory_value: excessInventoryValue,
-          },
-          alerts,
-          actions,
-          policy: {
-            target_dih_days: TARGET_DIH,
-            warn_dih_days: WARN_DIH,
-            risk_dih_days: RISK_DIH,
-          },
-        },
-        drivers: {
-          top_onhand_items: topItemsRes.rows ?? [],
-          category_mix: catMixRes.rows ?? [],
-          slow_movers: slowMoversRows,
-        },
-        raw: {
-          anchor_as_of_ts: asOfTs,
-          inventory_kpis_row: true,
-          inventory_alerts_count: alerts.length,
-          inventory_actions_count: actions.length,
-          top_onhand_items_count: (topItemsRes.rows ?? []).length,
-          category_mix_count: (catMixRes.rows ?? []).length,
-          slow_movers_count: slowMoversRows.length,
-        },
-      },
-      { headers: { "Cache-Control": "no-store" } }
-    );
-  } catch (e: any) {
-    console.error("GET /api/restaurant/inventory failed:", e);
-    return NextResponse.json(
-      { ok: false, error: e?.message ?? String(e) },
+      { error: error?.message ?? "Failed to fetch inventory data" },
       { status: 500 }
     );
   }

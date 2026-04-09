@@ -2,15 +2,14 @@
 "use client";
 
 import * as React from "react";
-import { RefreshCcw } from "lucide-react";
+import Link from "next/link";
 import { SectionCard } from "@/components/valora/SectionCard";
 import { PageScaffold } from "@/components/restaurant/PageScaffold";
-import { KpiGroup } from "@/components/restaurant/KpiGroup";
-import { ValoraIntelligence } from "@/components/restaurant/ValoraIntelligence";
 import {
   RestaurantKpiTile,
   type Kpi as RestaurantKpi,
 } from "@/components/restaurant/KpiTile";
+import { DashboardFilters } from "@/components/restaurant/DashboardFilters";
 
 type Unit = "usd" | "pct" | "days" | "ratio" | "count";
 type Severity = "good" | "warn" | "risk";
@@ -45,21 +44,6 @@ type InventoryResponse = {
 
 type ChartTone = "dioh" | "waste" | "stockout" | "variance";
 
-function prettifyWindowLabel(windowCode: string) {
-  switch (windowCode) {
-    case "7d":
-      return "Last 7 Days";
-    case "30d":
-      return "Last 30 Days";
-    case "90d":
-      return "Last 90 Days";
-    case "ytd":
-      return "Year to Date";
-    default:
-      return windowCode.toUpperCase();
-  }
-}
-
 function fmtPct2(n: number) {
   return `${n.toFixed(2)}%`;
 }
@@ -70,10 +54,6 @@ function fmtNum1(n: number) {
 
 function fmtNum0(n: number) {
   return n.toFixed(0);
-}
-
-function fmtUsd0(n: number) {
-  return `$${n.toFixed(0)}`;
 }
 
 function toneClass(tone: ChartTone) {
@@ -91,24 +71,18 @@ function toneClass(tone: ChartTone) {
   }
 }
 
-function SkeletonTiles({ n = 4 }: { n?: number }) {
+function SkeletonGroup({ title }: { title: string }) {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      {Array.from({ length: n }).map((_, i) => (
-        <div key={i} className="rounded-2xl border border-border bg-card p-4">
-          <div className="h-5 w-40 animate-pulse rounded bg-muted/30" />
-          <div className="mt-2 h-4 w-56 animate-pulse rounded bg-muted/20" />
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            {Array.from({ length: 4 }).map((__, j) => (
-              <div
-                key={j}
-                className="h-28 animate-pulse rounded-2xl border border-border bg-muted/20"
-              />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
+    <SectionCard title={title}>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-32 animate-pulse rounded-2xl border border-border bg-muted/30"
+          />
+        ))}
+      </div>
+    </SectionCard>
   );
 }
 
@@ -220,8 +194,8 @@ function LineChart({
           {lastVal === null
             ? "—"
             : valueFmt
-            ? valueFmt(lastVal)
-            : lastVal.toFixed(2)}
+              ? valueFmt(lastVal)
+              : lastVal.toFixed(2)}
         </div>
       }
     >
@@ -282,68 +256,86 @@ function LineChart({
   );
 }
 
+function placeholderKpi(
+  code: string,
+  label: string,
+  unit: Unit
+): RestaurantKpi {
+  return {
+    code,
+    label,
+    unit,
+    value: null,
+    delta: null,
+    severity: undefined,
+  };
+}
+
 function buildInventoryKpiSections(tileKpisAll: RestaurantKpi[]) {
   const byCode = new Map(tileKpisAll.map((k) => [k.code, k]));
-
-  const preferredOrder = [
-    "DIOH",
-    "INVENTORY_TURNS",
-    "AVG_INVENTORY",
-    "ENDING_INVENTORY",
-
-    "WASTE_AMOUNT",
-    "WASTE_PCT",
-    "SHRINKAGE_AMOUNT",
-    "VARIANCE_PCT",
-
-    "STOCKOUT_COUNT",
-    "LOW_STOCK_COUNT",
-    "PURCHASES",
-    "COGS",
-
-    "INVENTORY_TO_SALES_RATIO",
-    "DEPLETION_RATE",
-    "REORDER_BREACH_COUNT",
-    "EXCESS_STOCK_VALUE",
-  ];
-
-  const selected: RestaurantKpi[] = [];
-  const used = new Set<string>();
-
-  for (const code of preferredOrder) {
-    const item = byCode.get(code);
-    if (item && !used.has(item.code)) {
-      selected.push(item);
-      used.add(item.code);
-    }
-  }
-
-  for (const item of tileKpisAll) {
-    if (selected.length >= 16) break;
-    if (!used.has(item.code)) {
-      selected.push(item);
-      used.add(item.code);
-    }
-  }
 
   return [
     {
       title: "Inventory Position",
-      items: selected.slice(0, 4),
+      items: [
+        byCode.get("AVG_INVENTORY") ??
+          placeholderKpi("AVG_INVENTORY", "AVG INVENTORY VALUE", "usd"),
+        byCode.get("DIOH") ??
+          byCode.get("DAYS_INVENTORY_ON_HAND") ??
+          placeholderKpi("DIOH", "DAYS INVENTORY ON HAND", "days"),
+        byCode.get("INVENTORY_TURNS") ??
+          placeholderKpi("INVENTORY_TURNS", "INVENTORY TURNS", "ratio"),
+        byCode.get("ENDING_INVENTORY") ??
+          placeholderKpi("ENDING_INVENTORY", "ENDING INVENTORY", "usd"),
+      ],
     },
     {
       title: "Waste & Variance Control",
-      items: selected.slice(4, 8),
+      items: [
+        byCode.get("WASTE_AMOUNT") ??
+          placeholderKpi("WASTE_AMOUNT", "WASTE AMOUNT", "usd"),
+        byCode.get("WASTE_PCT") ??
+          placeholderKpi("WASTE_PCT", "WASTE %", "pct"),
+        byCode.get("SHRINKAGE_AMOUNT") ??
+          placeholderKpi("SHRINKAGE_AMOUNT", "SHRINKAGE AMOUNT", "usd"),
+        byCode.get("VARIANCE_PCT") ??
+          placeholderKpi("VARIANCE_PCT", "VARIANCE %", "pct"),
+      ],
     },
     {
       title: "Availability & Replenishment",
-      items: selected.slice(8, 12),
+      items: [
+        byCode.get("STOCKOUT_COUNT") ??
+          placeholderKpi("STOCKOUT_COUNT", "STOCKOUT COUNT", "count"),
+        byCode.get("LOW_STOCK_COUNT") ??
+          placeholderKpi("LOW_STOCK_COUNT", "LOW STOCK COUNT", "count"),
+        byCode.get("PURCHASES") ??
+          placeholderKpi("PURCHASES", "PURCHASES", "usd"),
+        byCode.get("COGS") ?? placeholderKpi("COGS", "COGS", "usd"),
+      ],
     },
     {
       title: "Stock Efficiency",
-      items: selected.slice(12, 16),
+      items: [
+        byCode.get("INVENTORY_TO_SALES_RATIO") ??
+          placeholderKpi(
+            "INVENTORY_TO_SALES_RATIO",
+            "INVENTORY TO SALES RATIO",
+            "ratio"
+          ),
+        byCode.get("DEPLETION_RATE") ??
+          placeholderKpi("DEPLETION_RATE", "DEPLETION RATE", "pct"),
+        byCode.get("REORDER_BREACH_COUNT") ??
+          placeholderKpi(
+            "REORDER_BREACH_COUNT",
+            "REORDER BREACH COUNT",
+            "count"
+          ),
+        byCode.get("EXCESS_STOCK_VALUE") ??
+          placeholderKpi("EXCESS_STOCK_VALUE", "EXCESS STOCK VALUE", "usd"),
+      ],
     },
-  ].filter((group) => group.items.length > 0);
+  ];
 }
 
 export default function InventoryPage() {
@@ -356,6 +348,9 @@ export default function InventoryPage() {
   const [data, setData] = React.useState<InventoryResponse | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [locations, setLocations] = React.useState<LocationRow[]>([]);
+
+  const [mlRisks, setMlRisks] = React.useState<any[]>([]);
+  const [mlBriefs, setMlBriefs] = React.useState<any[]>([]);
 
   React.useEffect(() => {
     (async () => {
@@ -436,6 +431,34 @@ export default function InventoryPage() {
     load();
   }, [load]);
 
+  React.useEffect(() => {
+    if (asOf.trim()) return;
+    (async () => {
+      try {
+        const r = await fetch("/api/dashboard/latest-date", { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (j?.latest_date) setAsOf(j.latest_date);
+      } catch { }
+    })();
+  }, []);
+
+  React.useEffect(() => {
+    if (!asOf.trim()) return;
+    const day = asOf.trim().slice(0, 10);
+    const qs = new URLSearchParams({ day, limit: "10" });
+    if (locationId !== "all") qs.set("location_id", locationId);
+    (async () => {
+      try {
+        const r = await fetch(`/api/dashboard/ml-insights?${qs.toString()}`, { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        setMlRisks(j?.risks ?? []);
+        setMlBriefs(j?.briefs ?? []);
+      } catch { }
+    })();
+  }, [asOf, locationId]);
+
   const ok = Boolean(data?.ok);
   const kpis = data?.kpis ?? [];
   const series = (data?.series ?? {}) as Record<string, number[]>;
@@ -443,8 +466,8 @@ export default function InventoryPage() {
     return kpis.map((k) => {
       const v =
         k.unit === "pct" &&
-        typeof k.value === "number" &&
-        k.value > 1
+          typeof k.value === "number" &&
+          k.value > 1
           ? k.value / 100
           : k.value;
       return { ...(k as any), value: v } as RestaurantKpi;
@@ -454,6 +477,10 @@ export default function InventoryPage() {
   const kpiSections = React.useMemo(
     () => buildInventoryKpiSections(tileKpis),
     [tileKpis]
+  );
+  const kpiSectionsByTitle = React.useMemo(
+    () => new Map(kpiSections.map((section) => [section.title, section.items])),
+    [kpiSections]
   );
 
   const dayLabels = pickDayLabels(series);
@@ -490,66 +517,24 @@ export default function InventoryPage() {
       subtitle="Monitor stock position, waste, replenishment risk, and inventory efficiency across locations."
     >
       <div className="space-y-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col">
-            <label className="mb-1 text-xs font-medium text-muted-foreground">
-              Location
-            </label>
-            <select
-              className="h-10 min-w-[220px] rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 focus:outline-none focus:ring-2 focus:ring-foreground/20"
-              value={locationId}
-              onChange={(e) => setLocationId(e.target.value)}
-            >
-              <option value="all">All Locations</option>
-              {locationsUnique.map((l) => (
-                <option key={l.location_id} value={l.location_id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col">
-            <label className="mb-1 text-xs font-medium text-muted-foreground">
-              Window
-            </label>
-            <select
-              className="h-10 min-w-[130px] rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 focus:outline-none focus:ring-2 focus:ring-foreground/20"
-              value={windowCode}
-              onChange={(e) => setWindowCode(e.target.value as any)}
-            >
-              <option value="7d">7D</option>
-              <option value="30d">30D</option>
-              <option value="90d">90D</option>
-              <option value="ytd">YTD</option>
-            </select>
-          </div>
-
-          <div className="flex flex-col">
-            <label className="mb-1 text-xs font-medium text-muted-foreground">
-              Snapshot Date
-            </label>
-            <input
-              type="date"
-              value={asOf ? asOf.split("T")[0] : ""}
-              onChange={(e) => setAsOf(e.target.value)}
-              onKeyDown={(e) => e.preventDefault()}
-              className="h-10 min-w-[180px] rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 focus:outline-none focus:ring-2 focus:ring-foreground/20"
-            />
-          </div>
-
-          <button
-            className="group flex h-10 items-center justify-center rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 disabled:opacity-50"
-            onClick={load}
-            disabled={loading}
-            aria-label="Refresh inventory dashboard"
-          >
-            <RefreshCcw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
-          </button>
-        </div>
+        <DashboardFilters
+          locations={locationsUnique.map((l) => ({
+            id: l.location_id,
+            location_id: l.location_id,
+            location_name: l.name,
+          }))}
+          locationId={locationId}
+          onLocationChange={setLocationId}
+          dateRange={windowCode as any}
+          onDateRangeChange={(v) => setWindowCode(v as any)}
+          insightDate={asOf || null}
+          onDateChange={setAsOf}
+          onRefresh={load}
+          loading={loading}
+        />
 
         {!ok && data?.error ? (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
             <div className="font-medium">Inventory API Error</div>
             <div className="mt-1 text-xs text-muted-foreground">
               {data.error}
@@ -561,20 +546,53 @@ export default function InventoryPage() {
   );
 
   const kpiSection = loading ? (
-    <SkeletonTiles />
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <SkeletonGroup title="Inventory Position" />
+      <SkeletonGroup title="Waste & Variance Control" />
+      <SkeletonGroup title="Availability & Replenishment" />
+      <SkeletonGroup title="Stock Efficiency" />
+    </div>
   ) : tileKpis.length ? (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      {kpiSections.map((section) => (
-        <KpiGroup key={section.title} title={section.title}>
-          {section.items.map((k) => (
-            <RestaurantKpiTile
-              key={k.code}
-              kpi={k}
-              series={(series as any)[k.code]}
-            />
-          ))}
-        </KpiGroup>
-      ))}
+      {[
+        {
+          title: "Inventory Position",
+          subtitle: "Core stock posture, turns, and on-hand value for the selected window.",
+        },
+        {
+          title: "Waste & Variance Control",
+          subtitle: "Loss, shrinkage, and count accuracy signals that need intervention.",
+        },
+        {
+          title: "Availability & Replenishment",
+          subtitle: "Stockout pressure and replenishment readiness across locations.",
+        },
+        {
+          title: "Stock Efficiency",
+          subtitle: "How effectively inventory is converting into sales and throughput.",
+        },
+      ].map((section) => {
+        const items = kpiSectionsByTitle.get(section.title) ?? [];
+        if (!items.length) return null;
+
+        return (
+          <SectionCard
+            key={section.title}
+            title={section.title}
+            subtitle={section.subtitle}
+          >
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {items.map((k) => (
+                <RestaurantKpiTile
+                  key={k.code}
+                  kpi={k}
+                  series={(series as any)[k.code] ?? []}
+                />
+              ))}
+            </div>
+          </SectionCard>
+        );
+      })}
     </div>
   ) : (
     <SectionCard
@@ -636,83 +654,142 @@ export default function InventoryPage() {
     </>
   ) : null;
 
+  const performanceInsights =
+    !loading ? (
+      <SectionCard
+        title="Performance Insights"
+        subtitle="What changed across inventory health, waste pressure, and replenishment risk."
+      >
+        {mlRisks.length || mlBriefs.length ? (
+          <div className="space-y-3">
+            {mlRisks.slice(0, 3).map((a: any, i: number) => (
+              <div
+                key={`inventory-insight-risk-${i}`}
+                className={[
+                  "rounded-xl border p-3",
+                  a.severity_band === "critical"
+                    ? "border-rose-500/30 bg-rose-500/10"
+                    : "border-amber-500/30 bg-amber-500/10",
+                ].join(" ")}
+              >
+                <div className="text-sm font-semibold text-foreground">
+                  {a.location_name}
+                  {a.risk_type
+                    ? ` - ${String(a.risk_type)
+                      .split("_")
+                      .map((word: string) =>
+                        word ? word[0].toUpperCase() + word.slice(1) : word
+                      )
+                      .join(" ")}`
+                    : ""}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Impact: ${Number(a.impact_estimate ?? 0).toFixed(0)} ·
+                  Severity: {a.severity_band}
+                </div>
+              </div>
+            ))}
+
+            {!mlRisks.length && mlBriefs.length
+              ? mlBriefs.slice(0, 3).map((b: any, i: number) => (
+                <div
+                  key={`inventory-insight-brief-${i}`}
+                  className="rounded-xl border border-border/60 bg-background/20 p-3"
+                >
+                  <div className="text-sm font-semibold text-foreground">
+                    {b.headline}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {b.summary_text}
+                  </div>
+                </div>
+              ))
+              : null}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border/60 bg-background/20 p-4 text-sm text-muted-foreground">
+            No major inventory shifts detected for this selection.
+          </div>
+        )}
+      </SectionCard>
+    ) : null;
+
   const intelligence =
-  !loading ? (
-    <SectionCard
-      title="Valora Intelligence"
-      subtitle="What needs attention and what actions to take."
-    >
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="space-y-3">
-          <div className="text-sm font-semibold text-foreground">
-            Attention Required
+    !loading ? (
+      <SectionCard
+        title="Valora Intelligence"
+        subtitle="What needs attention and what actions to take."
+      >
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <div className="space-y-3">
+            <div className="text-sm font-semibold text-foreground">Attention Required</div>
+            <div className="text-xs text-muted-foreground">Inventory exceptions, stock pressure, and waste issues.</div>
+            {mlRisks.length ? (
+              <div className="space-y-3">
+                {mlRisks.slice(0, 5).map((a: any, i: number) => (
+                  <div key={i} className={`rounded-xl border p-3 ${a.severity_band === "critical" ? "border-red-500/30 bg-red-500/10" : "border-amber-500/30 bg-amber-500/10"}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-foreground">
+                          {a.location_name} — {(a.risk_type ?? "").split("_").map((w: string) => w[0]?.toUpperCase() + w.slice(1)).join(" ")}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Impact: ${Number(a.impact_estimate ?? 0).toFixed(0)} · Severity: {a.severity_band}
+                        </div>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${a.severity_band === "critical" ? "border-red-500/20 bg-red-500/10" : "border-amber-500/20 bg-amber-500/10"}`}>
+                        {a.severity_band}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex justify-end">
+                  <Link href={`/restaurant/valora-intelligence/alerts?source=inventory${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""}&day=${encodeURIComponent(asOf ?? "")}`} className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50">
+                    View all alerts →
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border/60 bg-background/20 p-4 text-sm text-muted-foreground">
+                No inventory issues detected for this window.
+              </div>
+            )}
           </div>
-          <div className="text-xs text-muted-foreground">
-            Inventory exceptions, stock pressure, and waste-related issues.
-          </div>
-
-          <div className="rounded-2xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
-            Inventory alerts will flow here next, including stockout risk, waste spikes, variance breaches, and excess inventory issues.
+          <div className="space-y-3 xl:border-l xl:border-border/40 xl:pl-6">
+            <div className="text-sm font-semibold text-foreground">Recommended Actions</div>
+            <div className="text-xs text-muted-foreground">Steps to improve inventory health and reduce leakage.</div>
+            {mlBriefs.length ? (
+              <div className="space-y-3">
+                {mlBriefs.slice(0, 1).map((b: any, i: number) => (
+                  <div key={i} className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                    <div className="text-sm font-semibold text-foreground">{b.headline}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{b.location_name}</div>
+                    <div className="mt-2 line-clamp-3 text-sm text-muted-foreground">{b.summary_text}</div>
+                    {b.model_name && <div className="mt-2 text-[10px] text-muted-foreground/60">Generated by {b.model_name}</div>}
+                  </div>
+                ))}
+                <div className="flex justify-end">
+                  <Link href={`/restaurant/valora-intelligence/actions?source=inventory${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""}&day=${encodeURIComponent(asOf ?? "")}`} className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50">
+                    View all actions →
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border/60 bg-background/20 p-4 text-sm text-muted-foreground">
+                No recommended actions available yet.
+              </div>
+            )}
           </div>
         </div>
-
-        <div className="space-y-3 xl:border-l xl:border-border/40 xl:pl-6">
-          <div className="text-sm font-semibold text-foreground">
-            Recommended Actions
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Recommended steps to improve inventory health and reduce leakage.
-          </div>
-
-          <div className="rounded-2xl border border-border bg-background/30 p-4 text-sm text-muted-foreground">
-            Inventory actions will flow here next, including reorder corrections, waste reduction steps, transfer recommendations, and stock balancing actions.
-          </div>
-        </div>
-      </div>
-    </SectionCard>
-  ) : null;
-
-  const drilldown = (
-    <SectionCard
-      title="Explore Inventory Intelligence"
-      subtitle="Next enhancements planned for stock and replenishment analytics."
-    >
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-background/30 p-4">
-          <div className="text-sm font-semibold text-foreground">
-            DIOH Monitoring
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">
-            Track days inventory on hand against targets to avoid overstocking or shortages.
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-background/30 p-4">
-          <div className="text-sm font-semibold text-foreground">
-            Waste Reduction
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">
-            Identify rising waste patterns and the categories driving avoidable loss.
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-border bg-background/30 p-4">
-          <div className="text-sm font-semibold text-foreground">
-            Stockout Prevention
-          </div>
-          <div className="mt-1 text-sm text-muted-foreground">
-            Surface low-on-hand items and upcoming replenishment risks before service is affected.
-          </div>
-        </div>
-      </div>
-    </SectionCard>
-  );
+      </SectionCard>
+    ) : null;
 
   return (
     <PageScaffold
       header={header}
       kpiSection={kpiSection}
       charts={charts}
+      performanceInsights={performanceInsights}
       intelligence={intelligence}
     />
   );

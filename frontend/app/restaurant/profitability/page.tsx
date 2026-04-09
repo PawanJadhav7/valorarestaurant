@@ -1,7 +1,8 @@
+//frontend/app/restaurant/profitability/page.tsx
 "use client";
 
 import * as React from "react";
-import { RefreshCcw } from "lucide-react";
+import Link from "next/link";
 import { SectionCard } from "@/components/valora/SectionCard";
 import { PageScaffold } from "@/components/restaurant/PageScaffold";
 import { ValoraIntelligence } from "@/components/restaurant/ValoraIntelligence";
@@ -9,6 +10,7 @@ import {
   RestaurantKpiTile,
   type Kpi as RestaurantKpi,
 } from "@/components/restaurant/KpiTile";
+import { DashboardFilters } from "@/components/restaurant/DashboardFilters";
 
 type Unit = "usd" | "pct" | "days" | "ratio" | "count";
 type Severity = "good" | "warn" | "risk";
@@ -262,6 +264,9 @@ export default function ProfitPage() {
   const [loading, setLoading] = React.useState<boolean>(true);
   const [locations, setLocations] = React.useState<LocationRow[]>([]);
 
+  const [mlRisks, setMlRisks] = React.useState<any[]>([]);
+  const [mlBriefs, setMlBriefs] = React.useState<any[]>([]);
+
   React.useEffect(() => {
     (async () => {
       try {
@@ -343,6 +348,34 @@ export default function ProfitPage() {
     load();
   }, [load]);
 
+  React.useEffect(() => {
+    if (asOf.trim()) return;
+    (async () => {
+      try {
+        const r = await fetch("/api/dashboard/latest-date", { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (j?.latest_date) setAsOf(j.latest_date);
+      } catch { }
+    })();
+  }, []);
+
+  React.useEffect(() => {
+    if (!asOf.trim()) return;
+    const day = asOf.trim().slice(0, 10);
+    const qs = new URLSearchParams({ day, limit: "10" });
+    if (locationId !== "all") qs.set("location_id", locationId);
+    (async () => {
+      try {
+        const r = await fetch(`/api/dashboard/ml-insights?${qs.toString()}`, { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        setMlRisks(j?.risks ?? []);
+        setMlBriefs(j?.briefs ?? []);
+      } catch { }
+    })();
+  }, [asOf, locationId]);
+
   const ok = Boolean(data?.ok);
   const kpis = data?.kpis ?? [];
   const series = data?.series ?? {};
@@ -353,8 +386,8 @@ export default function ProfitPage() {
     return kpis.map((k) => {
       const v =
         k.unit === "pct" &&
-        typeof k.value === "number" &&
-        k.value > 1
+          typeof k.value === "number" &&
+          k.value > 1
           ? k.value / 100
           : k.value;
       return { ...(k as any), value: v } as RestaurantKpi;
@@ -411,48 +444,21 @@ export default function ProfitPage() {
       subtitle="Track profitability, margin quality, and break-even health across locations."
     >
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-4 pt-2">
-          <select
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-          >
-            <option value="all">All Locations</option>
-            {locationsUnique.map((l) => (
-              <option key={l.location_id} value={l.location_id}>
-                {l.location_code} — {l.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={windowCode}
-            onChange={(e) => setWindowCode(e.target.value as any)}
-            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-          >
-            <option value="7d">Last 7 Days</option>
-            <option value="30d">Last 30 Days</option>
-            <option value="90d">Last 90 Days</option>
-            <option value="ytd">Year to Date</option>
-          </select>
-
-          <input
-            type="date"
-            value={asOf ? asOf.split("T")[0] : ""}
-            onChange={(e) => setAsOf(e.target.value)}
-            onKeyDown={(e) => e.preventDefault()}
-            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-          />
-
-          <button
-            onClick={load}
-            disabled={loading}
-            aria-label="Refresh profit dashboard"
-            className="group flex h-10 items-center justify-center rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 disabled:opacity-50"
-          >
-            <RefreshCcw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
-          </button>
-        </div>
+        <DashboardFilters
+          locations={locationsUnique.map((l) => ({
+            id: l.location_id,
+            location_id: l.location_id,
+            location_name: l.name,
+          }))}
+          locationId={locationId}
+          onLocationChange={setLocationId}
+          dateRange={windowCode as any}
+          onDateRangeChange={(v) => setWindowCode(v as any)}
+          insightDate={asOf || null}
+          onDateChange={setAsOf}
+          onRefresh={load}
+          loading={loading}
+        />
 
         {!ok && data?.error ? (
           <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
@@ -505,7 +511,7 @@ export default function ProfitPage() {
     </div>
   );
 
-    const performanceInsights =
+  const performanceInsights =
     !loading ? (
       <SectionCard
         title="Performance Insights"
@@ -536,18 +542,18 @@ export default function ProfitPage() {
 
             {!alerts.length && actions.length
               ? actions.slice(0, 3).map((a) => (
-                  <div
-                    key={`insight-action-${a.id}`}
-                    className="rounded-xl border border-border/60 bg-background/20 p-3"
-                  >
-                    <div className="text-sm font-semibold text-foreground">
-                      {a.title}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {a.rationale}
-                    </div>
+                <div
+                  key={`insight-action-${a.id}`}
+                  className="rounded-xl border border-border/60 bg-background/20 p-3"
+                >
+                  <div className="text-sm font-semibold text-foreground">
+                    {a.title}
                   </div>
-                ))
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {a.rationale}
+                  </div>
+                </div>
+              ))
               : null}
           </div>
         ) : (
@@ -558,99 +564,73 @@ export default function ProfitPage() {
       </SectionCard>
     ) : null;
 
-    const intelligence =
+  const intelligence =
     !loading ? (
       <SectionCard
         title="Valora Intelligence"
         subtitle="What needs attention and what actions to take."
       >
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          <div className="space-y-3">
-            <div className="text-sm font-semibold text-foreground">
-              Attention Required
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Profitability exceptions and margin risks detected for this window.
-            </div>
 
-            {alerts.length ? (
+          {/* Attention Required */}
+          <div className="space-y-3">
+            <div className="text-sm font-semibold text-foreground">Attention Required</div>
+            <div className="text-xs text-muted-foreground">Profitability exceptions and margin risks.</div>
+            {mlRisks.length ? (
               <div className="space-y-3">
-                {alerts.slice(0, 8).map((a) => (
-                  <div
-                    key={a.id}
-                    className="rounded-xl border border-border bg-background/40 p-3"
-                  >
+                {mlRisks.slice(0, 5).map((a: any, i: number) => (
+                  <div key={i} className={`rounded-xl border p-3 ${a.severity_band === "critical" ? "border-red-500/30 bg-red-500/10" : "border-amber-500/30 bg-amber-500/10"}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-foreground">
-                          {a.title}
+                          {a.location_name} — {(a.risk_type ?? "").split("_").map((w: string) => w[0]?.toUpperCase() + w.slice(1)).join(" ")}
                         </div>
                         <div className="mt-1 text-xs text-muted-foreground">
-                          {a.detail}
+                          Impact: ${Number(a.impact_estimate ?? 0).toFixed(0)} · Severity: {a.severity_band}
                         </div>
                       </div>
-                      <span
-                        className={[
-                          "shrink-0 rounded-xl border px-2 py-1 text-[11px] font-medium",
-                          a.severity === "risk"
-                            ? "border-rose-500/30 bg-rose-500/10 text-rose-200"
-                            : a.severity === "warn"
-                              ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
-                              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-                        ].join(" ")}
-                      >
-                        {a.severity}
+                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${a.severity_band === "critical" ? "border-red-500/20 bg-red-500/10" : "border-amber-500/20 bg-amber-500/10"}`}>
+                        {a.severity_band}
                       </span>
                     </div>
                   </div>
                 ))}
+                <div className="flex justify-end">
+                  <Link href={`/restaurant/valora-intelligence/alerts?source=profitability${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""}&day=${encodeURIComponent(asOf ?? "")}`} className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50">
+                    View all alerts →
+                  </Link>
+                </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-border bg-background/40 p-4 text-sm text-muted-foreground">
-                No profit exceptions detected for the selected window.
+              <div className="rounded-xl border border-border/60 bg-background/20 p-4 text-sm text-muted-foreground">
+                No profit exceptions detected for this window.
               </div>
             )}
           </div>
 
+          {/* Recommended Actions */}
           <div className="space-y-3 xl:border-l xl:border-border/40 xl:pl-6">
-            <div className="text-sm font-semibold text-foreground">
-              Recommended Actions
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Priority actions to improve profitability and margin resilience.
-            </div>
-
-            {actions.length ? (
+            <div className="text-sm font-semibold text-foreground">Recommended Actions</div>
+            <div className="text-xs text-muted-foreground">Priority actions to improve profitability.</div>
+            {mlBriefs.length ? (
               <div className="space-y-3">
-                {actions.slice(0, 3).map((a) => (
-                  <div
-                    key={a.id}
-                    className="rounded-xl border border-border bg-background/40 p-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-foreground">
-                          <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-lg border border-border bg-background text-xs">
-                            {a.priority}
-                          </span>
-                          {a.title}
-                        </div>
-                        <div className="mt-1 text-xs text-muted-foreground">
-                          {a.rationale}
-                        </div>
-                      </div>
-                      {a.owner ? (
-                        <span className="shrink-0 rounded-xl border border-border/30 bg-background/30 px-2 py-1 text-[11px] text-muted-foreground">
-                          {a.owner}
-                        </span>
-                      ) : null}
-                    </div>
+                {mlBriefs.slice(0, 1).map((b: any, i: number) => (
+                  <div key={i} className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                    <div className="text-sm font-semibold text-foreground">{b.headline}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{b.location_name}</div>
+                    <div className="mt-2 line-clamp-3 text-sm text-muted-foreground">{b.summary_text}</div>
+                    {b.model_name && <div className="mt-2 text-[10px] text-muted-foreground/60">Generated by {b.model_name}</div>}
                   </div>
                 ))}
+                <div className="flex justify-end">
+                  <Link href={`/restaurant/valora-intelligence/actions?source=profitability${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""}&day=${encodeURIComponent(asOf ?? "")}`} className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50">
+                    View all actions →
+                  </Link>
+                </div>
               </div>
             ) : (
-              <div className="rounded-xl border border-border bg-background/40 p-4 text-sm text-muted-foreground">
-                No actions available yet for this window.
+              <div className="rounded-xl border border-border/60 bg-background/20 p-4 text-sm text-muted-foreground">
+                No recommended actions available yet.
               </div>
             )}
           </div>

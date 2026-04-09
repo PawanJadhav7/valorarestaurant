@@ -495,7 +495,7 @@ export default function InsightsPage() {
 
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
-            href={`/restaurant/insights/alerts?source=${encodeURIComponent(
+            href={`/restaurant/valora-intelligence/alerts?source=${encodeURIComponent(
               source
             )}&location_id=${encodeURIComponent(
               locationId ?? ""

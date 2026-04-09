@@ -3,7 +3,7 @@
 import * as React from "react";
 
 export type Severity = "good" | "warn" | "risk";
-export type Unit = "usd" | "pct" | "days" | "ratio" | "count";
+export type Unit = "usd" | "pct" | "days" | "ratio" | "count" | "hours";
 
 export type Kpi = {
   code: string;
@@ -156,6 +156,8 @@ function formatValue(kpi: Kpi): string {
       return fmtPct2(kpi.value);
     case "days":
       return `${fmtNumber(kpi.value)} d`;
+    case "hours":
+      return `${fmtNumber(kpi.value)} h`;
     case "ratio":
       return `${fmtNumber(kpi.value)}×`;
     case "count":

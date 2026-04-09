@@ -2,6 +2,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { RefreshCcw } from "lucide-react";
 import { SectionCard } from "@/components/valora/SectionCard";
 import { PageScaffold } from "@/components/restaurant/PageScaffold";
@@ -10,7 +11,7 @@ import {
   RestaurantKpiTile,
   type Kpi as RestaurantKpi,
 } from "@/components/restaurant/KpiTile";
-
+import { DashboardFilters } from "@/components/restaurant/DashboardFilters";
 type Unit = "usd" | "pct" | "days" | "ratio" | "count";
 type Severity = "good" | "warn" | "risk";
 
@@ -247,14 +248,16 @@ function severityCardClass(severity: Severity) {
 
 export default function CostControlPage() {
   const [windowCode, setWindowCode] = React.useState<
-    "7d" | "30d" | "90d" | "ytd"
-  >("30d");
+    "7d" | "30d" | "90d" | "ytd">("30d");
   const [locationId, setLocationId] = React.useState<string>("all");
   const [asOf, setAsOf] = React.useState<string>("");
 
   const [data, setData] = React.useState<CostControlResponse | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [locations, setLocations] = React.useState<LocationRow[]>([]);
+
+  const [mlRisks, setMlRisks] = React.useState<any[]>([]);
+  const [mlBriefs, setMlBriefs] = React.useState<any[]>([]);
 
   React.useEffect(() => {
     (async () => {
@@ -337,6 +340,34 @@ export default function CostControlPage() {
     load();
   }, [load]);
 
+  React.useEffect(() => {
+    if (asOf.trim()) return;
+    (async () => {
+      try {
+        const r = await fetch("/api/dashboard/latest-date", { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (j?.latest_date) setAsOf(j.latest_date);
+      } catch { }
+    })();
+  }, []);
+
+  React.useEffect(() => {
+    if (!asOf.trim()) return;
+    const day = asOf.trim().slice(0, 10);
+    const qs = new URLSearchParams({ day, limit: "10" });
+    if (locationId !== "all") qs.set("location_id", locationId);
+    (async () => {
+      try {
+        const r = await fetch(`/api/dashboard/ml-insights?${qs.toString()}`, { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        setMlRisks(j?.risks ?? []);
+        setMlBriefs(j?.briefs ?? []);
+      } catch { }
+    })();
+  }, [asOf, locationId]);
+
   const ok = Boolean(data?.ok);
   const kpis = data?.kpis ?? [];
   const series = data?.series ?? {};
@@ -405,48 +436,21 @@ export default function CostControlPage() {
       subtitle="Monitor controllable cost pressure, leakage, and margin discipline across locations."
     >
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-4 pt-2">
-          <select
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-          >
-            <option value="all">All Locations</option>
-            {locationsUnique.map((l) => (
-              <option key={l.location_id} value={l.location_id}>
-                {l.location_code} — {l.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={windowCode}
-            onChange={(e) => setWindowCode(e.target.value as any)}
-            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-          >
-            <option value="7d">Last 7 Days</option>
-            <option value="30d">Last 30 Days</option>
-            <option value="90d">Last 90 Days</option>
-            <option value="ytd">Year to Date</option>
-          </select>
-
-          <input
-            type="date"
-            value={asOf ? asOf.split("T")[0] : ""}
-            onChange={(e) => setAsOf(e.target.value)}
-            onKeyDown={(e) => e.preventDefault()}
-            className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
-          />
-
-          <button
-            onClick={load}
-            disabled={loading}
-            aria-label="Refresh cost control dashboard"
-            className="group flex h-10 items-center justify-center rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 disabled:opacity-50"
-          >
-            <RefreshCcw className="h-4 w-4 transition-transform duration-300 group-hover:rotate-180" />
-          </button>
-        </div>
+        <DashboardFilters
+          locations={locationsUnique.map((l) => ({
+            id: l.location_id,
+            location_id: l.location_id,
+            location_name: l.name,
+          }))}
+          locationId={locationId}
+          onLocationChange={setLocationId}
+          dateRange={windowCode as any}
+          onDateRangeChange={(v) => setWindowCode(v as any)}
+          insightDate={asOf || null}
+          onDateChange={setAsOf}
+          onRefresh={load}
+          loading={loading}
+        />
 
         {!ok && data?.error ? (
           <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-foreground">
@@ -500,12 +504,78 @@ export default function CostControlPage() {
   );
 
   const intelligence =
-  !loading ? (
-    <ValoraIntelligence
-      alerts={alerts}
-      actions={actions}
-    />
-  ) : null;
+    !loading ? (
+      <SectionCard
+        title="Valora Intelligence"
+        subtitle="What needs attention and what actions to take."
+      >
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+
+          {/* Attention Required */}
+          <div className="space-y-3">
+            <div className="text-sm font-semibold text-foreground">Attention Required</div>
+            <div className="text-xs text-muted-foreground">Critical cost alerts and exceptions.</div>
+            {mlRisks.length ? (
+              <div className="space-y-3">
+                {mlRisks.slice(0, 5).map((a: any, i: number) => (
+                  <div key={i} className={`rounded-xl border p-3 ${a.severity_band === "critical" ? "border-red-500/30 bg-red-500/10" : "border-amber-500/30 bg-amber-500/10"}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-foreground">
+                          {a.location_name} — {(a.risk_type ?? "").split("_").map((w: string) => w[0]?.toUpperCase() + w.slice(1)).join(" ")}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          Impact: ${Number(a.impact_estimate ?? 0).toFixed(0)} · Severity: {a.severity_band}
+                        </div>
+                      </div>
+                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${a.severity_band === "critical" ? "border-red-500/20 bg-red-500/10" : "border-amber-500/20 bg-amber-500/10"}`}>
+                        {a.severity_band}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex justify-end">
+                  <Link href={`/restaurant/valora-intelligence/alerts?source=cost-management${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""}&day=${encodeURIComponent(asOf ?? "")}`} className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50">
+                    View all alerts →
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border/60 bg-background/20 p-4 text-sm text-muted-foreground">
+                No critical cost issues detected for this period.
+              </div>
+            )}
+          </div>
+
+          {/* Recommended Actions */}
+          <div className="space-y-3 xl:border-l xl:border-border/40 xl:pl-6">
+            <div className="text-sm font-semibold text-foreground">Recommended Actions</div>
+            <div className="text-xs text-muted-foreground">AI-driven cost reduction actions.</div>
+            {mlBriefs.length ? (
+              <div className="space-y-3">
+                {mlBriefs.slice(0, 1).map((b: any, i: number) => (
+                  <div key={i} className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                    <div className="text-sm font-semibold text-foreground">{b.headline}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{b.location_name}</div>
+                    <div className="mt-2 line-clamp-3 text-sm text-muted-foreground">{b.summary_text}</div>
+                    {b.model_name && <div className="mt-2 text-[10px] text-muted-foreground/60">Generated by {b.model_name}</div>}
+                  </div>
+                ))}
+                <div className="flex justify-end">
+                  <Link href={`/restaurant/valora-intelligence/actions?source=cost-management${locationId !== "all" ? `&location_id=${encodeURIComponent(locationId)}` : ""}&day=${encodeURIComponent(asOf ?? "")}`} className="rounded-xl border border-border/60 px-3 py-2 text-xs font-semibold hover:bg-background/50">
+                    View all actions →
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border/60 bg-background/20 p-4 text-sm text-muted-foreground">
+                No recommended actions available yet.
+              </div>
+            )}
+          </div>
+        </div>
+      </SectionCard>
+    ) : null;
 
   const charts =
     !loading ? (
