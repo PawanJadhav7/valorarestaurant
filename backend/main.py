@@ -23,6 +23,7 @@ from app.api.subscription_change_job import router as subscription_change_job_ro
 from app.api.subscription_summary import router as subscription_summary_router
 from app.api import alerts
 from app.api.alerts import router as alerts_router
+from app.api.ml_alerts import router as ml_alerts_router
 from app.api.ai_actions import router as ai_actions_router
 from app.api.onboarding_pos_connect import router as onboarding_pos_connect_router
 # Add this line with the other imports
@@ -57,6 +58,7 @@ app.include_router(subscription_change_router)
 app.include_router(subscription_change_job_router)
 app.include_router(subscription_summary_router)
 app.include_router(alerts_router)
+app.include_router(ml_alerts_router)
 app.include_router(ai_actions_router)
 app.include_router(onboarding_pos_locations_router)
 app.include_router(onboarding_pos_connect_router)
