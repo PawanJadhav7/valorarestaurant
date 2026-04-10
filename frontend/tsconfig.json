@@ -35,14 +35,12 @@
   },
   "include": [
     "next-env.d.ts",
-    "app/api/auth/onboarding/pos/csv/route.ts",
-    "signup/SignupClient.tsx",
-    "signup/page.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    "**/*.ts",
+    "**/*.tsx"
   ],
   "exclude": [
     "node_modules",
+    ".next",
     "app/restaurant/BackendTest.tsx",
     "**/app/restaurant/BackendTest.tsx"
   ]

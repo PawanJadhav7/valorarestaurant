@@ -18,11 +18,10 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center rounded-full px-4 py-2 text-xs font-semibold tracking-wide transition-all duration-200 ${
-        active
-          ? "border border-white/20 bg-white/10 text-foreground shadow-md backdrop-blur"
-          : "border border-transparent bg-transparent text-muted-foreground hover:border-white/10 hover:bg-white/5 hover:text-foreground"
-      }`}
+      className={`inline-flex items-center rounded-full px-4 py-2 text-xs font-semibold tracking-wide transition-all duration-200 ${active
+        ? "border border-white/20 bg-white/10 text-foreground shadow-md backdrop-blur"
+        : "border border-transparent bg-transparent text-muted-foreground hover:border-white/10 hover:bg-white/5 hover:text-foreground"
+        }`}
     >
       {children}
     </button>
@@ -255,19 +254,18 @@ export default function HomePage() {
                         <div className="rounded-[24px] border border-white/10 bg-background/40 p-5">
                           <div className="text-sm font-semibold text-foreground">Product walkthrough</div>
                           <div className="mt-2 text-sm leading-6 text-muted-foreground">
-                            A short product demo or explainer video can live here to show how the platform works.
+                            Watch how Valora AI turns restaurant data into real-time insights and actionable decisions.
                           </div>
 
-                          <div className="mt-5 flex min-h-[280px] items-center justify-center rounded-2xl border border-border bg-muted/40 p-6 shadow-sm">
-                            <div className="text-center">
-                              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-border bg-background/60 text-lg text-foreground shadow-sm">
-                                ▶
-                              </div>
-                              <div className="mt-4 text-sm font-semibold text-foreground">Demo video area</div>
-                              <div className="mt-2 max-w-xs text-sm leading-6 text-muted-foreground">
-                                Add a short walkthrough here to show operators how Valora turns business data into action.
-                              </div>
-                            </div>
+                          <div className="mt-5 flex min-h-[300px] items-center justify-center rounded-2xl border border-border bg-muted/40 p-6 shadow-sm">
+                            <video
+                                  className="w-full h-[300px] rounded-xl"
+                                  controls
+                                  preload="metadata"
+                                >
+                                  <source src="/valora-demo.mp4" type="video/mp4" />
+                                  Your browser does not support the video tag.
+                            </video>
                           </div>
                         </div>
                       </div>
@@ -278,9 +276,9 @@ export default function HomePage() {
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                       <ContactCard
                         label="Email"
-                        title="support@valora.ai"
+                        title="support@valoraai.us"
                         subtitle="General product and onboarding support"
-                        href="mailto:support@valora.ai"
+                        href="mailto:support@valoraai.us"
                         icon={<span className="text-base">✉</span>}
                       />
 
