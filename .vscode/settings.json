@@ -3,5 +3,17 @@
         "components"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "files.exclude": {
+        "**/.next": true,
+        "**/node_modules": true
+    },
+    "search.exclude": {
+        "**/.next": true,
+        "**/node_modules": true
+    },
+    "files.watcherExclude": {
+        "**/.next/**": true,
+        "**/node_modules/**": true
+    }
 }
