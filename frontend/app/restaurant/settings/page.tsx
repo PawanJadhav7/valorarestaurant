@@ -11,14 +11,14 @@ const TABS = [
 ];
 
 function ProfileTab() {
-  const [user, setUser]           = React.useState<any>(null);
+  const [user, setUser] = React.useState<any>(null);
   const [locations, setLocations] = React.useState<any[]>([]);
-  const [loading, setLoading]     = React.useState(true);
-  const [editing, setEditing]     = React.useState(false);
-  const [saving, setSaving]       = React.useState(false);
-  const [result, setResult]       = React.useState<string | null>(null);
-  const [error, setError]         = React.useState<string | null>(null);
-  const [form, setForm]           = React.useState({ full_name: "", contact: "" });
+  const [loading, setLoading] = React.useState(true);
+  const [editing, setEditing] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [result, setResult] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [form, setForm] = React.useState({ full_name: "", contact: "" });
 
   const load = React.useCallback(async () => {
     try {
@@ -33,7 +33,7 @@ function ProfileTab() {
         setForm({ full_name: uJson.user.display_name ?? "", contact: uJson.user.contact ?? "" });
       }
       setLocations(lJson.locations ?? []);
-    } catch {}
+    } catch { }
     finally { setLoading(false); }
   }, []);
 
@@ -74,7 +74,7 @@ function ProfileTab() {
           {/* LEFT */}
           <div className="space-y-3">
             {result && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-foreground">✅ {result}</div>}
-            {error  && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-foreground">{error}</div>}
+            {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-foreground">{error}</div>}
 
             {/* Avatar */}
             <div className="flex items-center gap-4 rounded-xl border border-border/60 bg-background/20 p-4">
@@ -103,6 +103,8 @@ function ProfileTab() {
                     <input
                       value={form.full_name}
                       onChange={(e) => setForm(f => ({ ...f, full_name: e.target.value }))}
+                      placeholder="Enter full name"
+                      title="Full name"
                       className="w-full rounded-xl border border-border/60 bg-background/40 px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-amber-400/40"
                     />
                   </div>
@@ -111,6 +113,8 @@ function ProfileTab() {
                     <input
                       value={form.contact}
                       onChange={(e) => setForm(f => ({ ...f, contact: e.target.value }))}
+                      placeholder="Enter contact number"
+                      title="Contact number"
                       className="w-full rounded-xl border border-border/60 bg-background/40 px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-amber-400/40"
                     />
                   </div>
@@ -125,11 +129,11 @@ function ProfileTab() {
               ) : (
                 <>
                   {[
-                    { label: "Full name",    value: user?.display_name },
-                    { label: "Email",        value: user?.email },
-                    { label: "Contact",      value: user?.contact },
+                    { label: "Full name", value: user?.display_name },
+                    { label: "Email", value: user?.email },
+                    { label: "Contact", value: user?.contact },
                     { label: "Organisation", value: user?.tenant_name },
-                    { label: "Onboarding",   value: user?.onboarding_status },
+                    { label: "Onboarding", value: user?.onboarding_status },
                   ].map((row, i) => (
                     <div key={i} className="flex items-center justify-between gap-4 py-1 border-b border-border/30 last:border-0">
                       <div className="text-xs text-muted-foreground">{row.label}</div>
@@ -175,17 +179,54 @@ function ProfileTab() {
 function LocationsTab() {
   const [locations, setLocations] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [editingId, setEditingId] = React.useState<number | null>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [result, setResult] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [form, setForm] = React.useState({ business_name: "", address_line: "" });
 
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch("/api/restaurant/locations", { cache: "no-store" });
-        const j = await r.json();
-        setLocations(j.locations ?? []);
-      } catch { }
-      finally { setLoading(false); }
-    })();
+  const load = React.useCallback(async () => {
+    try {
+      const r = await fetch("/api/restaurant/locations", { cache: "no-store" });
+      const j = await r.json();
+      setLocations(j.locations ?? []);
+    } catch { }
+    finally { setLoading(false); }
   }, []);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  function startEdit(loc: any) {
+    setEditingId(loc.location_id);
+    setForm({ business_name: loc.business_name ?? "", address_line: loc.address_line ?? "" });
+    setResult(null);
+    setError(null);
+  }
+
+  async function saveLocation(locationId: number) {
+    setSaving(true);
+    setResult(null);
+    setError(null);
+    try {
+      const r = await fetch("/api/restaurant/locations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ location_id: locationId, ...form }),
+      });
+      const j = await r.json();
+      if (j.ok) {
+        setResult("Location updated successfully.");
+        setEditingId(null);
+        await load();
+      } else {
+        setError(j.error ?? "Update failed");
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "Update failed");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <SectionCard title="Locations" subtitle="Your active restaurant locations.">
@@ -193,33 +234,79 @@ function LocationsTab() {
         <div className="h-32 animate-pulse rounded-xl border border-border bg-muted/20" />
       ) : (
         <div className="space-y-4">
-          {locations.map((loc: any, i: number) => (
-            <div key={i} className="space-y-3">
-              {/* Location card */}
+          {result && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs">✅ {result}</div>}
+          {error && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs">{error}</div>}
+
+          {locations.map((loc: any) => (
+            <div key={loc.location_id} className="space-y-3">
               <div className="rounded-xl border border-border/60 bg-background/20 p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-sm font-semibold text-foreground">
-                        {loc.business_name ?? loc.location_name}
+                  <div className="min-w-0 flex-1">
+                    {editingId === loc.location_id ? (
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Business name</label>
+                          <input
+                            value={form.business_name}
+                            onChange={(e) => setForm(f => ({ ...f, business_name: e.target.value }))}
+                            placeholder="Enter business name"
+                            title="Business name"
+                            className="w-full rounded-xl border border-border/60 bg-background/40 px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-amber-400/40"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs text-muted-foreground">Address</label>
+                          <input
+                            value={form.address_line}
+                            onChange={(e) => setForm(f => ({ ...f, address_line: e.target.value }))}
+                            placeholder="Enter address"
+                            title="Address line"
+                            className="w-full rounded-xl border border-border/60 bg-background/40 px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-amber-400/40"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => saveLocation(loc.location_id)}
+                            disabled={saving}
+                            className="rounded-xl border border-amber-400/40 bg-amber-400/10 px-4 py-2 text-xs font-medium text-amber-400 hover:bg-amber-400/20 disabled:opacity-50"
+                          >
+                            {saving ? "Saving..." : "Save changes"}
+                          </button>
+                          <button
+                            onClick={() => setEditingId(null)}
+                            className="rounded-xl border border-border/60 bg-background/40 px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-background/60"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
-                      <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-400">
-                        Active
-                      </span>
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted-foreground">
-                      <div>Address: <span className="text-foreground">{loc.address_line ?? "—"}</span></div>
-                      <div>City: <span className="text-foreground">{loc.city}{loc.region ? `, ${loc.region}` : ""}</span></div>
-                      <div>Location ID: <span className="text-foreground">{loc.location_id}</span></div>
-                      <div>Currency: <span className="text-foreground">{loc.currency_code ?? "USD"}</span></div>
-                      <div>POS: <span className="text-foreground">Square</span></div>
-                      <div>Sync: <span className="text-foreground">Every 15 min</span></div>
-                    </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-semibold text-foreground">{loc.business_name ?? loc.location_name}</div>
+                          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-400">Active</span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted-foreground">
+                          <div>Address: <span className="text-foreground">{loc.address_line ?? "—"}</span></div>
+                          <div>City: <span className="text-foreground">{loc.city}{loc.region ? `, ${loc.region}` : ""}</span></div>
+                          <div>Location ID: <span className="text-foreground">{loc.location_id}</span></div>
+                          <div>POS: <span className="text-foreground">Square</span></div>
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  {editingId !== loc.location_id && (
+                    <button
+                      onClick={() => startEdit(loc)}
+                      className="shrink-0 rounded-xl border border-border/60 bg-background/40 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-background/60"
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
               </div>
 
-              {/* Map for this location */}
+              {/* Map */}
               {loc.latitude && loc.longitude && (
                 <div className="rounded-xl border border-border/60 bg-background/20 overflow-hidden">
                   <div className="px-3 py-2 text-xs text-muted-foreground border-b border-border/40">
@@ -227,7 +314,7 @@ function LocationsTab() {
                   </div>
                   <iframe
                     title={`Map of ${loc.business_name}`}
-                    className="w-full h-[400px] border-0"
+                    className="w-full h-[240px] border-0"
                     loading="lazy"
                     allowFullScreen
                     src={`https://maps.google.com/maps?q=${loc.latitude},${loc.longitude}&z=15&output=embed`}
@@ -238,7 +325,7 @@ function LocationsTab() {
           ))}
 
           <div className="rounded-xl border border-border/40 bg-background/10 p-3 text-xs text-muted-foreground">
-            Adding and managing multiple locations coming soon. Contact support@valoraai.us to add a new location.
+            Adding new locations coming soon. Contact support@valoraai.us to add a location.
           </div>
         </div>
       )}

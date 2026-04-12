@@ -299,6 +299,8 @@ function UploadDataTab() {
             <input
               type="file"
               accept=".csv"
+              title="Select a CSV file to upload"
+              placeholder="Select a CSV file"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="w-full rounded-xl border border-border/60 bg-background/40 px-4 py-2.5 text-sm text-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-background/60 file:px-3 file:py-1 file:text-sm file:font-medium"
             />
