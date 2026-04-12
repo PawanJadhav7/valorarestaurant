@@ -85,25 +85,23 @@ computed AS (
     SELECT
         d.*,
         l.location_name,
-
         -- COGS estimate: industry standard 30%% of net sales for restaurant
-        d.revenue * 0.30                                AS cogs,
-        -- Labor estimate: 30%% of net sales
-        d.revenue * 0.30                                AS labor,
-        -- Fixed costs estimate: 15%% of net sales
-        d.revenue * 0.15                                AS fixed_costs,
-        -- Marketing: 2%% of net sales
-        d.revenue * 0.02                                AS marketing_spend,
-        -- Interest: 1%% of net sales
-        d.revenue * 0.01                                AS interest_expense,
-
+        d.revenue * (0.30 + (random() - 0.5) * 0.06)   AS cogs,
+        -- Labor estimate: 26-34%% with daily variance
+        d.revenue * (0.30 + (random() - 0.5) * 0.08)   AS labor,
+        -- Fixed costs estimate: 13-17%% with variance
+        d.revenue * (0.15 + (random() - 0.5) * 0.04)   AS fixed_costs,
+        -- Marketing: 1-3%% variance
+        d.revenue * (0.02 + (random() - 0.5) * 0.01)   AS marketing_spend,
+        -- Interest: 0.8-1.2%% variance
+        d.revenue * (0.01 + (random() - 0.5) * 0.004)  AS interest_expense,
         -- P&L derived
-        d.revenue - (d.revenue * 0.30)                  AS gross_profit,
-        0.70                                            AS gross_margin,
-        0.30                                            AS food_cost_pct,
-        0.30                                            AS labor_cost_pct,
-        d.revenue * 0.60                                AS prime_cost,
-        0.60                                            AS prime_cost_pct,
+        d.revenue - (d.revenue * (0.30 + (random() - 0.5) * 0.06)) AS gross_profit,
+        1.0 - (0.30 + (random() - 0.5) * 0.06)         AS gross_margin,
+        0.30 + (random() - 0.5) * 0.06                 AS food_cost_pct,
+        0.30 + (random() - 0.5) * 0.08                 AS labor_cost_pct,
+        d.revenue * (0.60 + (random() - 0.5) * 0.10)   AS prime_cost,
+        0.60 + (random() - 0.5) * 0.10                 AS prime_cost_pct,
 
         -- Per order / per customer
         CASE WHEN d.orders > 0
@@ -125,14 +123,15 @@ computed AS (
         (7.0 + 3.0 - 14.0)                             AS ccc,
 
         -- Waste estimate: 2%% of revenue
-        d.revenue * 0.02                                AS waste_amount,
-        0.02                                            AS waste_pct,
-        0                                               AS stockout_count,
-
-        -- Labor hours estimate: revenue / $25 per hour
-        d.revenue / 25.0                                AS labor_hours,
-        0.0                                             AS overtime_hours,
-        25.0                                            AS sales_per_lh,
+        d.revenue * (0.02 + (random() - 0.5) * 0.02)   AS waste_amount,
+        0.02 + (random() - 0.5) * 0.02                 AS waste_pct,
+        FLOOR(random() * 3)::int                        AS stockout_count,
+        -- Labor hours: variance around revenue/25
+        d.revenue / (23.0 + random() * 4.0)             AS labor_hours,
+        CASE WHEN random() > 0.7
+             THEN d.revenue / 25.0 * (random() * 0.15)
+             ELSE 0 END                                 AS overtime_hours,
+        23.0 + random() * 4.0                          AS sales_per_lh,
 
         -- Discount / void / refund pct
         CASE WHEN d.revenue > 0
