@@ -74,7 +74,11 @@ export async function GET() {
         dl.city,
         dl.region,
         dl.country_code,
-        dl.currency_code
+        dl.currency_code,
+        dl.latitude,
+        dl.longitude,
+        dl.address_line,
+        dl.business_name
       from effective e
       join restaurant.dim_location dl
         on dl.location_id = e.location_id
