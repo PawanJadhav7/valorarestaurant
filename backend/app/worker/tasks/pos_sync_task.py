@@ -30,8 +30,33 @@ def dispatch_all_pos_syncs(self):
     Fetches all active POS connections and dispatches
     individual sync tasks for each tenant+provider+location.
     """
-    logger.info("Starting POS sync dispatch")
+    # Time-of-day awareness — skip during closed hours (11pm-7am EST = 04:00-12:00 UTC)
+    from datetime import datetime, timezone
+    utc_hour = datetime.now(timezone.utc).hour
 
+    # Map UTC hour to order volume hint
+    # EST = UTC-5
+    # Closed:      04:00-12:00 UTC (11pm-7am EST)
+    # Breakfast:   12:00-15:00 UTC (7am-10am EST)  → low
+    # Lunch:       16:00-19:00 UTC (11am-2pm EST)  → high
+    # Afternoon:   19:00-22:00 UTC (2pm-5pm EST)   → low
+    # Dinner:      22:00-02:00 UTC (5pm-9pm EST)   → high
+    # Late:        02:00-04:00 UTC (9pm-11pm EST)  → medium
+
+    CLOSED_HOURS = set(range(4, 12))  # 04:00-11:59 UTC
+    if utc_hour in CLOSED_HOURS:
+        logger.info("Restaurant closed (UTC hour=%s) — skipping POS sync", utc_hour)
+        return {"dispatched": 0, "reason": "closed_hours"}
+
+    VOLUME_MAP = {
+        **{h: "low" for h in range(12, 15)},  # breakfast
+        **{h: "high" for h in range(16, 19)},  # lunch
+        **{h: "low" for h in range(19, 22)},  # afternoon
+        **{h: "high" for h in [22, 23, 0, 1]},  # dinner
+        **{h: "medium" for h in [2, 3]},  # late
+    }
+    volume = VOLUME_MAP.get(utc_hour, "low")
+    logger.info("Starting POS sync dispatch (UTC hour=%s volume=%s)", utc_hour, volume)
     db = next(get_db())
     try:
         connections = db.execute(text("""
