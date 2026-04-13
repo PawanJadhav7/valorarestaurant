@@ -37,7 +37,7 @@ export async function GET() {
 
     // Use first tenant for RLS context
     const tenantId = tenantIds[0];
-    await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+    await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantIds.join(',')]);
 
     // 2) Effective allowed locations across ALL tenants
     const r = await client.query(

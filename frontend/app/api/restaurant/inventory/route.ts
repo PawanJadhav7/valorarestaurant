@@ -47,10 +47,11 @@ export async function GET(req: Request) {
     // Resolve tenant
     const tenantRes = await pool.query(
       `SELECT tenant_id FROM app.tenant_user
-       WHERE user_id = $1::uuid ORDER BY created_at ASC LIMIT 1`,
+       WHERE user_id = $1::uuid ORDER BY created_at ASC`,
       [user.user_id]
     );
-    const tenantId = tenantRes.rows[0]?.tenant_id ?? null;
+    const tenantIds: string[] = tenantRes.rows.map((r: any) => r.tenant_id);
+    const tenantId = tenantIds[0] ?? null;
     if (!tenantId) {
       return NextResponse.json({ error: "Tenant not resolved" }, { status: 403 });
     }
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
        FROM restaurant.dim_location dl
        JOIN app.tenant_location tl ON tl.location_id = dl.location_id
        WHERE dl.tenant_id = ANY($1::uuid[]) AND dl.is_active = true`,
-      [tenantId]
+      [tenantIds]
     );
     const allowedIds = allowedRes.rows.map((r: any) => r.location_id);
     if (!allowedIds.length) {
@@ -72,10 +73,10 @@ export async function GET(req: Request) {
     const anchorRes = await pool.query(
       `SELECT COALESCE(MAX(day), CURRENT_DATE)::date AS anchor_day
        FROM analytics.v_gold_daily
-       WHERE tenant_id = $1::uuid
+       WHERE tenant_id = ANY($1::uuid[])
          AND location_id = ANY($2::bigint[])
          AND ($3::bigint IS NULL OR location_id = $3::bigint)`,
-      [tenantId, allowedIds, locationId]
+      [tenantIds, allowedIds, locationId]
     );
     const anchorDay = dayParam?.slice(0, 10) ??
       anchorRes.rows[0]?.anchor_day?.toISOString?.()?.slice(0, 10) ??
@@ -115,12 +116,12 @@ export async function GET(req: Request) {
              ELSE 0 END                                                 AS food_cost_pct,
         COUNT(*)::int                                                   AS row_count
       FROM analytics.v_gold_daily
-      WHERE tenant_id = $1::uuid
+      WHERE tenant_id = ANY($1::uuid[])
         AND day BETWEEN ($2::date - $3::interval) AND $2::date
         AND location_id = ANY($4::bigint[])
         AND ($5::bigint IS NULL OR location_id = $5::bigint)
       `,
-      [tenantId, anchorDay, interval, allowedIds, locationId]
+      [tenantIds, anchorDay, interval, allowedIds, locationId]
     );
     const agg = aggRes.rows[0] ?? {};
 
@@ -136,12 +137,12 @@ export async function GET(req: Request) {
              THEN ROUND(SUM(cogs) / AVG(avg_inventory), 2)
              ELSE 0 END                                                 AS inv_turns
       FROM analytics.v_gold_daily
-      WHERE tenant_id = $1::uuid
+      WHERE tenant_id = ANY($1::uuid[])
         AND day BETWEEN ($2::date - ($3::interval * 2)) AND ($2::date - $3::interval - interval '1 day')
         AND location_id = ANY($4::bigint[])
         AND ($5::bigint IS NULL OR location_id = $5::bigint)
       `,
-      [tenantId, anchorDay, interval, allowedIds, locationId]
+      [tenantIds, anchorDay, interval, allowedIds, locationId]
     );
     const prev = prevRes.rows[0] ?? {};
 
@@ -164,14 +165,14 @@ export async function GET(req: Request) {
              THEN ROUND(SUM(cogs) / SUM(revenue), 4)
              ELSE 0 END                                                 AS food_cost_pct
       FROM analytics.v_gold_daily
-      WHERE tenant_id = $1::uuid
+      WHERE tenant_id = ANY($1::uuid[])
         AND day BETWEEN ($2::date - $3::interval) AND $2::date
         AND location_id = ANY($4::bigint[])
         AND ($5::bigint IS NULL OR location_id = $5::bigint)
       GROUP BY day
       ORDER BY day ASC
       `,
-      [tenantId, anchorDay, interval, allowedIds, locationId]
+      [tenantIds, anchorDay, interval, allowedIds, locationId]
     );
     const seriesRows = seriesRes.rows ?? [];
 

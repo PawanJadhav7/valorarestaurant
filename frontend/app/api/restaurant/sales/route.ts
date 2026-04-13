@@ -372,7 +372,7 @@ export async function GET(req: Request) {
     const windowCode = parseWindow(url.searchParams);
     const locationId = parseLocationId(url.searchParams);
 
-    const result = await withTenant(async ({ client, tenantId }) => {
+    const result = await withTenant(async ({ client, tenantId, tenantIds }) => {
       const allowedRes = await client.query(
         `
           select distinct
@@ -386,7 +386,7 @@ export async function GET(req: Request) {
             and tl.is_active = true
           order by tl.location_id
         `,
-        [tenantId]
+        [tenantIds]
       );
 
       const selectedLocationName =
@@ -420,11 +420,11 @@ export async function GET(req: Request) {
         `
         select coalesce(max(day), current_date)::date as anchor_day
         from analytics.v_gold_daily
-        where tenant_id = $1::uuid
+        where tenant_id = ANY($1::uuid[])
           and location_id = any($2::bigint[])
           and ($3::bigint is null or location_id = $3::bigint)
         `,
-        [tenantId, allowedIds, locationId]
+        [tenantIds, allowedIds, locationId]
       );
 
       const anchorDay = formatDay(anchorRes.rows?.[0]?.anchor_day);
@@ -445,7 +445,7 @@ export async function GET(req: Request) {
             else round((sum(gross_profit) / sum(revenue) * 100)::numeric, 2)
           end as gross_margin_pct
         from analytics.v_gold_daily
-        where tenant_id = $1::uuid
+        where tenant_id = ANY($1::uuid[])
           and day >= ${startSql}
           and day <= $4::date
           and location_id = any($2::bigint[])
@@ -453,7 +453,7 @@ export async function GET(req: Request) {
         group by day
         order by day
         `,
-        [tenantId, allowedIds, locationId, anchorDay]
+        [tenantIds, allowedIds, locationId, anchorDay]
       );
 
       const seriesRows = seriesRes.rows ?? [];
@@ -480,13 +480,13 @@ export async function GET(req: Request) {
               else round(sum(gross_profit) / sum(revenue) * 100, 2)
             end as gross_margin_pct
           from analytics.v_gold_daily
-          where tenant_id = $1::uuid
+          where tenant_id = ANY($1::uuid[])
             and day >= ${startSql}
             and day <= $4::date
             and location_id = any($2::bigint[])
             and ($3::bigint is null or location_id = $3::bigint)
           `,
-          [tenantId, allowedIds, locationId, anchorDay]
+          [tenantIds, allowedIds, locationId, anchorDay]
         );
 
         const curr = aggRes.rows?.[0] ?? {};
@@ -504,14 +504,14 @@ export async function GET(req: Request) {
               else round(sum(discount_amount) / sum(gross_sales) * 100, 2)
             end as discount_rate_pct
           from restaurant.fact_order
-          where tenant_id = $1::uuid
+          where tenant_id = ANY($1::uuid[])
             and order_date >= ${startSql}
             and order_date <= $4::date
             and location_id = any($2::bigint[])
             and ($3::bigint is null or location_id = $3::bigint)
             and order_status = 'completed'
           `,
-          [tenantId, allowedIds, locationId, anchorDay]
+          [tenantIds, allowedIds, locationId, anchorDay]
         );
 
         discountRatePct = toNum(discountRes.rows?.[0]?.discount_rate_pct);
@@ -524,7 +524,7 @@ export async function GET(req: Request) {
           lower(coalesce(order_channel, 'unknown')) as order_channel,
           coalesce(sum(net_sales), 0)::numeric as revenue
         from restaurant.fact_order
-        where tenant_id = $1::uuid
+        where tenant_id = ANY($1::uuid[])
           and order_date >= ${startSql}
           and order_date <= $4::date
           and location_id = any($2::bigint[])
@@ -533,7 +533,7 @@ export async function GET(req: Request) {
         group by 1, 2
         order by 1, 2
         `,
-        [tenantId, allowedIds, locationId, anchorDay]
+        [tenantIds, allowedIds, locationId, anchorDay]
       );
 
       const channelRows = channelSeriesRes.rows ?? [];
@@ -598,7 +598,7 @@ export async function GET(req: Request) {
             on mi.menu_item_id = oi.menu_item_id
            and mi.tenant_id = o.tenant_id
            and (mi.location_id = o.location_id or mi.location_id is null)
-          where o.tenant_id = $1::uuid
+          where o.tenant_id = ANY($1::uuid[])
             and o.order_date >= ${startSql}
             and o.order_date <= $4::date
             and o.location_id = any($2::bigint[])
@@ -625,7 +625,7 @@ export async function GET(req: Request) {
         order by revenue desc, qty_sold desc, item_name asc
         limit 10
         `,
-        [tenantId, allowedIds, locationId, anchorDay]
+        [tenantIds, allowedIds, locationId, anchorDay]
       );
 
       const topItems = (topItemsResult.rows ?? []).map((r: any) => ({
@@ -669,7 +669,7 @@ export async function GET(req: Request) {
             else round(sum(discount_amount) / sum(gross_sales) * 100, 2)
           end as discount_rate_pct
         from restaurant.fact_order
-        where tenant_id = $1::uuid
+        where tenant_id = ANY($1::uuid[])
           and order_date >= ${startSql}
           and order_date <= $4::date
           and location_id = any($2::bigint[])
@@ -678,7 +678,7 @@ export async function GET(req: Request) {
         group by 1
         order by 1
         `,
-        [tenantId, allowedIds, locationId, anchorDay]
+        [tenantIds, allowedIds, locationId, anchorDay]
       );
 
       const discountMap = new Map<string, number>();

@@ -391,6 +391,7 @@ function SalesCompositionStackedChart({ labels, dineIn, delivery, takeaway }: { 
       </svg>
     </SectionCard>
   );
+
 }
 
 function Histogram({ title, buckets }: { title: string; buckets: AovBucket[]; }) {
@@ -531,7 +532,12 @@ export function SalesClient() {
       if (nextAsOf && nextAsOf.trim()) params.set("day", nextAsOf.trim());
       else params.delete("day");
       const qs = params.toString();
-      router.replace(qs ? `/restaurant/sales?${qs}` : "/restaurant/sales", { scroll: false });
+      const nextUrl = qs ? `/restaurant/sales?${qs}` : "/restaurant/sales";
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+      if (nextUrl !== currentUrl) {
+        router.replace(nextUrl, { scroll: false });
+      }
     },
     [router, searchParams, windowCode]
   );

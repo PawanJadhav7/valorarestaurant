@@ -98,7 +98,8 @@ export async function GET(req: Request) {
       [user.user_id]
     );
 
-    const tenantId = tenantRes.rows?.[0]?.tenant_id;
+    const tenantIds: string[] = tenantRes.rows.map((r: any) => r.tenant_id);
+  const tenantId = tenantIds[0] ?? null;
 
     if (!tenantId) {
       return NextResponse.json(
@@ -126,18 +127,18 @@ export async function GET(req: Request) {
         ? `
           select max(day)::timestamptz as as_of_ts
           from analytics.v_gold_daily
-          where tenant_id = $1::uuid
+          where tenant_id = ANY($1::uuid[])
             and location_id = $2::bigint
         `
         : `
           select max(day)::timestamptz as as_of_ts
           from analytics.v_gold_daily
-          where tenant_id = $1::uuid
+          where tenant_id = ANY($1::uuid[])
         `;
 
       const r = await pool.query(
         anchorSql,
-        locationId ? [tenantId, locationId] : [tenantId]
+        locationId ? [tenantIds, locationId] : [tenantIds]
       );
 
       const ts = r.rows?.[0]?.as_of_ts;
@@ -191,7 +192,7 @@ export async function GET(req: Request) {
         coalesce(avg(sales_per_labor_hour), 0)::numeric as sales_per_labor_hour
       from curr
       `,
-      [asOf, days, locationId, tenantId]
+      [asOf, days, locationId, tenantIds]
     );
 
     const prevRes = await pool.query(
@@ -234,7 +235,7 @@ export async function GET(req: Request) {
         coalesce(avg(sales_per_labor_hour), 0)::numeric as sales_per_labor_hour
       from prev
       `,
-      [asOf, days, locationId, tenantId]
+      [asOf, days, locationId, tenantIds]
     );
 
     const seriesRes = await pool.query(
@@ -268,7 +269,7 @@ export async function GET(req: Request) {
       group by day
       order by day
       `,
-      [asOf, days, locationId, tenantId]
+      [asOf, days, locationId, tenantIds]
     );
 
     const curr = currRes.rows?.[0] ?? {};

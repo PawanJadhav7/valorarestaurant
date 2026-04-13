@@ -182,7 +182,7 @@ export async function GET(req: Request) {
     const tenantId: string | null = tenantIds[0] ?? null;
     if (!tenantId) return await bail(403, { ok: false, error: "User not linked to a tenant yet" });
 
-    await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
+    await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantIds.join(',')]);
 
     // ── Allowed locations across ALL tenants ──────────────────────────────
     const allowedRes = await client.query(

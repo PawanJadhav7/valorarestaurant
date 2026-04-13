@@ -139,7 +139,8 @@ export async function GET(req: Request) {
     [user.user_id]
   );
 
-  const tenantId = tenantRes.rows?.[0]?.tenant_id;
+  const tenantIds: string[] = tenantRes.rows.map((r: any) => r.tenant_id);
+  const tenantId = tenantIds[0] ?? null;
 
   if (!tenantId) {
     return NextResponse.json({
@@ -165,18 +166,18 @@ export async function GET(req: Request) {
         ? `
           SELECT MAX(day)::timestamptz AS as_of_ts
           FROM analytics.v_gold_daily
-          WHERE tenant_id = $1::uuid
+          WHERE tenant_id = ANY($1::uuid[])
             AND location_id = $2::bigint
         `
         : `
           SELECT MAX(day)::timestamptz AS as_of_ts
           FROM analytics.v_gold_daily
-          WHERE tenant_id = $1::uuid
+          WHERE tenant_id = ANY($1::uuid[])
         `;
 
       const anchorRes = await pool.query(
         anchorSql,
-        locationId ? [tenantId, locationId] : [tenantId]
+        locationId ? [tenantIds, locationId] : [tenantIds]
       );
 
       asOfTs = anchorRes.rows?.[0]?.as_of_ts ?? null;
@@ -286,7 +287,7 @@ export async function GET(req: Request) {
       ORDER BY bucket, day;
     `;
 
-    const res = await pool.query(sql, [asOfDateStr, days, locationId, tenantId]);
+    const res = await pool.query(sql, [asOfDateStr, days, locationId, tenantIds]);
     const rows = res.rows ?? [];
 
     const currRows = rows.filter((r) => r.bucket === "curr");

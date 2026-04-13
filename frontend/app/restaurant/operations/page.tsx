@@ -419,7 +419,7 @@ export default function OpsDashboardPage() {
           .map((x) => ({
             location_id: String(x.location_id ?? x.id ?? ""),
             location_code: String(x.location_code ?? x.code ?? "LOC"),
-            name: String(x.name ?? "Location"),
+            name: String(x.location_name ?? x.name ?? "Location"),
           }))
           .filter((x) => x.location_id);
         setLocations(mapped);
