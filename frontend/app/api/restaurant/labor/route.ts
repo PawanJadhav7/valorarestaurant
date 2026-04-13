@@ -90,11 +90,10 @@ export async function GET(req: Request) {
 
     const tenantRes = await pool.query(
       `
-      select tenant_id
-      from app.tenant_user
-      where user_id = $1::uuid
-      order by created_at asc
-      limit 1
+      SELECT tenant_id
+      FROM app.tenant_user
+      WHERE user_id = $1::uuid
+      ORDER BY created_at ASC
       `,
       [user.user_id]
     );
@@ -179,7 +178,7 @@ export async function GET(req: Request) {
         select f.*
         from analytics.v_gold_daily f
         cross join params p
-        where f.tenant_id = $4::uuid
+        where f.tenant_id = ANY($4::uuid[])
           and f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
           and (p.p_location is null or f.location_id = p.p_location)
       )
@@ -222,7 +221,7 @@ export async function GET(req: Request) {
         select f.*
         from analytics.v_gold_daily f
         cross join prev_range p
-        where f.tenant_id = $4::uuid
+        where f.tenant_id = ANY($4::uuid[])
           and f.day between p.prev_start and p.prev_end
           and (p.p_location is null or f.location_id = p.p_location)
       )
@@ -250,7 +249,7 @@ export async function GET(req: Request) {
         select f.*
         from analytics.v_gold_daily f
         cross join params p
-        where f.tenant_id = $4::uuid
+        where f.tenant_id = ANY($4::uuid[])
           and f.day between (p.as_of_day - (p.n_days - 1)) and p.as_of_day
           and (p.p_location is null or f.location_id = p.p_location)
       )

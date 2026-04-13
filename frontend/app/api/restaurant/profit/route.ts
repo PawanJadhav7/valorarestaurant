@@ -219,7 +219,7 @@ export async function GET(req: Request) {
         FROM analytics.v_gold_daily f
         CROSS JOIN params p
         WHERE f.day BETWEEN (p.as_of_day - (p.n_days - 1)) AND p.as_of_day
-          AND f.tenant_id = $4::uuid
+          AND f.tenant_id = ANY($4::uuid[])
           AND (p.p_location IS NULL OR f.location_id = p.p_location)
       ),
       prev_raw AS (
@@ -227,7 +227,7 @@ export async function GET(req: Request) {
         FROM analytics.v_gold_daily f
         CROSS JOIN params p
         WHERE f.day BETWEEN (p.as_of_day - ((p.n_days * 2) - 1)) AND (p.as_of_day - p.n_days)
-          AND f.tenant_id = $4::uuid
+          AND f.tenant_id = ANY($4::uuid[])
           AND (p.p_location IS NULL OR f.location_id = p.p_location)
       ),
       curr AS (

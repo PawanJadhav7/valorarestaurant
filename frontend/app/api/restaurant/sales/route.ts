@@ -382,7 +382,7 @@ export async function GET(req: Request) {
           from app.tenant_location tl
           left join restaurant.dim_location dl
             on dl.location_id = tl.location_id
-          where tl.tenant_id = $1::uuid
+          where tl.tenant_id = ANY($1::uuid[])
             and tl.is_active = true
           order by tl.location_id
         `,

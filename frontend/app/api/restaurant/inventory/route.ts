@@ -60,7 +60,7 @@ export async function GET(req: Request) {
       `SELECT DISTINCT dl.location_id
        FROM restaurant.dim_location dl
        JOIN app.tenant_location tl ON tl.location_id = dl.location_id
-       WHERE dl.tenant_id = $1::uuid AND dl.is_active = true`,
+       WHERE dl.tenant_id = ANY($1::uuid[]) AND dl.is_active = true`,
       [tenantId]
     );
     const allowedIds = allowedRes.rows.map((r: any) => r.location_id);
