@@ -9,7 +9,7 @@ celery_app = Celery(
     "valora",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["app.worker.tasks.pos_sync_task"],
+    include=["app.worker.tasks.pos_sync_task", "app.worker.tasks.etl_silver_gold_task", "app.worker.tasks.etl_insights_task"],
 )
 
 celery_app.conf.update(
@@ -58,5 +58,17 @@ celery_app.conf.update(
             "kwargs": {"order_count_hint": 5},
         },
         # Closed 11pm-7am: no sync (04:00-12:00 UTC) — intentionally omitted
+
+        # ETL: Bronze→Silver + Silver→Gold + pos_order→fact_order (every 30 mins during open hours)
+        "etl-silver-gold-every-30-mins": {
+            "task": "app.worker.tasks.etl_silver_gold_task.dispatch_all_silver_gold",
+            "schedule": crontab(minute="0,30", hour="12,13,14,15,16,17,18,19,20,21,22,23,0,1,2,3"),
+        },
+
+        # Insights: ML/AI generation (every 60 mins during open hours)
+        "insights-every-60-mins": {
+            "task": "app.worker.tasks.etl_insights_task.dispatch_all_insights",
+            "schedule": crontab(minute="0", hour="12,13,14,15,16,17,18,19,20,21,22,23,0,1,2,3"),
+        },
     },
 )
