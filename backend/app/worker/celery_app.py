@@ -31,32 +31,27 @@ celery_app.conf.update(
         "pos-sync-breakfast": {
             "task": "app.worker.tasks.pos_sync_task.dispatch_all_pos_syncs",
             "schedule": crontab(minute="0,15,30,45", hour="12,13,14"),
-            "kwargs": {"order_count_hint": 3},
-        },
+            },
         # Lunch 11am-2pm: high volume (16:00-19:00 UTC)
         "pos-sync-lunch": {
             "task": "app.worker.tasks.pos_sync_task.dispatch_all_pos_syncs",
             "schedule": crontab(minute="0,15,30,45", hour="16,17,18"),
-            "kwargs": {"order_count_hint": 12},
-        },
+            },
         # Afternoon 2pm-5pm: low volume (19:00-22:00 UTC)
         "pos-sync-afternoon": {
             "task": "app.worker.tasks.pos_sync_task.dispatch_all_pos_syncs",
             "schedule": crontab(minute="0,15,30,45", hour="19,20,21"),
-            "kwargs": {"order_count_hint": 2},
-        },
+            },
         # Dinner 5pm-9pm: high volume (22:00-02:00 UTC)
         "pos-sync-dinner": {
             "task": "app.worker.tasks.pos_sync_task.dispatch_all_pos_syncs",
             "schedule": crontab(minute="0,15,30,45", hour="22,23,0,1"),
-            "kwargs": {"order_count_hint": 15},
-        },
+            },
         # Late 9pm-11pm: medium volume (02:00-04:00 UTC)
         "pos-sync-late": {
             "task": "app.worker.tasks.pos_sync_task.dispatch_all_pos_syncs",
             "schedule": crontab(minute="0,15,30,45", hour="2,3"),
-            "kwargs": {"order_count_hint": 5},
-        },
+            },
         # Closed 11pm-7am: no sync (04:00-12:00 UTC) — intentionally omitted
 
         # ETL: Bronze→Silver + Silver→Gold + pos_order→fact_order (every 30 mins during open hours)
