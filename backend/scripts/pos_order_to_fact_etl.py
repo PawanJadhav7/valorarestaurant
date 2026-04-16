@@ -104,7 +104,7 @@ def run_etl(*, tenant_id: str, location_id: int, start: str, end: str):
                 po.provider,
                 poi.provider_item_id,
                 poi.item_name,
-                poi.category,
+                COALESCE(poi.category, 'Uncategorized'),
                 NOW()
             FROM restaurant.pos_order_item poi
             JOIN restaurant.pos_order po ON po.pos_order_id = poi.pos_order_id
