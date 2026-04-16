@@ -30,7 +30,14 @@ def get_current_user(
               where tu.user_id = u.user_id
               order by tu.created_at desc
               limit 1
-            ) as tenant_id
+            ) as tenant_id,
+            (
+              select tu.role
+              from app.tenant_user tu
+              where tu.user_id = u.user_id
+              order by tu.created_at desc
+              limit 1
+            ) as role
         from auth.user_session s
         join auth.app_user u
           on u.user_id = s.user_id
@@ -51,4 +58,5 @@ def get_current_user(
         "email": row["email"],
         "tenant_id": str(row["tenant_id"]) if row["tenant_id"] else None,
         "active_tenant_id": str(row["active_tenant_id"]) if row["active_tenant_id"] else None,
+        "role": row["role"] or "owner",
     }

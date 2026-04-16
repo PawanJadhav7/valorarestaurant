@@ -31,12 +31,17 @@ def get_dashboard_home(
 ):
     tenant_id = resolve_tenant(user)
 
+    # Try exact date first, fall back to latest available date
     sql = text("""
         SELECT *
-        FROM ml.mv_dashboard_location_daily
+        FROM ml.v_dashboard_location_daily
         WHERE tenant_id = :tenant_id
-          AND day = :day
-        ORDER BY max_severity_score DESC NULLS LAST, revenue DESC
+          AND day = (
+            SELECT MAX(day) FROM ml.v_dashboard_location_daily
+            WHERE tenant_id = :tenant_id
+            AND day <= :day
+          )
+        ORDER BY revenue DESC
     """)
 
     rows = db.execute(sql, {"tenant_id": str(tenant_id), "day": day}).mappings().all()
