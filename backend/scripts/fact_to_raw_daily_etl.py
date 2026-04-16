@@ -122,19 +122,6 @@ def run_etl(*, tenant_id: str, location_id: int, start: str, end: str):
         conn.close()
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Valora fact_order → raw_restaurant_daily ETL")
-    parser.add_argument("--tenant-id", required=True)
-    parser.add_argument("--location-id", type=int, required=True)
-    parser.add_argument("--start", default=str(date.today()))
-    parser.add_argument("--end", default=str(date.today()))
-    args = parser.parse_args()
-    run_etl(tenant_id=args.tenant_id, location_id=args.location_id,
-            start=args.start, end=args.end)
-    run_features_etl(tenant_id=args.tenant_id, location_id=args.location_id,
-            start=args.start, end=args.end)
-
-
 def run_features_etl(*, tenant_id: str, location_id: int, start: str, end: str):
     """Aggregate fact_order into f_location_daily_features for dashboard views."""
     db_url = os.environ["DATABASE_URL"].replace("postgresql+psycopg2", "postgresql")
@@ -265,3 +252,17 @@ def run_features_etl(*, tenant_id: str, location_id: int, start: str, end: str):
     finally:
         cur.close()
         conn.close()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Valora fact_order → raw_restaurant_daily ETL")
+    parser.add_argument("--tenant-id", required=True)
+    parser.add_argument("--location-id", type=int, required=True)
+    parser.add_argument("--start", default=str(date.today()))
+    parser.add_argument("--end", default=str(date.today()))
+    args = parser.parse_args()
+    run_etl(tenant_id=args.tenant_id, location_id=args.location_id,
+            start=args.start, end=args.end)
+    run_features_etl(tenant_id=args.tenant_id, location_id=args.location_id,
+            start=args.start, end=args.end)
+
+
