@@ -72,9 +72,12 @@ def get_dashboard_kpis(
             AVG(prime_cost_pct) AS avg_prime_cost_pct,
             SUM(waste_amount) AS total_waste_amount,
             SUM(stockout_count) AS total_stockouts
-        FROM ml.mv_dashboard_location_daily
+        FROM ml.v_dashboard_location_daily
         WHERE tenant_id = :tenant_id
-          AND day = :day
+          AND day = (
+            SELECT MAX(day) FROM ml.v_dashboard_location_daily
+            WHERE tenant_id = :tenant_id AND day <= :day
+          )
         GROUP BY day, tenant_id
     """)
 
@@ -98,7 +101,10 @@ def get_control_tower(
         SELECT *
         FROM ml.mv_valora_control_tower
         WHERE tenant_id = :tenant_id
-          AND as_of_date = :day
+          AND as_of_date = (
+            SELECT MAX(as_of_date) FROM ml.mv_valora_control_tower
+            WHERE tenant_id = :tenant_id AND as_of_date <= :day
+          )
         ORDER BY estimated_profit_uplift DESC NULLS LAST, revenue DESC
         LIMIT :limit
     """)
@@ -136,8 +142,10 @@ def get_dashboard_alerts(
             impact_estimate
         FROM ml.mv_dashboard_top_risks
         WHERE tenant_id = :tenant_id
-          AND as_of_date = :day
-          AND severity_band IN ('high','watch','critical')
+          AND as_of_date = (
+            SELECT MAX(as_of_date) FROM ml.mv_dashboard_top_risks
+            WHERE tenant_id = :tenant_id AND as_of_date <= :day
+          )
         ORDER BY severity_score DESC, impact_estimate DESC NULLS LAST
         LIMIT :limit
     """)
