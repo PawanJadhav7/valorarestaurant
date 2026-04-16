@@ -72,6 +72,16 @@ def run_silver_gold_task(self, *, tenant_id: str, location_id: int):
         if result.returncode != 0:
             raise RuntimeError(f"Silver->Gold failed: {result.stderr}")
         logger.info("Silver->Gold done: %s", result.stdout.strip().split('\n')[-1])
+        # Step 4: fact_order → f_location_daily_features + raw_restaurant_daily
+        result = subprocess.run(
+            [sys.executable, 'scripts/fact_to_raw_daily_etl.py',
+             '--tenant-id', tenant_id, '--location-id', str(location_id),
+             '--start', yesterday, '--end', today],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            logger.warning('fact_to_raw_daily_etl warning: %s', result.stderr[-200:])
+        logger.info('fact_to_raw_daily done: %s', result.stdout.strip().split(chr(10))[-1])
         return {"status": "success", "tenant_id": tenant_id, "location_id": location_id}
     except Exception as e:
         logger.exception("ETL failed tenant=%s location=%s: %s", tenant_id, location_id, str(e))

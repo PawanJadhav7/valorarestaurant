@@ -60,6 +60,21 @@ def run_insights_task(self, *, tenant_id: str, location_id: int):
             raise RuntimeError(f"Insights failed: {result.stderr}")
         logger.info("Insights done tenant=%s location=%s: %s",
                     tenant_id, location_id, result.stdout.strip().split('\n')[-1])
+        # Refresh materialized views after insights
+        import psycopg2
+        from dotenv import load_dotenv
+        load_dotenv('.env.local')
+        db_url = os.environ.get('DATABASE_URL','').replace('postgresql+psycopg2','postgresql')
+        if db_url:
+            try:
+                conn = psycopg2.connect(db_url)
+                conn.autocommit = True
+                cur = conn.cursor()
+                cur.execute('REFRESH MATERIALIZED VIEW ml.mv_valora_control_tower')
+                conn.close()
+                logger.info('Refreshed mv_valora_control_tower')
+            except Exception as e:
+                logger.warning('View refresh failed: %s', str(e))
         return {"status": "success", "tenant_id": tenant_id, "location_id": location_id}
     except Exception as e:
         logger.exception("Insights failed tenant=%s location=%s: %s", tenant_id, location_id, str(e))
