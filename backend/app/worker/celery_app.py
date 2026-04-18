@@ -9,7 +9,7 @@ celery_app = Celery(
     "valora",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["app.worker.tasks.pos_sync_task", "app.worker.tasks.etl_silver_gold_task", "app.worker.tasks.etl_insights_task"],
+    include=["app.worker.tasks.pos_sync_task", "app.worker.tasks.etl_silver_gold_task", "app.worker.tasks.etl_insights_task", "app.worker.tasks.alert_repeat_task"],
 )
 
 celery_app.conf.update(
@@ -53,6 +53,12 @@ celery_app.conf.update(
             "schedule": crontab(minute="0,15,30,45", hour="2,3"),
             },
         # Closed 11pm-7am: no sync (04:00-12:00 UTC) — intentionally omitted
+
+        # Repeat unacknowledged critical alerts every 2 hours
+        "repeat-critical-alerts": {
+            "task": "app.worker.tasks.alert_repeat_task.repeat_critical_alerts",
+            "schedule": crontab(minute="0", hour="*/2"),
+        },
 
         # ETL: Bronze→Silver + Silver→Gold + pos_order→fact_order (every 30 mins during open hours)
         "etl-silver-gold-every-30-mins": {
