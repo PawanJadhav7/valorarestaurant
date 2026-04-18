@@ -240,17 +240,24 @@ export async function GET(req: Request) {
                    rangeParam === "ytd" ? "get_kpis_ytd"      :
                                           "get_kpis_last_30d";
 
-    // ── KPI query — use first tenant for analytics function ───────────────
+    // ── KPI query — union across ALL tenants this user owns ─────────────
+    const kpiUnionParts = tenantIds.map((_: string, i: number) => `
+      SELECT * FROM analytics.${fnName}(
+        COALESCE($2::date, CURRENT_DATE), $${i + 3}::uuid
+      )
+    `).join(' UNION ALL ');
+
+    const kpiParams = [allowedIds, dayParam ? dayParam : null, ...tenantIds, locationId];
+
     const kpiRes = await client.query(
       `
-      WITH allowed AS (SELECT unnest($1::bigint[]) AS location_id)
-      SELECT * FROM analytics.${fnName}(
-        COALESCE($2::date, CURRENT_DATE), $3::uuid
-      )
+      WITH allowed AS (SELECT unnest($1::bigint[]) AS location_id),
+      all_kpis AS (${kpiUnionParts})
+      SELECT * FROM all_kpis
       WHERE location_id IN (SELECT location_id FROM allowed)
-        AND ($4::bigint IS NULL OR location_id = $4::bigint)
+        AND ($${tenantIds.length + 3}::bigint IS NULL OR location_id = $${tenantIds.length + 3}::bigint)
       `,
-      [allowedIds, dayParam ? dayParam : null, tenantId, locationId]
+      kpiParams
     );
 
     // ── Series query — use tenantIds array ────────────────────────────────
