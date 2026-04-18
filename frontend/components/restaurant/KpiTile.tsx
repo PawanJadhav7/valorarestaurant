@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { Bell, Sparkles } from "lucide-react";
 
 export type Severity = "good" | "warn" | "risk";
 export type Unit = "usd" | "pct" | "days" | "ratio" | "count" | "hours";
@@ -186,9 +188,13 @@ function deltaDirection(delta?: number | null): "up" | "down" | "flat" | "none" 
 export function RestaurantKpiTile({
   kpi,
   series,
+  locationId,
+  day,
 }: {
   kpi: Kpi;
   series?: number[];
+  locationId?: string | number | null;
+  day?: string | null;
 }) {
   const noData = kpi.value === null;
   const tone: TileTone = noData ? "neutral" : (kpi.severity ?? "neutral");
@@ -206,7 +212,7 @@ export function RestaurantKpiTile({
   return (
     <div
       className={[
-        "rounded-2xl border p-4 shadow-sm transition",
+        "rounded-2xl border p-4 shadow-sm transition group relative",
         "hover:bg-background/40",
         cardStyles(tone),
       ].join(" ")}
@@ -237,7 +243,23 @@ export function RestaurantKpiTile({
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-end gap-3 border-t border-border/40 pt-3">
+      <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/40 pt-3">
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <Link
+            href={`/restaurant/valora-intelligence/alerts?source=kpi&location_id=${locationId ?? ""}&day=${day ?? ""}&kpi_code=${kpi.code}`}
+            title="View alerts for this metric"
+            className="rounded-lg border border-border/50 bg-background/30 p-1.5 hover:bg-background/60 text-muted-foreground hover:text-foreground transition"
+          >
+            <Bell className="h-3.5 w-3.5" />
+          </Link>
+          <Link
+            href={`/restaurant/valora-intelligence/actions?source=kpi&location_id=${locationId ?? ""}&day=${day ?? ""}&kpi_code=${kpi.code}`}
+            title="View recommended actions for this metric"
+            className="rounded-lg border border-border/50 bg-background/30 p-1.5 hover:bg-background/60 text-muted-foreground hover:text-foreground transition"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+          </Link>
+        </div>
         <div className={sparkTone(tone, kpi.delta)}>
           <Sparkline values={spark} />
         </div>
