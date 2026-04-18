@@ -174,15 +174,82 @@ def _fire_alerts(*, tenant_id: str, location_id: int, as_of_date: str):
                 as_of_date=as_of_date,
             )
 
-            # Send email + WhatsApp (SMS pending verification)
-            email_result = svc.send_email(alert)
-            whatsapp_result = svc.send_whatsapp(alert)
+            # Compute ranking score
+            from app.services.alert_delivery_service import compute_rank
+            rank = compute_rank(
+                severity_band=severity_band,
+                impact_estimate=float(impact_estimate or 0),
+            )
+
+            # Send based on threshold
+            email_result    = {"ok": False}
+            whatsapp_result = {"ok": False}
+            sms_result      = {"ok": False}
+
+            if rank["threshold"] in ("immediate", "standard", "digest"):
+                email_result = svc.send_email(alert)
+            if rank["threshold"] in ("immediate", "standard"):
+                whatsapp_result = svc.send_whatsapp(alert)
+            if rank["threshold"] == "immediate":
+                sms_result = svc.send_sms(alert)
 
             logger.info(
-                "Alert fired tenant=%s loc=%s risk=%s severity=%s | email=%s whatsapp=%s",
+                "Alert fired tenant=%s loc=%s risk=%s severity=%s rank=%.2f threshold=%s | email=%s whatsapp=%s",
                 tenant_id[:8], location_id, risk_type, severity_band,
+                rank["final_rank"], rank["threshold"],
                 email_result.get("ok"), whatsapp_result.get("ok")
             )
+
+            # Log delivery to ai.alert_delivery_log
+            try:
+                cur.execute("""
+                    INSERT INTO ai.alert_delivery_log (
+                        tenant_id, location_id, as_of_date,
+                        risk_type, severity_band, impact_estimate,
+                        severity_score, urgency_score, impact_score,
+                        final_rank, rank_threshold,
+                        channels_attempted, channels_delivered,
+                        email_status, whatsapp_status, sms_status,
+                        owner_email, owner_phone
+                    ) VALUES (
+                        %(tenant_id)s::uuid, %(location_id)s, %(as_of_date)s::date,
+                        %(risk_type)s, %(severity_band)s, %(impact_estimate)s,
+                        %(severity_score)s, %(urgency_score)s, %(impact_score)s,
+                        %(final_rank)s, %(threshold)s,
+                        %(channels_attempted)s, %(channels_delivered)s,
+                        %(email_status)s, %(whatsapp_status)s, %(sms_status)s,
+                        %(owner_email)s, %(owner_phone)s
+                    )
+                """, {
+                    "tenant_id":         tenant_id,
+                    "location_id":       location_id,
+                    "as_of_date":        as_of_date,
+                    "risk_type":         risk_type,
+                    "severity_band":     severity_band,
+                    "impact_estimate":   float(impact_estimate or 0),
+                    "severity_score":    rank["severity_score"],
+                    "urgency_score":     rank["recency_score"],
+                    "impact_score":      rank["impact_score"],
+                    "final_rank":        rank["final_rank"],
+                    "threshold":         rank["threshold"],
+                    "channels_attempted": ["email", "whatsapp", "sms"],
+                    "channels_delivered": [
+                        ch for ch, ok in [
+                            ("email", email_result.get("ok")),
+                            ("whatsapp", whatsapp_result.get("ok")),
+                            ("sms", sms_result.get("ok")),
+                        ] if ok
+                    ],
+                    "email_status":     email_result.get("ok", False),
+                    "whatsapp_status":  whatsapp_result.get("ok", False),
+                    "sms_status":       sms_result.get("ok", False),
+                    "owner_email":      owner_email,
+                    "owner_phone":      owner_phone,
+                })
+                conn.commit()
+            except Exception as log_err:
+                logger.warning("Failed to log delivery: %s", log_err)
+                conn.rollback()
 
     finally:
         cur.close()

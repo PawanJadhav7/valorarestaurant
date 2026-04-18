@@ -214,3 +214,38 @@ class AlertDeliveryService:
             results["whatsapp"].get("ok"),
         )
         return {"ok": all_ok, "results": results}
+
+
+def compute_rank(severity_band: str, impact_estimate: float, days_old: int = 0) -> dict:
+    """
+    Compute alert ranking score.
+    final_rank = (severity × 0.4) + (impact × 0.35) + (recency × 0.25)
+    """
+    severity_map = {"critical": 1.0, "high": 0.7, "watch": 0.4, "info": 0.1}
+    severity_score = severity_map.get(severity_band, 0.1)
+
+    # Normalize impact to 0-1 (cap at $10,000)
+    impact_score = min(float(impact_estimate or 0) / 10000, 1.0)
+
+    # Recency score — today = 1.0, degrades over 7 days
+    recency_score = max(0.0, 1.0 - (days_old / 7))
+
+    final_rank = (severity_score * 0.4) + (impact_score * 0.35) + (recency_score * 0.25)
+
+    # Determine delivery threshold
+    if final_rank >= 0.7:
+        threshold = "immediate"    # Email + WhatsApp + SMS
+    elif final_rank >= 0.5:
+        threshold = "standard"     # Email + WhatsApp
+    elif final_rank >= 0.3:
+        threshold = "digest"       # Email only
+    else:
+        threshold = "dashboard"    # Dashboard only
+
+    return {
+        "severity_score": round(severity_score, 3),
+        "impact_score":   round(impact_score, 3),
+        "recency_score":  round(recency_score, 3),
+        "final_rank":     round(final_rank, 3),
+        "threshold":      threshold,
+    }
