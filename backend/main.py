@@ -24,6 +24,7 @@ from app.api.subscription_summary import router as subscription_summary_router
 from app.api import alerts
 from app.api.alert_delivery import router as alert_delivery_router
 from app.api.kpi_query import router as kpi_query_router
+from app.api.whatif import router as whatif_router
 from app.api.alerts import router as alerts_router
 from app.api.ml_alerts import router as ml_alerts_router
 from app.api.ai_actions import router as ai_actions_router
@@ -62,6 +63,7 @@ app.include_router(subscription_summary_router)
 app.include_router(alerts_router)
 app.include_router(alert_delivery_router)
 app.include_router(kpi_query_router)
+app.include_router(whatif_router)
 app.include_router(ml_alerts_router)
 app.include_router(ai_actions_router)
 app.include_router(onboarding_pos_locations_router)
