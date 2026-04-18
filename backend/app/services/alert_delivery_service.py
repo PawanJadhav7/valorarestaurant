@@ -53,44 +53,97 @@ def _normalize_phone(phone: str | None) -> str | None:
     return f"+{digits}"
 
 
+def _severity_meta(severity_band: str) -> dict:
+    return {
+        "critical": {
+            "color":      "#E24B4A",
+            "bg":         "#fff5f5",
+            "emoji":      "🔴",
+            "label":      "CRITICAL — Immediate Action Required",
+            "urgency":    "Immediate action required. This issue is impacting revenue right now.",
+            "subject_prefix": "🔴 [CRITICAL]",
+        },
+        "high": {
+            "color":      "#EF9F27",
+            "bg":         "#fffbf0",
+            "emoji":      "🟡",
+            "label":      "HIGH — Action Recommended Today",
+            "urgency":    "Action recommended today. Address this within the next few hours.",
+            "subject_prefix": "🟡 [HIGH]",
+        },
+        "watch": {
+            "color":      "#378ADD",
+            "bg":         "#f0f7ff",
+            "emoji":      "🔵",
+            "label":      "WATCH — Monitor This Metric",
+            "urgency":    "Monitor this metric closely. No immediate action needed.",
+            "subject_prefix": "🔵 [WATCH]",
+        },
+    }.get(severity_band, {
+        "color": "#888780", "bg": "#f8f7f4", "emoji": "⚪",
+        "label": "INFO", "urgency": "",
+        "subject_prefix": "[INFO]",
+    })
+
+
+DASHBOARD_URL = "https://www.valoraai.us"
+
+
 def _format_email_html(alert: AlertPayload) -> str:
-    severity_color = {
-        "critical": "#E24B4A",
-        "high":     "#EF9F27",
-        "watch":    "#378ADD",
-    }.get(alert.severity_band, "#888780")
+    meta = _severity_meta(alert.severity_band)
+    dashboard_link = (
+        f"{DASHBOARD_URL}/restaurant/valora-intelligence/alerts"
+        f"?source=alert&location_id={alert.location_id}"
+        f"&day={alert.as_of_date}&risk_type={alert.risk_type}"
+    )
+    action_html = f'''
+    <div style="background:#f0faf5;border:1px solid #9FE1CB;border-radius:12px;padding:16px;margin-bottom:20px">
+        <div style="font-size:11px;text-transform:uppercase;color:#085041;letter-spacing:.06em;margin-bottom:8px">Recommended Action</div>
+        <div style="font-size:14px;color:#1a1a1a;line-height:1.6">{alert.recommended_action}</div>
+    </div>''' if alert.recommended_action else ""
+
+    repeat_note = ""
+    if alert.severity_band == "critical":
+        repeat_note = '<div style="font-size:12px;color:#E24B4A;margin-bottom:16px;font-weight:600;">⚠️ This alert will repeat every 2 hours until marked as resolved in your dashboard.</div>'
 
     return f"""
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;padding:24px">
-      <div style="margin-bottom:24px">
-        <div style="font-size:18px;font-weight:600;color:#1a1a1a">Valora AI Alert</div>
-        <div style="font-size:13px;color:#666;margin-top:4px">{alert.location_name} · {alert.as_of_date}</div>
+
+      <div style="background:{meta['color']};border-radius:12px 12px 0 0;padding:16px 20px">
+        <div style="font-size:13px;font-weight:700;color:#fff;letter-spacing:.08em">{meta['label']}</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.85);margin-top:2px">{alert.location_name} · {alert.as_of_date}</div>
       </div>
 
-      <div style="background:#f8f7f4;border-radius:12px;padding:20px;margin-bottom:20px;border-left:4px solid {severity_color}">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <span style="background:{severity_color};color:#fff;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;text-transform:uppercase">{alert.severity_band}</span>
-          <span style="font-size:13px;color:#666">{alert.risk_type.replace("_", " ").title()}</span>
+      <div style="background:{meta['bg']};border:1px solid {meta['color']};border-top:none;border-radius:0 0 12px 12px;padding:20px;margin-bottom:20px">
+        {repeat_note}
+        <div style="font-size:16px;font-weight:700;color:#1a1a1a;margin-bottom:8px">{alert.headline}</div>
+        <div style="font-size:14px;color:#444;line-height:1.6;margin-bottom:12px">{alert.summary}</div>
+        <div style="font-size:13px;color:{meta['color']};font-weight:600">{meta['urgency']}</div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #e8e6e0;border-radius:12px;padding:16px;margin-bottom:20px;display:flex;justify-content:space-between">
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;color:#888;letter-spacing:.06em;margin-bottom:4px">Estimated Impact</div>
+          <div style="font-size:28px;font-weight:700;color:#1a1a1a">${alert.impact_estimate:,.0f}</div>
         </div>
-        <div style="font-size:16px;font-weight:600;color:#1a1a1a;margin-bottom:8px">{alert.headline}</div>
-        <div style="font-size:14px;color:#444;line-height:1.6">{alert.summary}</div>
+        <div>
+          <div style="font-size:11px;text-transform:uppercase;color:#888;letter-spacing:.06em;margin-bottom:4px">Risk Type</div>
+          <div style="font-size:14px;font-weight:600;color:#1a1a1a">{alert.risk_type.replace("_", " ").title()}</div>
+        </div>
       </div>
 
-      <div style="background:#fff;border:1px solid #e8e6e0;border-radius:12px;padding:16px;margin-bottom:20px">
-        <div style="font-size:11px;text-transform:uppercase;color:#888;letter-spacing:.06em;margin-bottom:8px">Estimated Impact</div>
-        <div style="font-size:24px;font-weight:600;color:#1a1a1a">${alert.impact_estimate:,.0f}</div>
+      {action_html}
+
+      <div style="text-align:center;margin:24px 0">
+        <a href="{dashboard_link}" style="background:{meta['color']};color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;display:inline-block">
+          View in Valora AI Dashboard →
+        </a>
       </div>
 
-      {f'''
-      <div style="background:#f0faf5;border:1px solid #9FE1CB;border-radius:12px;padding:16px;margin-bottom:20px">
-        <div style="font-size:11px;text-transform:uppercase;color:#085041;letter-spacing:.06em;margin-bottom:8px">Recommended Action</div>
-        <div style="font-size:14px;color:#1a1a1a;line-height:1.6">{alert.recommended_action}</div>
-      </div>
-      ''' if alert.recommended_action else ""}
-
-      <div style="font-size:12px;color:#aaa;margin-top:24px;padding-top:16px;border-top:1px solid #e8e6e0">
-        Valora AI · Restaurant Intelligence Platform · 
-        You're receiving this because you're the owner of {alert.location_name}.
+      <div style="font-size:12px;color:#aaa;margin-top:24px;padding-top:16px;border-top:1px solid #e8e6e0;text-align:center">
+        Valora AI · Restaurant Intelligence Platform<br>
+        You're receiving this as the owner of {alert.location_name}.<br>
+        <a href="{dashboard_link}" style="color:#aaa">View Dashboard</a>
       </div>
     </div>
     """
@@ -151,7 +204,7 @@ class AlertDeliveryService:
             response = resend.Emails.send({
                 "from":    self.from_email,
                 "to":      [alert.owner_email],
-                "subject": f"[{alert.severity_band.upper()}] {alert.headline} — {alert.location_name}",
+                "subject": f"{_severity_meta(alert.severity_band)['subject_prefix']} {alert.headline} — {alert.location_name}",
                 "html":    _format_email_html(alert),
             })
             logger.info("Email sent to %s | id=%s", alert.owner_email, response.get("id"))
@@ -216,36 +269,5 @@ class AlertDeliveryService:
         return {"ok": all_ok, "results": results}
 
 
-def compute_rank(severity_band: str, impact_estimate: float, days_old: int = 0) -> dict:
-    """
-    Compute alert ranking score.
-    final_rank = (severity × 0.4) + (impact × 0.35) + (recency × 0.25)
-    """
-    severity_map = {"critical": 1.0, "high": 0.7, "watch": 0.4, "info": 0.1}
-    severity_score = severity_map.get(severity_band, 0.1)
-
-    # Normalize impact to 0-1 (cap at $10,000)
-    impact_score = min(float(impact_estimate or 0) / 10000, 1.0)
-
-    # Recency score — today = 1.0, degrades over 7 days
-    recency_score = max(0.0, 1.0 - (days_old / 7))
-
-    final_rank = (severity_score * 0.4) + (impact_score * 0.35) + (recency_score * 0.25)
-
-    # Determine delivery threshold
-    if final_rank >= 0.7:
-        threshold = "immediate"    # Email + WhatsApp + SMS
-    elif final_rank >= 0.5:
-        threshold = "standard"     # Email + WhatsApp
-    elif final_rank >= 0.3:
-        threshold = "digest"       # Email only
-    else:
-        threshold = "dashboard"    # Dashboard only
-
-    return {
-        "severity_score": round(severity_score, 3),
-        "impact_score":   round(impact_score, 3),
-        "recency_score":  round(recency_score, 3),
-        "final_rank":     round(final_rank, 3),
-        "threshold":      threshold,
-    }
+# Import centralized scoring model
+from app.ml.scoring_model import compute_rank
