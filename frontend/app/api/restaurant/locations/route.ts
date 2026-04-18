@@ -24,19 +24,24 @@ export async function GET() {
 
     // 1) Resolve ALL tenants for this user
     const tenantRes = await client.query(
-      `SELECT tenant_id FROM app.tenant_user
-       WHERE user_id = $1::uuid
-       ORDER BY created_at ASC`,
+      `SELECT COALESCE(uc.tenant_id, tu.tenant_id)::text as tenant_id
+       FROM app.tenant_user tu
+       LEFT JOIN app.user_context uc ON uc.user_id = tu.user_id
+       WHERE tu.user_id = $1::uuid
+       ORDER BY CASE WHEN uc.tenant_id IS NOT NULL THEN 0 ELSE 1 END, tu.created_at ASC
+       LIMIT 1`,
       [user.user_id]
     );
-
-    const tenantIds: string[] = tenantRes.rows.map((r: any) => r.tenant_id);
-    if (!tenantIds.length) {
+    const activeTenantId = tenantRes.rows[0]?.tenant_id ?? null;
+    if (!activeTenantId) {
       return await bail(403, { ok: false, error: "User not linked to a tenant yet" });
     }
-
-    // Use first tenant for RLS context
-    const tenantId = tenantIds[0];
+    const allTenantRes = await client.query(
+      `SELECT tenant_id FROM app.tenant_user WHERE user_id = $1::uuid`,
+      [user.user_id]
+    );
+    const tenantIds: string[] = allTenantRes.rows.map((r: any) => r.tenant_id);
+    const tenantId = activeTenantId;
     await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantIds.join(',')]);
 
     // 2) Effective allowed locations across ALL tenants
