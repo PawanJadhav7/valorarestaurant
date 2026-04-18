@@ -646,7 +646,9 @@ export default function OpsDashboardPage() {
                     key={k.code}
                     kpi={k}
                     series={(series as any)[kpiSeriesKey[k.code] ?? k.code]}
-                  />
+                  locationId={locationId !== "all" ? locationId : null}
+                  day={asOf ? asOf.slice(0, 10) : null}
+                />
                 ))}
               </div>
             </SectionCard>

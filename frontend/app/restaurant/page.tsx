@@ -484,7 +484,8 @@ export default function RestaurantOverviewPage() {
         <SectionCard title="Sales Performance" subtitle="Revenue, orders, and demand trends">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {revenueDemand.map((k) => (
-              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} locationId={locationId !== "all" ? locationId : null}
+              />
             ))}
           </div>
         </SectionCard>
@@ -492,7 +493,8 @@ export default function RestaurantOverviewPage() {
         <SectionCard title="Cost & Efficiency" subtitle="Food, labor, and operating cost control">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {unitEconomics.map((k) => (
-              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} locationId={locationId !== "all" ? locationId : null}
+              />
             ))}
           </div>
         </SectionCard>
@@ -502,7 +504,8 @@ export default function RestaurantOverviewPage() {
       <SectionCard title="Profit Performance" subtitle="Profit generation and break-even strength">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {profitability.map((k) => (
-            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+            <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} locationId={locationId !== "all" ? locationId : null}
+              />
           ))}
         </div>
       </SectionCard>
@@ -512,7 +515,8 @@ export default function RestaurantOverviewPage() {
         <SectionCard title="Cash & Inventory" subtitle="Inventory movement and cash efficiency">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {workingCapital.map((k) => (
-              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} locationId={locationId !== "all" ? locationId : null}
+              />
             ))}
           </div>
         </SectionCard>
@@ -520,7 +524,8 @@ export default function RestaurantOverviewPage() {
         <SectionCard title="Financial Health" subtitle="Debt coverage and financial stability">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {stability.map((k) => (
-              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} />
+              <RestaurantKpiTile key={k.code} kpi={k} series={series[k.code]} locationId={locationId !== "all" ? locationId : null}
+              />
             ))}
           </div>
         </SectionCard>

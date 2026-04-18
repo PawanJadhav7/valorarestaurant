@@ -481,7 +481,9 @@ export default function CostControlPage() {
               key={k.code}
               kpi={k}
               series={(series as any)[k.code] ?? []}
-            />
+            locationId={locationId !== "all" ? locationId : null}
+                  day={asOf ? asOf.slice(0, 10) : null}
+                />
           ))}
         </div>
       </SectionCard>
@@ -496,7 +498,9 @@ export default function CostControlPage() {
               key={k.code}
               kpi={k}
               series={(series as any)[k.code] ?? []}
-            />
+            locationId={locationId !== "all" ? locationId : null}
+                  day={asOf ? asOf.slice(0, 10) : null}
+                />
           ))}
         </div>
       </SectionCard>

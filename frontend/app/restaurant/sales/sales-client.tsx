@@ -341,7 +341,7 @@ function SalesOrdersTrend({ title, subtitle, labels, sales, orders }: {
           <span className="mx-3">•</span>Net Sales: <span className="font-semibold text-foreground">{fmtUsd0(activeSales)}</span>
           <span className="mx-3">•</span>Orders: <span className="font-semibold text-foreground">{activeOrders}</span>
         </div>
-        <svg viewBox={`0 0 ${w} ${h}`} className="h-[340px] w-full">
+        <svg viewBox={`0 0 ${w} ${h}`} className="h-[280px] w-full sm:h-[340px]">
           <defs><filter id="comboLineGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.5" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
           {yLeftTicks.map((t, i) => (<line key={`grid-${i}`} x1={padLeft} y1={t.y} x2={w - padRight} y2={t.y} stroke="currentColor" className={AXIS_TEXT_CLASS} opacity="0.18" />))}
           {yLeftTicks.map((t, i) => (<g key={`left-${i}`}><rect x={padLeft - 72} y={t.y - 11} width={62} height={20} rx={6} fill="rgba(255,255,255,0.14)" stroke="rgba(148,163,184,0.28)" strokeWidth="1" /><text x={padLeft - 16} y={t.y + 4} textAnchor="end" fontSize="12" fontWeight="700" fill="currentColor" className={AXIS_TEXT_CLASS}>{fmtUsd0(t.value)}</text></g>))}
@@ -375,7 +375,7 @@ function SalesCompositionStackedChart({ labels, dineIn, delivery, takeaway }: { 
 
   return (
     <SectionCard title="Sales Composition Analysis" subtitle="Channel mix across the selected period.">
-      <svg viewBox={`0 0 ${w} ${h}`} className="h-[340px] w-full">
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-[280px] w-full sm:h-[340px]">
         {yTicks.map((t, i) => (<line key={`grid-${i}`} x1={padLeft} y1={t.y} x2={w - padRight} y2={t.y} stroke="currentColor" className={AXIS_TEXT_CLASS} opacity="0.18" />))}
         {yTicks.map((t, i) => (<text key={`y-${i}`} x={padLeft - 10} y={t.y + 4} textAnchor="end" fontSize="12" fontWeight="700" fill="currentColor" className={AXIS_TEXT_CLASS}>{fmtUsd0(t.value)}</text>))}
         <line x1={padLeft} y1={padTop} x2={padLeft} y2={h - padBottom} stroke="currentColor" className={AXIS_TEXT_CLASS} opacity="0.24" />
@@ -406,7 +406,7 @@ function Histogram({ title, buckets }: { title: string; buckets: AovBucket[]; })
 
   return (
     <SectionCard title={title} subtitle="Distribution of order count by spend band.">
-      <svg viewBox={`0 0 ${w} ${h}`} className="h-[340px] w-full">
+      <svg viewBox={`0 0 ${w} ${h}`} className="h-[280px] w-full sm:h-[340px]">
         {yTicks.map((t, i) => (<line key={`grid-${i}`} x1={padLeft} y1={t.y} x2={w - padRight} y2={t.y} stroke="currentColor" className={AXIS_TEXT_CLASS} opacity="0.18" />))}
         {yTicks.map((t, i) => (<text key={`y-${i}`} x={padLeft - 10} y={t.y + 4} textAnchor="end" fontSize="12" fontWeight="700" fill="currentColor" className={AXIS_TEXT_CLASS}>{t.value.toLocaleString()}</text>))}
         <line x1={padLeft} y1={padTop} x2={padLeft} y2={h - padBottom} stroke="currentColor" className={AXIS_TEXT_CLASS} opacity="0.24" />
@@ -457,7 +457,7 @@ function PricingMarginChart({ labels, margin, discount }: { labels: string[]; ma
           <span className="mx-3">•</span>Discount Rate: <span className="font-semibold text-foreground">{`${activeDiscount.toFixed(2)}%`}</span>
           <span className="mx-3">•</span>Spread: <span className="font-semibold text-foreground">{activeSpread == null ? "—" : `${activeSpread >= 0 ? "+" : ""}${activeSpread.toFixed(2)} pp`}</span>
         </div>
-        <svg viewBox={`0 0 ${w} ${h}`} className="h-[340px] w-full">
+        <svg viewBox={`0 0 ${w} ${h}`} className="h-[280px] w-full sm:h-[340px]">
           <defs><filter id="pricingLineGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.5" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
           {yLeftTicks.map((t, i) => (<line key={`grid-${i}`} x1={padLeft} y1={t.y} x2={w - padRight} y2={t.y} stroke="currentColor" className={AXIS_TEXT_CLASS} opacity="0.18" />))}
           {yLeftTicks.map((t, i) => (<g key={`left-${i}`}><rect x={padLeft - 72} y={t.y - 11} width={62} height={20} rx={6} fill="rgba(255,255,255,0.14)" stroke="rgba(148,163,184,0.28)" strokeWidth="1" /><text x={padLeft - 16} y={t.y + 4} textAnchor="end" fontSize="12" fontWeight="700" fill="currentColor" className={AXIS_TEXT_CLASS}>{t.value.toFixed(0)}%</text></g>))}
@@ -711,10 +711,14 @@ export function SalesClient() {
   ) : (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <SectionCard title="Revenue & Demand" subtitle="Core topline demand and transaction performance.">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{salesPrimaryKpis.map((k) => (<RestaurantKpiTile key={k.code} kpi={k} series={tileSeriesByCode[k.code] ?? []} />))}</div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{salesPrimaryKpis.map((k) => (<RestaurantKpiTile key={k.code} kpi={k} series={tileSeriesByCode[k.code] ?? []} locationId={locationId !== "all" ? locationId : null}
+                  day={asOf ? asOf.slice(0, 10) : null}
+                />))}</div>
       </SectionCard>
       <SectionCard title="Margin & Pricing" subtitle="Commercial efficiency, discount pressure, and margin quality.">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{salesSecondaryKpis.map((k) => (<RestaurantKpiTile key={k.code} kpi={k} series={tileSeriesByCode[k.code] ?? []} />))}</div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{salesSecondaryKpis.map((k) => (<RestaurantKpiTile key={k.code} kpi={k} series={tileSeriesByCode[k.code] ?? []} locationId={locationId !== "all" ? locationId : null}
+                  day={asOf ? asOf.slice(0, 10) : null}
+                />))}</div>
       </SectionCard>
     </div>
   );
@@ -833,7 +837,7 @@ export function SalesClient() {
   const drilldown = !loading && ok ? (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <SectionCard title="Top Item Performance" subtitle="Best-selling items by revenue contribution.">
-        <div className="max-h-[420px] overflow-y-auto pr-1">
+        <div className="max-h-[420px] overflow-auto pr-1">
           <TopItemsBarChart
             rows={(topItems ?? []).map((x) => ({ label: x.item_name, revenue_num: Number(x.revenue ?? 0), share_pct: Number(x.share_pct ?? 0), quantity: Number(x.quantity ?? 0), gross_profit: Number(x.gross_profit ?? 0), gross_margin_pct: Number(x.gross_margin_pct ?? 0), action_flag: x.action_flag }))}
             valueKey="revenue_num"
@@ -847,7 +851,7 @@ export function SalesClient() {
         title={(<div className="flex items-end justify-between gap-3"><div><div className="text-sm font-semibold text-foreground">Top Item Details</div><div className="mt-1 text-xs text-muted-foreground">Revenue, quantity, and profitability breakdown.</div></div><button className="h-9 rounded-xl border border-border bg-background px-3 text-sm hover:bg-muted" onClick={() => downloadCsv(`sales_top_items_detail_${windowCode}_${locationId}.csv`, topItems)}>Download CSV</button></div>) as any}
         subtitle={null as any}
       >
-        <div className="max-h-[420px] overflow-y-auto">
+        <div className="max-h-[420px] overflow-auto">
           <table className="w-full text-left text-sm">
             <thead className="sticky top-0 bg-background text-xs text-muted-foreground">
               <tr className="border-b border-border">
