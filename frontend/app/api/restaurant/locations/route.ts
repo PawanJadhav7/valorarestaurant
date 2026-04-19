@@ -56,7 +56,7 @@ export async function GET() {
       user_allowed AS (
         SELECT ul.location_id
         FROM app.user_location ul
-        WHERE ul.tenant_id = $3::uuid
+        WHERE ul.tenant_id = ANY($1::uuid[])
           AND ul.user_id = $2::uuid
           AND ul.is_active = true
       ),
@@ -85,7 +85,7 @@ export async function GET() {
         AND dl.tenant_id = ANY($1::uuid[])
       ORDER BY dl.location_name ASC
       `,
-      [tenantIds, user.user_id, tenantId]
+      [tenantIds, user.user_id]
     );
 
     await client.query("commit");

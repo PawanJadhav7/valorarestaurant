@@ -204,7 +204,7 @@ export async function GET(req: Request) {
       user_allowed AS (
         SELECT ul.location_id::bigint AS location_id
         FROM app.user_location ul
-        WHERE ul.tenant_id = $3::uuid
+        WHERE ul.tenant_id = ANY($1::uuid[])
           AND ul.user_id = $2::uuid
           AND ul.is_active = true
       ),
@@ -216,7 +216,7 @@ export async function GET(req: Request) {
       )
       SELECT DISTINCT location_id FROM effective ORDER BY 1
       `,
-      [tenantIds, user.user_id, tenantId]
+      [tenantIds, user.user_id]
     );
 
     const allowedIds = allowedRes.rows.map((r) => Number(r.location_id)).filter(Number.isFinite);
