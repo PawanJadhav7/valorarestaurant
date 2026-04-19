@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { getDeptFromKpiCode } from "@/lib/dept-registry";
 import Link from "next/link";
 import { Bell, Sparkles } from "lucide-react";
 
@@ -185,15 +186,19 @@ function deltaDirection(delta?: number | null): "up" | "down" | "flat" | "none" 
   return "flat";
 }
 
+
+
 export function RestaurantKpiTile({
   kpi,
   series,
   locationId,
+  source = "overview",
   day,
 }: {
   kpi: Kpi;
   series?: number[];
   locationId?: string | number | null;
+  source?: string;
   day?: string | null;
 }) {
   const noData = kpi.value === null;
@@ -246,14 +251,14 @@ export function RestaurantKpiTile({
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/40 pt-3">
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
           <Link
-            href={`/restaurant/valora-intelligence/alerts?source=kpi&location_id=${locationId ?? ""}&day=${day ?? ""}&kpi_code=${kpi.code}&kpi_label=${encodeURIComponent(kpi.label)}`}
+            href={`/restaurant/valora-intelligence/alerts?source=kpi&location_id=${locationId ?? ""}&day=${day ?? ""}&kpi_code=${kpi.code}&dept=${source}`}
             title="View alerts for this metric"
             className="rounded-lg border border-border/50 bg-background/30 p-1.5 hover:bg-background/60 text-muted-foreground hover:text-foreground transition"
           >
             <Bell className="h-3.5 w-3.5" />
           </Link>
           <Link
-            href={`/restaurant/valora-intelligence/actions?source=kpi&location_id=${locationId ?? ""}&day=${day ?? ""}&kpi_code=${kpi.code}&kpi_label=${encodeURIComponent(kpi.label)}`}
+            href={`/restaurant/valora-intelligence/actions?source=kpi&location_id=${locationId ?? ""}&day=${day ?? ""}&kpi_code=${kpi.code}&dept=${source}`}
             title="View recommended actions for this metric"
             className="rounded-lg border border-border/50 bg-background/30 p-1.5 hover:bg-background/60 text-muted-foreground hover:text-foreground transition"
           >

@@ -482,7 +482,7 @@ export default function CostControlPage() {
               kpi={k}
               series={(series as any)[k.code] ?? []}
             locationId={locationId !== "all" ? locationId : null}
-                  day={asOf ? asOf.slice(0, 10) : null}
+                  day={asOf ? asOf.slice(0, 10) : null} source="cost"
                 />
           ))}
         </div>
@@ -499,7 +499,7 @@ export default function CostControlPage() {
               kpi={k}
               series={(series as any)[k.code] ?? []}
             locationId={locationId !== "all" ? locationId : null}
-                  day={asOf ? asOf.slice(0, 10) : null}
+                  day={asOf ? asOf.slice(0, 10) : null} source="cost"
                 />
           ))}
         </div>

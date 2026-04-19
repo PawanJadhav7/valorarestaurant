@@ -490,7 +490,7 @@ export default function ProfitPage() {
               kpi={k}
               series={(series as any)[k.code] ?? []}
             locationId={locationId !== "all" ? locationId : null}
-                  day={asOf ? asOf.slice(0, 10) : null}
+                  day={asOf ? asOf.slice(0, 10) : null} source="profitability"
                 />
           ))}
         </div>
@@ -507,7 +507,7 @@ export default function ProfitPage() {
               kpi={k}
               series={(series as any)[k.code] ?? []}
             locationId={locationId !== "all" ? locationId : null}
-                  day={asOf ? asOf.slice(0, 10) : null}
+                  day={asOf ? asOf.slice(0, 10) : null} source="profitability"
                 />
           ))}
         </div>

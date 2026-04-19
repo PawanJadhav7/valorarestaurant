@@ -647,7 +647,7 @@ export default function OpsDashboardPage() {
                     kpi={k}
                     series={(series as any)[kpiSeriesKey[k.code] ?? k.code]}
                   locationId={locationId !== "all" ? locationId : null}
-                  day={asOf ? asOf.slice(0, 10) : null}
+                  day={asOf ? asOf.slice(0, 10) : null} source="operations"
                 />
                 ))}
               </div>

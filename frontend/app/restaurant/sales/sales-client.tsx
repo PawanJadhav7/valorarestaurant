@@ -712,12 +712,12 @@ export function SalesClient() {
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <SectionCard title="Revenue & Demand" subtitle="Core topline demand and transaction performance.">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{salesPrimaryKpis.map((k) => (<RestaurantKpiTile key={k.code} kpi={k} series={tileSeriesByCode[k.code] ?? []} locationId={locationId !== "all" ? locationId : null}
-                  day={asOf ? asOf.slice(0, 10) : null}
+                  day={asOf ? asOf.slice(0, 10) : null} source="sales"
                 />))}</div>
       </SectionCard>
       <SectionCard title="Margin & Pricing" subtitle="Commercial efficiency, discount pressure, and margin quality.">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{salesSecondaryKpis.map((k) => (<RestaurantKpiTile key={k.code} kpi={k} series={tileSeriesByCode[k.code] ?? []} locationId={locationId !== "all" ? locationId : null}
-                  day={asOf ? asOf.slice(0, 10) : null}
+                  day={asOf ? asOf.slice(0, 10) : null} source="sales"
                 />))}</div>
       </SectionCard>
     </div>

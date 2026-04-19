@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { getDeptFromSource, DEPARTMENTS } from "@/lib/dept-registry";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Bell, Sparkles, CheckCircle, Clock, ChevronRight, AlertTriangle, TrendingDown, Package, Users, Settings } from "lucide-react";
@@ -283,25 +284,18 @@ export default function AlertsPage() {
     (sum, r) => sum + Number(r.impact_estimate ?? 0), 0
   );
 
-  const sourceDept = source === "sales" ? "/restaurant/sales"
-    : source === "cost" || source === "cost_management" ? "/restaurant/cost-management"
-    : source === "inventory" ? "/restaurant/inventory"
-    : source === "workforce" ? "/restaurant/workforce"
-    : source === "operations" ? "/restaurant/operations"
-    : source === "profitability" ? "/restaurant/profitability"
-    : "/restaurant";
 
-  const sourceDeptLabel = source === "sales" ? "Sales & Demand"
-    : source === "cost" || source === "cost_management" ? "Cost Management"
-    : source === "inventory" ? "Inventory"
-    : source === "workforce" ? "Workforce"
-    : source === "operations" ? "Operations"
-    : source === "profitability" ? "Profitability"
-    : "Business Overview";
+
+  // Resolve dept from URL params using central registry
+  const deptParam = searchParams.get("dept");
+  const deptInfo = getDeptFromSource(deptParam ?? source, kpiLabel);
+  const sourceDept = deptInfo.url;
+  const sourceDeptLabel = deptInfo.label;
 
   const locationLabel = locationName;
+  
   const sourceLabel = kpiLabel
-    ? decodeURIComponent(kpiLabel)
+    ? (() => { try { return decodeURIComponent(kpiLabel); } catch { return kpiLabel; } })()
     : source === "kpi" ? "KPI Dashboard"
     : source === "alert" ? "Alert"
     : source === "overview" ? "Business Overview"
@@ -318,10 +312,6 @@ export default function AlertsPage() {
       >
         {/* Context bar */}
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-4">
-          <span className="rounded-lg border border-border/40 bg-background/30 px-2.5 py-1 font-medium text-foreground">
-            {sourceLabel}
-          </span>
-          <span>·</span>
           <span className="rounded-lg border border-border/40 bg-background/30 px-2.5 py-1 font-medium text-foreground">
             📍 {locationLabel}
           </span>
@@ -379,13 +369,7 @@ export default function AlertsPage() {
 
         {/* Nav links */}
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Link
-            href={`/restaurant/valora-intelligence/actions?source=${source}&location_id=${locationId ?? ""}&day=${asOf}&kpi_code=${kpiCode ?? ""}&kpi_label=${kpiLabel ?? ""}`}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/10"
-          >
-            <Sparkles className="h-3 w-3" />
-            View Recommended Actions →
-          </Link>
+
         </div>
       </SectionCard>
 
@@ -488,7 +472,7 @@ export default function AlertsPage() {
           {/* All clear */}
           {visibleRisks.length === 0 && briefs.length === 0 && (
             <SectionCard title="No Alerts Detected">
-              <div className="rounded-2xl border border-border/40 bg-background/20 p-8 text-center">
+              <div className="rounded-2xl border border-border/40 bg-background/20 p-8 text-center min-h-[410px] flex flex-col items-center justify-center gap-3">
                 <div className="text-2xl mb-2">📊</div>
                 <div className="text-sm font-semibold text-foreground">
                   No active alerts for {asOf.slice(0, 10)}
@@ -512,7 +496,7 @@ export default function AlertsPage() {
           ← {sourceDeptLabel}
         </Link>
         <Link
-          href={`/restaurant/valora-intelligence/actions?source=${source}&location_id=${locationId ?? ""}&day=${asOf}&kpi_code=${kpiCode ?? ""}&kpi_label=${kpiLabel ?? ""}`}
+          href={`/restaurant/valora-intelligence/actions?source=${source}&location_id=${locationId ?? ""}&day=${asOf}&kpi_code=${kpiCode ?? ""}`}
           className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-2 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/10"
         >
           <Sparkles className="h-4 w-4" />

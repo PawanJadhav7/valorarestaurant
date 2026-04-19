@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { getDeptFromSource, DEPARTMENTS } from "@/lib/dept-registry";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Trophy, Scale, Leaf, ChevronRight, Zap, Clock, TrendingUp, Eye } from "lucide-react";
@@ -570,21 +571,10 @@ export default function ActionsPage() {
     })();
   }, [asOf, locationId, source]);
 
-  const sourceDept = source === "sales" ? "/restaurant/sales"
-    : source === "cost" || source === "cost_management" ? "/restaurant/cost-management"
-    : source === "inventory" ? "/restaurant/inventory"
-    : source === "workforce" ? "/restaurant/workforce"
-    : source === "operations" ? "/restaurant/operations"
-    : source === "profitability" ? "/restaurant/profitability"
-    : "/restaurant";
-
-  const sourceDeptLabel = source === "sales" ? "Sales & Demand"
-    : source === "cost" || source === "cost_management" ? "Cost Management"
-    : source === "inventory" ? "Inventory Health"
-    : source === "workforce" ? "Workforce Performance"
-    : source === "operations" ? "Operations Intelligence"
-    : source === "profitability" ? "Profitability"
-    : "Business Overview";
+  const deptParam = searchParams.get("dept");
+  const deptInfo = getDeptFromSource(deptParam ?? source, kpiLabel);
+  const sourceDept = deptInfo.url;
+  const sourceDeptLabel = deptInfo.label;
 
   const [locationName, setLocationName] = React.useState<string>(
     locationId ? `Location ${locationId}` : "All Locations"
@@ -608,7 +598,7 @@ export default function ActionsPage() {
     : sourceDeptLabel;
 
   const locationLabel = locationName;
-  const locationLabel = locationId ? `Location ${locationId}` : "All Locations";
+
 
   // Group actions by priority rank → Best(1) / Moderate(2) / Least(3)
   const actionsByRank = TIERS.map((tier) =>
@@ -678,7 +668,7 @@ export default function ActionsPage() {
         {/* Nav */}
         <div className="flex flex-wrap items-center gap-2">
           <Link
-            href={`/restaurant/valora-intelligence/alerts?source=${source}&location_id=${locationId ?? ""}&day=${asOf}&kpi_code=${kpiCode ?? ""}&kpi_label=${kpiLabel ?? ""}`}
+            href={`/restaurant/valora-intelligence/alerts?source=${source}&location_id=${locationId ?? ""}&day=${asOf}&kpi_code=${kpiCode ?? ""}`}
             className="inline-flex items-center gap-1.5 rounded-xl border border-border/60 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-background/40"
           >
             ← View Alerts
@@ -773,7 +763,7 @@ export default function ActionsPage() {
           ← {sourceDeptLabel}
         </Link>
         <Link
-          href={`/restaurant/valora-intelligence/alerts?source=${source}&location_id=${locationId ?? ""}&day=${asOf}&kpi_code=${kpiCode ?? ""}&kpi_label=${kpiLabel ?? ""}`}
+          href={`/restaurant/valora-intelligence/alerts?source=${source}&location_id=${locationId ?? ""}&day=${asOf}&kpi_code=${kpiCode ?? ""}`}
           className="rounded-xl border border-border/60 px-4 py-2 text-sm font-semibold hover:bg-background/50"
         >
           ← View Alerts
