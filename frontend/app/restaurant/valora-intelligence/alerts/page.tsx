@@ -201,6 +201,9 @@ export default function AlertsPage() {
   const [briefs, setBriefs]     = React.useState<MlBrief[]>([]);
   const [error, setError]       = React.useState<string | null>(null);
   const [asOf, setAsOf]         = React.useState<string>(day ?? "");
+  const [locationName, setLocationName] = React.useState<string>(
+    locationId ? `Location ${locationId}` : "All Locations"
+  );
   const [resolved, setResolved] = React.useState<Set<string>>(new Set());
   const [snoozed, setSnoozed]   = React.useState<Set<string>>(new Set());
 
@@ -296,16 +299,14 @@ export default function AlertsPage() {
     : source === "profitability" ? "Profitability"
     : "Business Overview";
 
+  const locationLabel = locationName;
   const sourceLabel = kpiLabel
     ? decodeURIComponent(kpiLabel)
     : source === "kpi" ? "KPI Dashboard"
     : source === "alert" ? "Alert"
     : source === "overview" ? "Business Overview"
     : source.replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
-  const [locationName, setLocationName] = React.useState<string>(
-    locationId ? `Location ${locationId}` : "All Locations"
-  );
-  const locationLabel = locationName;
+
 
   return (
     <div className="space-y-4">
@@ -318,7 +319,7 @@ export default function AlertsPage() {
         {/* Context bar */}
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mb-4">
           <span className="rounded-lg border border-border/40 bg-background/30 px-2.5 py-1 font-medium text-foreground">
-            {sourceDeptLabel}
+            {sourceLabel}
           </span>
           <span>·</span>
           <span className="rounded-lg border border-border/40 bg-background/30 px-2.5 py-1 font-medium text-foreground">
@@ -332,6 +333,10 @@ export default function AlertsPage() {
               </span>
             </>
           )}
+          <span>·</span>
+          <span className="rounded-lg border border-border/40 bg-background/30 px-2.5 py-1 font-medium text-foreground">
+            📅 Last 30 days
+          </span>
           {kpiCode && (
             <>
               <span>·</span>
@@ -482,12 +487,15 @@ export default function AlertsPage() {
 
           {/* All clear */}
           {visibleRisks.length === 0 && briefs.length === 0 && (
-            <SectionCard title="All Clear">
-              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-8 text-center">
-                <div className="text-2xl mb-2">✅</div>
-                <div className="text-sm font-semibold text-foreground">No active alerts</div>
+            <SectionCard title="No Alerts Detected">
+              <div className="rounded-2xl border border-border/40 bg-background/20 p-8 text-center">
+                <div className="text-2xl mb-2">📊</div>
+                <div className="text-sm font-semibold text-foreground">
+                  No active alerts for {asOf.slice(0, 10)}
+                </div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  Business is operating within normal parameters for {asOf.slice(0, 10)}.
+                  All metrics are within normal range for {locationLabel}.
+                  Check back after the next insight run.
                 </div>
               </div>
             </SectionCard>
