@@ -243,10 +243,10 @@ export async function GET(req: Request) {
         // ── KPI query — union across ALL tenants this user owns ─────────────
     const kpiUnionParts = tenantIds.map((_: string, i: number) => `
       SELECT * FROM analytics.${fnName}(
-        COALESCE($2::date, CURRENT_DATE), ${i + 3}::uuid
+        COALESCE($2::date, CURRENT_DATE), $${i + 3}::uuid
       )
       WHERE location_id = ANY($1::bigint[])
-        AND (${tenantIds.length + 3}::bigint IS NULL OR location_id = ${tenantIds.length + 3}::bigint)
+        AND ($${tenantIds.length + 3}::bigint IS NULL OR location_id = $${tenantIds.length + 3}::bigint)
     `).join(' UNION ALL ');
     const kpiParams = [allowedIds, dayParam ? dayParam : null, ...tenantIds, locationId];
     const kpiRes = await client.query(kpiUnionParts, kpiParams);
