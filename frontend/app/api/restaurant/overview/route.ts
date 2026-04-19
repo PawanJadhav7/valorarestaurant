@@ -380,15 +380,44 @@ export async function GET(req: Request) {
       INTEREST_COVERAGE_RATIO: rollingAvg(interestCoverageSeries),
     };
 
-    const byCode = new Map<string, Agg>();
+    // Transform analytics function rows → kpi_code/kpi_value format
+    const kpiColMap: Record<string, { code: string; unit: string }> = {
+      revenue:               { code: "REVENUE",               unit: "usd" },
+      orders:                { code: "ORDERS",                unit: "count" },
+      customers:             { code: "CUSTOMERS",             unit: "count" },
+      aov:                   { code: "ARPU",                  unit: "usd" },
+      gross_profit:          { code: "GROSS_PROFIT",          unit: "usd" },
+      gross_margin:          { code: "GROSS_MARGIN",          unit: "pct" },
+      food_cost_pct:         { code: "FOOD_COST_PCT",         unit: "pct" },
+      labor_cost_pct:        { code: "LABOR_COST_PCT",        unit: "pct" },
+      prime_cost_pct:        { code: "PRIME_COST_PCT",        unit: "pct" },
+      prime_cost:            { code: "PRIME_COST",            unit: "usd" },
+      cogs:                  { code: "COGS",                  unit: "usd" },
+      labor:                 { code: "LABOR",                 unit: "usd" },
+      ebit:                  { code: "EBIT",                  unit: "usd" },
+      ar_days:               { code: "AR_DAYS",               unit: "days" },
+      ap_days:               { code: "AP_DAYS",               unit: "days" },
+      cash_conversion_cycle: { code: "CASH_CONVERSION_CYCLE", unit: "days" },
+    };
+
+    // Aggregate across multiple location rows
+    const aggMap: Record<string, { sum: number; count: number; unit: string; isPct: boolean }> = {};
     for (const row of rows) {
-      const v = toNum(row.kpi_value);
-      if (v === null) continue;
-      const key = String(row.kpi_code);
-      const cur = byCode.get(key) ?? { values: [], sum: 0, unit: row.unit as string | undefined };
-      cur.values.push(v); cur.sum += v;
-      cur.unit = cur.unit ?? (row.unit as string | undefined);
-      byCode.set(key, cur);
+      for (const [col, meta] of Object.entries(kpiColMap)) {
+        const val = toNum(row[col]);
+        if (val === null) continue;
+        if (!aggMap[meta.code]) {
+          aggMap[meta.code] = { sum: 0, count: 0, unit: meta.unit, isPct: meta.unit === "pct" };
+        }
+        aggMap[meta.code].sum += val;
+        aggMap[meta.code].count += 1;
+      }
+    }
+
+    const byCode = new Map<string, Agg>();
+    for (const [code, agg] of Object.entries(aggMap)) {
+      const val = agg.isPct ? agg.sum / agg.count : agg.sum;
+      byCode.set(code, { values: [val], sum: val, unit: agg.unit });
     }
 
     const kpis: Kpi[] = [];
