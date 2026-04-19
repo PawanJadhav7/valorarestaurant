@@ -50,7 +50,7 @@ export async function GET() {
     // Get latest date from Silver layer
     const dateRes = await pool.query(
       `
-      SELECT MAX(day)::text AS latest_date
+      SELECT LEAST(MAX(day), CURRENT_DATE)::text AS latest_date
       FROM restaurant.f_location_daily_features
       WHERE tenant_id = $1::uuid
         AND location_id = ANY($2::bigint[])
