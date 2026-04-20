@@ -1,3 +1,4 @@
+@config "../tailwind.config.js";
 @import "tailwindcss";
 
 /* =========================
@@ -34,6 +35,21 @@
 
   /* Rounding */
   --radius: 18px;
+}
+
+@theme inline {
+  --color-background: rgb(var(--background));
+  --color-foreground: rgb(var(--foreground));
+  --color-card: rgb(var(--card));
+  --color-border: rgb(var(--border));
+  --color-muted: rgb(var(--muted));
+  --color-muted-foreground: rgb(var(--muted-foreground));
+  --color-ring: rgb(var(--ring));
+  --color-success: rgb(var(--success));
+  --color-danger: rgb(var(--danger));
+
+  --radius-xl: var(--radius);
+  --radius-2xl: calc(var(--radius) + 6px);
 }
 
 /* Explicit system = light */

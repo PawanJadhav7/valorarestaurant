@@ -51,7 +51,7 @@ export function DashboardFilters({
   label,
 }: DashboardFiltersProps) {
   return (
-    <div className="flex flex-wrap items-center gap-3 pt-2">
+    <div className="flex flex-col items-stretch gap-3 pt-2 sm:flex-row sm:flex-wrap sm:items-center">
       {label && (
         <span className="text-xs font-medium text-muted-foreground">
           {label}
@@ -64,7 +64,7 @@ export function DashboardFilters({
         aria-label="Select location"
         value={locationId}
         onChange={(e) => onLocationChange(e.target.value)}
-        className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
+        className="h-10 w-full min-w-0 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 focus:outline-none focus:ring-2 focus:ring-foreground/20 sm:w-auto sm:min-w-[13rem]"
       >
         <option value="all">All Locations</option>
         {locations.map((l) => (
@@ -83,7 +83,7 @@ export function DashboardFilters({
           const range = e.target.value as DateRange;
           onDateRangeChange(range);
         }}
-        className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
+        className="h-10 w-full min-w-0 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 focus:outline-none focus:ring-2 focus:ring-foreground/20 sm:w-auto"
       >
         <option value="7d">Last 7 Days</option>
         <option value="30d">Last 30 Days</option>
@@ -101,7 +101,7 @@ export function DashboardFilters({
           if (e.target.value) onDateChange(e.target.value);
         }}
         onKeyDown={(e) => e.preventDefault()}
-        className="h-10 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition focus:outline-none focus:ring-2 focus:ring-foreground/20 hover:bg-background/60"
+        className="h-10 w-full min-w-0 rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 focus:outline-none focus:ring-2 focus:ring-foreground/20 sm:w-auto"
       />
 
       {/* Refresh button */}
@@ -109,7 +109,7 @@ export function DashboardFilters({
         onClick={onRefresh}
         disabled={loading}
         aria-label="Refresh dashboard"
-        className="group flex h-10 items-center justify-center rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 disabled:opacity-50"
+        className="group flex h-10 w-full items-center justify-center rounded-2xl border border-border/60 bg-background/40 px-4 text-sm font-medium text-foreground backdrop-blur-md transition hover:bg-background/60 disabled:opacity-50 sm:w-auto"
       >
         <RefreshCcw
           className={`h-4 w-4 ${
