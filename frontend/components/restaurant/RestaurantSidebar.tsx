@@ -48,8 +48,8 @@ const CORE: NavItem[] = [
 ];
 
 const INTELLIGENCE: NavItem[] = [
-  { label: "Attention Required", href: "/restaurant/valora-intelligence/alerts", icon: Bell },
-  { label: "Recommended Actions", href: "/restaurant/valora-intelligence/actions", icon: Sparkles },
+  { label: "Attention Required", href: "/restaurant/valora-intelligence/alerts?dept=overview", icon: Bell },
+  { label: "Recommended Actions", href: "/restaurant/valora-intelligence/actions?dept=overview", icon: Sparkles },
 ];
 
 const ADMIN: NavItem[] = [
