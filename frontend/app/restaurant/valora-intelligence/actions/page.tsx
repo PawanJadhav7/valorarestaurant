@@ -237,7 +237,7 @@ function WhatIfDrawer({
         onClick={onClose}
       />
       {/* Drawer */}
-      <div className="relative z-10 h-full w-full max-w-md overflow-y-auto border-l border-border bg-background shadow-2xl">
+      <div className="relative z-10 h-full w-full max-w-2xl overflow-y-auto border-l border-border bg-background shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur px-5 py-4">
           <div className="flex items-center justify-between">

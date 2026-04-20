@@ -236,7 +236,7 @@ export default function AlertsPage() {
     if (!asOf.trim()) return;
     setLoading(true);
     setError(null);
-    const qs = new URLSearchParams({ day: asOf.trim().slice(0, 10), limit: "30" });
+    const qs = new URLSearchParams({ as_of_date: asOf.trim().slice(0, 10), limit: "30" });
     if (locationId) qs.set("location_id", locationId);
     (async () => {
       try {
