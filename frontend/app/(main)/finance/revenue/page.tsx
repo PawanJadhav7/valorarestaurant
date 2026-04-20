@@ -1,6 +1,6 @@
 "use client";
 
-import { RevenueTrendChart } from "../../components/finance/RevenueTrendChart";
+import { RevenueTrendChart } from "../../../components/finance/RevenueTrendChart";
 
 export default function FinanceRevenuePage() {
   return (
