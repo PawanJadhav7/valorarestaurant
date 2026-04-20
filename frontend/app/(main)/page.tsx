@@ -4,6 +4,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { SectionCard } from "@/components/valora/SectionCard";
+import { useRouter } from "next/navigation";
 
 function TabButton({
   active,
@@ -73,7 +74,8 @@ function ContactCard({
 }
 
 export default function HomePage() {
-  const [tab, setTab] = React.useState<"platform" | "contact" | "faq">("platform");
+  const [tab, setTab] = React.useState<"platform" | "contact" | "faq" | "blog">("platform");
+  const router = useRouter();
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6">
@@ -211,7 +213,12 @@ export default function HomePage() {
                     <TabButton active={tab === "faq"} onClick={() => setTab("faq")}>
                       FAQ
                     </TabButton>
+
+                    <TabButton active={tab === "blog"} onClick={() => window.open("/blog", "_blank")}>
+                      Blog
+                    </TabButton>
                   </div>
+
                 </div>
 
                 <div id="tab-content" className="pt-2">
@@ -259,12 +266,12 @@ export default function HomePage() {
 
                           <div className="mt-5 flex min-h-[300px] items-center justify-center rounded-2xl border border-border bg-muted/40 p-6 shadow-sm">
                             <video
-                                  className="w-full h-[300px] rounded-xl"
-                                  controls
-                                  preload="metadata"
-                                >
-                                  <source src="/valora-demo.mp4" type="video/mp4" />
-                                  Your browser does not support the video tag.
+                              className="w-full h-[300px] rounded-xl"
+                              controls
+                              preload="metadata"
+                            >
+                              <source src="/valora-demo.mp4" type="video/mp4" />
+                              Your browser does not support the video tag.
                             </video>
                           </div>
                         </div>
