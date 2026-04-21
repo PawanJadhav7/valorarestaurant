@@ -109,16 +109,16 @@ function computeSeverity(code: string, value: number | null, delta: number | nul
 
 function mapCode(dbCode: string): { code: string; label: string; unit?: Unit } | null {
   const c = dbCode.toUpperCase();
-  if (c === "NET_SALES") return { code: "REVENUE", label: "Net Sales", unit: "usd" };
+  if (c === "NET_SALES" || c === "REVENUE") return { code: "REVENUE", label: "Revenue", unit: "usd" };
   if (c === "COGS") return { code: "COGS", label: "COGS", unit: "usd" };
   if (c === "LABOR") return { code: "LABOR", label: "Labor", unit: "usd" };
   if (c === "PRIME_COST") return { code: "PRIME_COST", label: "Prime Cost", unit: "usd" };
   if (c === "FIXED_COSTS") return { code: "FIXED_COSTS", label: "Fixed Costs", unit: "usd" };
   if (c === "GROSS_PROFIT") return { code: "GROSS_PROFIT", label: "Gross Profit", unit: "usd" };
   if (c === "GROSS_MARGIN") return { code: "GROSS_MARGIN", label: "Gross Margin", unit: "pct" };
-  if (c === "FOOD_COST_PCT") return { code: "FOOD_COST_RATIO", label: "Food Cost %", unit: "pct" };
-  if (c === "LABOR_COST_PCT") return { code: "LABOR_COST_RATIO", label: "Labor Cost %", unit: "pct" };
-  if (c === "PRIME_COST_PCT") return { code: "PRIME_COST_RATIO", label: "Prime Cost %", unit: "pct" };
+  if (c === "FOOD_COST_PCT" || c === "FOOD_COST_RATIO") return { code: "FOOD_COST_RATIO", label: "Food Cost %", unit: "pct" };
+  if (c === "LABOR_COST_PCT" || c === "LABOR_COST_RATIO") return { code: "LABOR_COST_RATIO", label: "Labor Cost %", unit: "pct" };
+  if (c === "PRIME_COST_PCT" || c === "PRIME_COST_RATIO") return { code: "PRIME_COST_RATIO", label: "Prime Cost %", unit: "pct" };
   if (c === "FIXED_COST_COVERAGE_RATIO") return { code: "FIXED_COST_COVERAGE_RATIO", label: "Fixed Cost Coverage", unit: "ratio" };
   if (c === "BREAK_EVEN_REVENUE") return { code: "BREAK_EVEN_REVENUE", label: "Break-even Revenue", unit: "usd" };
   if (c === "SAFETY_MARGIN_PCT") return { code: "SAFETY_MARGIN", label: "Safety Margin", unit: "pct" };
@@ -388,9 +388,9 @@ export async function GET(req: Request) {
       aov:                   { code: "ARPU",                  unit: "usd" },
       gross_profit:          { code: "GROSS_PROFIT",          unit: "usd" },
       gross_margin:          { code: "GROSS_MARGIN",          unit: "pct" },
-      food_cost_pct:         { code: "FOOD_COST_PCT",         unit: "pct" },
-      labor_cost_pct:        { code: "LABOR_COST_PCT",        unit: "pct" },
-      prime_cost_pct:        { code: "PRIME_COST_PCT",        unit: "pct" },
+      food_cost_pct:         { code: "FOOD_COST_RATIO",      unit: "pct" },
+      labor_cost_pct:        { code: "LABOR_COST_RATIO",     unit: "pct" },
+      prime_cost_pct:        { code: "PRIME_COST_RATIO",     unit: "pct" },
       prime_cost:            { code: "PRIME_COST",            unit: "usd" },
       cogs:                  { code: "COGS",                  unit: "usd" },
       labor:                 { code: "LABOR",                 unit: "usd" },
