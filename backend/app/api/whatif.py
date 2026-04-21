@@ -21,6 +21,25 @@ router = APIRouter(prefix="/api/whatif", tags=["What-If Preview"])
 
 
 # ── Action definitions ────────────────────────────────────────────────────────
+ACTION_CODE_MAP = {
+    "investigate_revenue_decline":  "increase_revenue",
+    "accelerate_growth_momentum":   "increase_revenue",
+    "boost_revenue":                "increase_revenue",
+    "improve_revenue":              "increase_revenue",
+    "reduce_labor":                 "reduce_labor_cost",
+    "optimize_labor":               "reduce_labor_cost",
+    "labor_optimization":           "reduce_labor_cost",
+    "reduce_food_costs":            "reduce_food_cost",
+    "optimize_food_cost":           "reduce_food_cost",
+    "food_cost_reduction":          "reduce_food_cost",
+    "reduce_waste_spoilage":        "reduce_waste",
+    "waste_reduction":              "reduce_waste",
+    "reduce_discount_abuse":        "reduce_discounts",
+    "optimize_discounts":           "reduce_discounts",
+    "improve_margins":              "improve_prime_cost",
+    "prime_cost_optimization":      "improve_prime_cost",
+}
+
 ACTION_CATALOGUE = {
     "reduce_labor_cost": {
         "label":       "Reduce Labor Cost",
@@ -210,6 +229,8 @@ def whatif_preview(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No active tenant")
 
+    # Map ML action codes to catalogue codes
+    payload.action_code = ACTION_CODE_MAP.get(payload.action_code, payload.action_code)
     if payload.action_code not in ACTION_CATALOGUE:
         raise HTTPException(
             status_code=400,
