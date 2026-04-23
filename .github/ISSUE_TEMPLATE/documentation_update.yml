@@ -1,0 +1,55 @@
+name: Documentation update
+description: Request a documentation addition or change for Valora AI
+title: "[Docs]: "
+labels: ["docs"]
+body:
+  - type: input
+    id: topic
+    attributes:
+      label: Document or topic
+      description: What document, section, or topic needs updating?
+      placeholder: KPI registry / onboarding flow / deployment setup / architecture
+    validations:
+      required: true
+
+  - type: textarea
+    id: change
+    attributes:
+      label: What needs to be added or changed
+      description: Describe the requested documentation update
+      placeholder: Explain what should be updated
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this matters
+      description: Why is this documentation needed or useful?
+      placeholder: Explain why this change matters
+    validations:
+      required: true
+
+  - type: input
+    id: files
+    attributes:
+      label: Relevant files or pages
+      description: Mention docs, folders, pages, or files if known
+      placeholder: README.md / docs/data-model.md / app/onboarding/page.tsx
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+        - [ ] Criterion 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      placeholder: Any extra context
