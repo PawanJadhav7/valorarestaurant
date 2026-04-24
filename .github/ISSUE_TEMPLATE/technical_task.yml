@@ -1,0 +1,63 @@
+name: Technical task
+description: Track internal engineering or operational work for Valora AI
+title: "[Task]: "
+labels: ["task"]
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What needs to be done?
+      placeholder: Describe the task clearly
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this work is needed
+      description: Why is this task important?
+      placeholder: Explain why this task matters
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is included and excluded?
+      placeholder: Describe the scope
+    validations:
+      required: true
+
+  - type: input
+    id: area
+    attributes:
+      label: Affected area
+      description: Example - frontend, backend, database, auth, billing, onboarding, analytics, ai, infra
+      placeholder: frontend / backend / database / auth / billing / onboarding / analytics / ai / infra
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+        - [ ] Criterion 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies or blockers
+      placeholder: List dependencies, blockers, or related issues
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      placeholder: Any extra implementation notes

@@ -1,0 +1,55 @@
+name: Feature request
+description: Suggest a new product capability or enhancement for Valora AI
+title: "[Feature]: "
+labels: ["feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What business or user problem does this address?
+      placeholder: Describe the problem clearly
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What should we build or improve?
+      placeholder: Describe the proposed solution
+    validations:
+      required: true
+
+  - type: input
+    id: area
+    attributes:
+      label: Affected area
+      description: Example - frontend, backend, analytics, billing, onboarding, AI
+      placeholder: frontend / backend / analytics / billing / onboarding / ai
+    validations:
+      required: true
+
+  - type: input
+    id: beneficiaries
+    attributes:
+      label: Who benefits?
+      description: Who will use or gain value from this?
+      placeholder: restaurant operator / admin / internal engineering / customer
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+        - [ ] Criterion 3
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context or mockups
+      placeholder: Add extra details, screenshots, or mockups here
